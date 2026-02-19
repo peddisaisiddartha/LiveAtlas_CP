@@ -23,9 +23,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-dz@kpq^*o%hx)0kt=)a$4yv5q_w0(*z_7j+czg508tnfb+@of9'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ['liveatlas-cp.onrender.com']
 
 
 # Application definition
