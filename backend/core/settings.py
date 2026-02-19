@@ -26,6 +26,10 @@ DEBUG = False
 
 ALLOWED_HOSTS = ['liveatlas-cp.onrender.com']
 
+CSRF_TRUSTED_ORIGINS = [
+    "https://liveatlas-cp.onrender.com",
+]
+
 
 # Application definition
 
