@@ -1,9 +1,10 @@
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.models import User
 from .models import Tour
 import json
+
 
 def get_tours(request):
     # Only show tours that are Active (is_active=True)
@@ -18,7 +19,7 @@ def create_tour(request):
         price = request.POST.get('price')
         thumbnail = request.FILES.get('thumbnail')
 
-        guide = User.objects.first() 
+        guide = User.objects.first()
         if not guide:
             guide = User.objects.create_user(username='admin', password='password')
 
@@ -39,3 +40,14 @@ def end_tour(request, tour_id):
         tour.is_active = False # Hides it from the dashboard
         tour.save()
         return JsonResponse({'status': 'success'})
+
+
+def create_admin_once(request):
+    if not User.objects.filter(username="admin").exists():
+        User.objects.create_superuser(
+            username="admin",
+            email="admin@test.com",
+            password="admin123"
+        )
+        return HttpResponse("Admin created")
+    return HttpResponse("Admin already exists")
