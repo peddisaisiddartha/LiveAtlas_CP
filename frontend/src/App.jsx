@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
+import './index.css';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import VideoRoom from './pages/VideoRoom'; // Your existing video room
-import Login from './pages/Login';         // We will create this
+import Login from './pages/Login.jsx';         // We will create this
 import GuideDashboard from './pages/GuideDashboard'; // We will create this
 import UserDashboard from './pages/UserDashboard';   // We will create this
 
@@ -16,13 +17,13 @@ function App() {
         <Route path="/" element={<Login setUserRole={setUserRole} />} />
 
         {/* Dashboards (Protected) */}
-        <Route 
-          path="/guide-dashboard" 
-          element={userRole === 'guide' ? <GuideDashboard /> : <Navigate to="/" />} 
+        <Route
+          path="/guide-dashboard"
+          element={userRole === 'guide' ? <GuideDashboard /> : <Navigate to="/" />}
         />
-        <Route 
-          path="/user-dashboard" 
-          element={userRole === 'user' ? <UserDashboard /> : <Navigate to="/" />} 
+        <Route
+          path="/user-dashboard"
+          element={userRole === 'user' ? <UserDashboard /> : <Navigate to="/" />}
         />
 
         {/* Video Room */}

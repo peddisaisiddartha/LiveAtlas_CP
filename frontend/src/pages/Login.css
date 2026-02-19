@@ -1,0 +1,118 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.login-container {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background: linear-gradient(135deg, #0a0a1f 0%, #1a1a2e 50%, #0f0f23 100%);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  color: white;
+
+}
+
+.globe-container {
+  flex: 0 0 60%;
+  position: relative;
+  background: transparent;
+}
+
+.login-panel {
+  flex: 0 0 40%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 50px;
+  background: rgba(15, 15, 35, 0.45);
+  backdrop-filter: blur(32px);
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: -20px 0 60px rgba(0, 0, 0, 0.6);
+  z-index: 10;
+}
+
+.login-content {
+  max-width: 380px;
+  width: 100%;
+  text-align: center;
+}
+
+.logo {
+  font-size: 4.8rem;
+  font-weight: 800;
+  letter-spacing: -3px;
+  margin-bottom: 12px;
+  background: linear-gradient(90deg, #67e8f9, #f0f9ff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 40px rgba(103, 232, 249, 0.6);
+  user-select: none;
+}
+
+.tagline {
+  font-size: 1.42rem;
+  line-height: 1.45;
+  margin-bottom: 72px;
+  opacity: 0.92;
+  font-weight: 400;
+}
+
+.buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.role-button {
+  padding: 19px 36px;
+  font-size: 1.18rem;
+  font-weight: 600;
+  border-radius: 9999px;
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  cursor: pointer;
+  transition: all 0.45s cubic-bezier(0.23, 1, 0.32, 1);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  position: relative;
+  overflow: hidden;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.role-button:hover {
+  transform: translateY(-6px) scale(1.04);
+  border-color: #67e8f9;
+  background: rgba(103, 232, 249, 0.18);
+  box-shadow: 0 25px 50px rgba(103, 232, 249, 0.35);
+}
+
+.role-button:active {
+  transform: scale(0.98);
+}
+
+.role-button.tourist {
+  background: linear-gradient(90deg, rgba(103, 232, 249, 0.15), rgba(165, 243, 252, 0.08));
+}
+
+.role-button.guide {
+  background: linear-gradient(90deg, rgba(192, 132, 252, 0.15), rgba(216, 180, 254, 0.08));
+}
+
+/* Subtle depth on panel */
+.login-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 0;
+  background: linear-gradient(
+    145deg,
+    rgba(255,255,255,0.03) 0%,
+    transparent 50%
+  );
+  pointer-events: none;
+}

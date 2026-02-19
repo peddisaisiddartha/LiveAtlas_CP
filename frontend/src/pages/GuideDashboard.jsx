@@ -30,7 +30,7 @@ const GuideDashboard = () => {
     const response = await fetch('http://127.0.0.1:8000/api/create-tour/', {
       method: 'POST',
       // Note: Do NOT set Content-Type header when using FormData; browser does it automatically
-      body: formData 
+      body: formData
     });
 
     const data = await response.json();
@@ -52,14 +52,14 @@ const GuideDashboard = () => {
       <div style={{maxWidth: '600px', margin: '60px auto', padding: '0 20px'}}>
         <div style={{background: 'white', padding: '40px', borderRadius: '24px', boxShadow: '0 20px 40px rgba(0,0,0,0.05)'}}>
             <h2 style={{marginTop: 0, color: '#0F172A'}}>Create a Broadcast</h2>
-            
+
             {/* Title Input */}
             <div style={{marginBottom: '20px'}}>
                 <label style={{display: 'block', fontWeight: '600', marginBottom: '8px', color: '#334155'}}>Tour Title</label>
                 <input type="text" placeholder="e.g. Walking tour of Old City" value={title} onChange={(e) => setTitle(e.target.value)}
                     style={{width: '100%', padding: '14px', borderRadius: '12px', border: '2px solid #E2E8F0', outline: 'none'}} />
             </div>
-            
+
             {/* Image Input (New) */}
             <div style={{marginBottom: '20px'}}>
                 <label style={{display: 'block', fontWeight: '600', marginBottom: '8px', color: '#334155'}}>Cover Image</label>

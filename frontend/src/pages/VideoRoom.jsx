@@ -1,24 +1,25 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import './VideoRoom.css'; 
+import './VideoRoom.css';
 import { FaMicrophone, FaMicrophoneSlash, FaVideo, FaVideoSlash, FaPhoneSlash, FaExpand, FaCompress, FaGlobeAmericas } from 'react-icons/fa';
 
 const VideoRoom = () => {
     const { roomID } = useParams();
     const navigate = useNavigate();
-    
+
     // State for controls
     const [isAudioOn, setIsAudioOn] = useState(true);
     const [isVideoOn, setIsVideoOn] = useState(true);
     const [isFullScreen, setIsFullScreen] = useState(false);
-    
+
     const localVideoRef = useRef(null);
     const remoteVideoRef = useRef(null);
     const ws = useRef(null);
     const peerConnection = useRef(null);
 
     useEffect(() => {
-        ws.current = new WebSocket(`ws://localhost:8000/ws/tours/${roomID}/`);
+        const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+ws.current = new WebSocket(`ws://127.0.0.1:8000/ws/tours/${roomID}/`);
 
         ws.current.onopen = () => {
             console.log("Connected to WebSocket");
@@ -102,8 +103,8 @@ const VideoRoom = () => {
 
         // 2. Tell the backend to kill the tour
         try {
-            await fetch(`http://127.0.0.1:8000/api/end-tour/${dbId}/`, { 
-                method: 'POST' 
+            await fetch(`http://127.0.0.1:8000/api/end-tour/${dbId}/`, {
+                method: 'POST'
             });
             console.log("Tour ended successfully");
         } catch (err) {
@@ -114,7 +115,7 @@ const VideoRoom = () => {
         if (localVideoRef.current && localVideoRef.current.srcObject) {
             localVideoRef.current.srcObject.getTracks().forEach(track => track.stop());
         }
-        
+
         // 4. Close connection and leave
         if (ws.current) ws.current.close();
         navigate('/'); // Go back home
@@ -161,7 +162,7 @@ const VideoRoom = () => {
                 <button className="control-btn end-call" onClick={endCall}>
                     <FaPhoneSlash />
                 </button>
-                
+
                 <button className="control-btn" onClick={toggleFullScreen}>
                     {isFullScreen ? <FaCompress /> : <FaExpand />}
                 </button>
