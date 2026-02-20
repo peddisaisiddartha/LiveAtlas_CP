@@ -27,7 +27,7 @@ const GuideDashboard = () => {
     }
 
     // Send to Backend
-    const response = await fetch('https://liveatlas-cp.onrender.com/api/create-tour/', {
+    const response = await fetch('https://liveatlas-cp-1.onrender.com/api/create-tour/', {
       method: 'POST',
       // Note: Do NOT set Content-Type header when using FormData; browser does it automatically
       body: formData

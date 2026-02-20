@@ -6,7 +6,7 @@ const UserDashboard = () => {
   const [tours, setTours] = useState([]);
 
   useEffect(() => {
-    fetch('https://liveatlas-cp.onrender.com/api/tours/')
+    fetch('https://liveatlas-cp-1.onrender.com/api/tours/')
       .then(res => res.json())
       .then(data => setTours(data))
       .catch(err => console.error("Failed to load tours", err));
@@ -75,7 +75,7 @@ const UserDashboard = () => {
           ) : (
             tours.map(tour => {
                 const imageUrl = tour.thumbnail
-                ? `https://liveatlas-cp.onrender.com/media/${tour.thumbnail}`
+                ? `https://liveatlas-cp-1.onrender.com/media/${tour.thumbnail}`
                 : `https://source.unsplash.com/random/400x300/?travel-${tour.title}`;
                 return (
                     <div key={tour.id} style={{
