@@ -8,8 +8,9 @@
 /* Prevent scroll + mobile resize glitches */
 html, body {
   width: 100%;
-  height: 100%;
-  overflow: hidden;
+  min-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
   background: #000014;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
@@ -18,8 +19,7 @@ html, body {
 .login-container {
   position: relative;
   width: 100%;
-  height: 100svh; /* fixes mobile viewport bug */
-  overflow: hidden;
+  min-height: 100svh; /* fixes mobile viewport bug */
 }
 
 /* Three.js canvas container */

@@ -24,10 +24,10 @@ SECRET_KEY = os.environ.get('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = ['liveatlas-cp.onrender.com']
+ALLOWED_HOSTS = ['liveatlas-cp-1.onrender.com']
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://liveatlas-cp.onrender.com",
+    "https://liveatlas-cp-1.onrender.com",
 ]
 
 

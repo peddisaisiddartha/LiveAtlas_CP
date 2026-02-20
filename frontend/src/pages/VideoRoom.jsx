@@ -22,6 +22,12 @@ const VideoRoom = () => {
   const newFacing = cameraFacing === "environment" ? "user" : "environment";
   setCameraFacing(newFacing);
 
+  // Stop old stream tracks
+    const oldStream = localVideoRef.current?.srcObject;
+    if (oldStream) {
+        oldStream.getTracks().forEach(track => track.stop());
+    }
+
   try {
     const newStream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: { ideal: newFacing } },
