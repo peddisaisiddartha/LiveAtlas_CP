@@ -83,7 +83,8 @@ const handleLogin = (role) => {
     // Animation
     const animate = () => {
       animationRef.current = requestAnimationFrame(animate);
-      globe.rotation.y += 0.0008; // beautiful slow rotation
+     globe.rotation.y += 0.0008;
+     globe.rotation.x = Math.sin(Date.now() * 0.0002) * 0.05;
       renderer.render(scene, camera);
     };
     animate();
@@ -122,26 +123,36 @@ const handleLogin = (role) => {
 
 
   return (
-    <div className="login-container">
-      <div className="globe-container" ref={mountRef}></div>
-      <div className="login-panel">
-        <div className="login-content">
-          <div className="logo">LiveAtlas</div>
-          <p className="tagline">
-            Travel without moving.<br />Experience the world in real time.
-          </p>
-          <div className="buttons">
-            <button className="role-button tourist" onClick={() => handleLogin('user')}>
-              I am a Tourist
-            </button>
-            <button className="role-button guide" onClick={() => handleLogin('guide')}>
-              I am a Guide
-            </button>
-          </div>
+  <div className="login-container">
+    <div className="globe-container" ref={mountRef}></div>
+
+    <div className="overlay">
+      <div className="login-content">
+        <div className="logo">LiveAtlas</div>
+        <p className="tagline">
+          Travel without moving.<br />
+          Experience the world in real time.
+        </p>
+
+        <div className="buttons">
+          <button
+            className="role-button tourist"
+            onClick={() => handleLogin("user")}
+          >
+            I AM A TOURIST
+          </button>
+
+          <button
+            className="role-button guide"
+            onClick={() => handleLogin("guide")}
+          >
+            I AM A GUIDE
+          </button>
         </div>
       </div>
     </div>
-  );
+  </div>
+);
 };
 
 export default Login;

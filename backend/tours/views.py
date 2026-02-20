@@ -7,9 +7,20 @@ import json
 
 
 def get_tours(request):
-    # Only show tours that are Active (is_active=True)
-    tours = list(Tour.objects.filter(is_active=True).values('id', 'title', 'description', 'guide__username', 'price', 'thumbnail'))
-    return JsonResponse(tours, safe=False)
+    tours = Tour.objects.filter(is_active=True)
+
+    data = []
+    for tour in tours:
+        data.append({
+            "id": tour.id,
+            "title": tour.title,
+            "description": tour.description,
+            "guide_username": tour.guide.username,
+            "price": str(tour.price),
+            "thumbnail": request.build_absolute_uri(tour.thumbnail.url) if tour.thumbnail else None
+        })
+
+    return JsonResponse(data, safe=False)
 
 @csrf_exempt
 def create_tour(request):

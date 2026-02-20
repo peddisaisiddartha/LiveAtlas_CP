@@ -1,118 +1,165 @@
+/* Reset */
 * {
+  box-sizing: border-box;
   margin: 0;
   padding: 0;
-  box-sizing: border-box;
 }
 
-.login-container {
-  display: flex;
-  height: 100vh;
-  width: 100vw;
-  overflow: hidden;
-  background: linear-gradient(135deg, #0a0a1f 0%, #1a1a2e 50%, #0f0f23 100%);
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  color: white;
-
-}
-
-.globe-container {
-  flex: 0 0 60%;
-  position: relative;
-  background: transparent;
-}
-
-.login-panel {
-  flex: 0 0 40%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 60px 50px;
-  background: rgba(15, 15, 35, 0.45);
-  backdrop-filter: blur(32px);
-  border-left: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: -20px 0 60px rgba(0, 0, 0, 0.6);
-  z-index: 10;
-}
-
-.login-content {
-  max-width: 380px;
+/* Prevent scroll + mobile resize glitches */
+html, body {
   width: 100%;
-  text-align: center;
+  height: 100%;
+  overflow: hidden;
+  background: #000014;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
+/* Main container */
+.login-container {
+  position: relative;
+  width: 100%;
+  height: 100svh; /* fixes mobile viewport bug */
+  overflow: hidden;
+}
+
+/* Three.js canvas container */
+.globe-container {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Dark cinematic overlay */
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+
+  padding: 24px;
+
+  background: linear-gradient(
+  to top,
+  rgba(0, 0, 25, 0.9) 0%,
+  rgba(0, 0, 40, 0.75) 40%,
+  rgba(0, 0, 0, 0.35) 100%
+);
+}
+
+/* Content wrapper */
+.login-content {
+  width: 100%;
+  max-width: 420px;
+  color: white;
+}
+
+/* Logo */
 .logo {
-  font-size: 4.8rem;
-  font-weight: 800;
-  letter-spacing: -3px;
-  margin-bottom: 12px;
-  background: linear-gradient(90deg, #67e8f9, #f0f9ff);
+  font-size: clamp(32px, 6vw, 44px);
+  font-weight: 700;
+  letter-spacing: 1px;
+  margin-bottom: 16px;
+
+  background: linear-gradient(90deg, #6dd5fa, #ffffff);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  text-shadow: 0 0 40px rgba(103, 232, 249, 0.6);
-  user-select: none;
 }
 
+/* Tagline */
 .tagline {
-  font-size: 1.42rem;
-  line-height: 1.45;
-  margin-bottom: 72px;
-  opacity: 0.92;
-  font-weight: 400;
+  font-size: clamp(14px, 3.5vw, 18px);
+  line-height: 1.6;
+  margin-bottom: 40px;
+  color: #d0d6ff;
 }
 
+/* Buttons wrapper */
 .buttons {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 18px;
 }
 
+/* Base button */
 .role-button {
-  padding: 19px 36px;
-  font-size: 1.18rem;
+  width: 100%;
+  padding: 18px;
+  border-radius: 40px;
+  font-size: 15px;
   font-weight: 600;
-  border-radius: 9999px;
-  border: 1.5px solid rgba(255, 255, 255, 0.25);
-  background: rgba(255, 255, 255, 0.08);
-  color: white;
+  border: none;
   cursor: pointer;
-  transition: all 0.45s cubic-bezier(0.23, 1, 0.32, 1);
-  backdrop-filter: blur(12px);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-  position: relative;
-  overflow: hidden;
-  text-transform: uppercase;
+  transition: all 0.25s ease;
   letter-spacing: 0.5px;
+
+  touch-action: manipulation;
 }
 
+/* Tourist button */
+.tourist {
+  background: linear-gradient(90deg, #00c6ff, #0072ff);
+  color: white;
+}
+
+/* Guide button */
+.guide {
+  background: linear-gradient(90deg, #8e2de2, #4a00e0);
+  color: white;
+}
+
+/* Hover + tap feedback */
 .role-button:hover {
-  transform: translateY(-6px) scale(1.04);
-  border-color: #67e8f9;
-  background: rgba(103, 232, 249, 0.18);
-  box-shadow: 0 25px 50px rgba(103, 232, 249, 0.35);
+  transform: scale(1.04);
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.25);
 }
 
 .role-button:active {
   transform: scale(0.98);
 }
 
-.role-button.tourist {
-  background: linear-gradient(90deg, rgba(103, 232, 249, 0.15), rgba(165, 243, 252, 0.08));
+/* Desktop Enhancement */
+@media (min-width: 768px) {
+  .login-content {
+    max-width: 500px;
+  }
+
+  .role-button {
+    font-size: 16px;
+  }
 }
 
-.role-button.guide {
-  background: linear-gradient(90deg, rgba(192, 132, 252, 0.15), rgba(216, 180, 254, 0.08));
+/* ===== Premium Fade Entrance ===== */
+
+.login-content {
+  opacity: 0;
+  transform: translateY(40px);
+  animation: premiumFade 1.2s ease forwards;
 }
 
-/* Subtle depth on panel */
-.login-panel::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 0;
-  background: linear-gradient(
-    145deg,
-    rgba(255,255,255,0.03) 0%,
-    transparent 50%
-  );
-  pointer-events: none;
+@keyframes premiumFade {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ===== Premium Button Upgrade ===== */
+
+.role-button {
+  transition: all 0.35s ease;
+  transform: translateY(0);
+}
+
+.role-button:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 25px rgba(0, 114, 255, 0.4);
+}
+
+.role-button:active {
+  transform: translateY(-1px);
 }

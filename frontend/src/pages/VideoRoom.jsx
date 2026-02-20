@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import './VideoRoom.css';
-import { FaMicrophone, FaMicrophoneSlash, FaVideo, FaVideoSlash, FaPhoneSlash, FaExpand, FaCompress, FaGlobeAmericas } from 'react-icons/fa';
+import { FaMicrophone, FaMicrophoneSlash, FaVideo, FaVideoSlash, FaPhoneSlash, FaExpand, FaCompress, FaGlobeAmericas, FaSyncAlt } from 'react-icons/fa';
 
 const VideoRoom = () => {
     const { roomID } = useParams();
@@ -11,11 +11,40 @@ const VideoRoom = () => {
     const [isAudioOn, setIsAudioOn] = useState(true);
     const [isVideoOn, setIsVideoOn] = useState(true);
     const [isFullScreen, setIsFullScreen] = useState(false);
+    const [cameraFacing, setCameraFacing] = useState("environment");
 
     const localVideoRef = useRef(null);
     const remoteVideoRef = useRef(null);
     const ws = useRef(null);
     const peerConnection = useRef(null);
+
+    const switchCamera = async () => {
+  const newFacing = cameraFacing === "environment" ? "user" : "environment";
+  setCameraFacing(newFacing);
+
+  try {
+    const newStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: newFacing } },
+      audio: true
+    });
+
+    // Replace local video
+    const videoTrack = newStream.getVideoTracks()[0];
+    const sender = peerConnection.current
+      ?.getSenders()
+      .find(s => s.track && s.track.kind === "video");
+
+    if (sender) {
+      sender.replaceTrack(videoTrack);
+    }
+
+    // Update local preview
+    localVideoRef.current.srcObject = newStream;
+
+  } catch (err) {
+    console.error("Camera switch failed:", err);
+  }
+};
 
     useEffect(() => {
         const protocol = window.location.protocol === "https:" ? "wss" : "ws";
@@ -40,7 +69,7 @@ ws.current = new WebSocket(
     }, [roomID]);
 
     const setupWebRTC = async () => {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        const stream = await navigator.mediaDevices.getUserMedia({ video: {facingMode:{ideal:cameraFacing} }, audio: true });
         if (localVideoRef.current) localVideoRef.current.srcObject = stream;
 
        peerConnection.current = new RTCPeerConnection({
@@ -175,6 +204,10 @@ ws.current = new WebSocket(
 
                 <button className="control-btn end-call" onClick={endCall}>
                     <FaPhoneSlash />
+                </button>
+
+                <button className="control-btn" onClick={switchCamera}>
+                    <FaSyncAlt />
                 </button>
 
                 <button className="control-btn" onClick={toggleFullScreen}>
