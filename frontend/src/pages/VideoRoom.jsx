@@ -152,7 +152,7 @@ ws.current = new WebSocket(
 
         // 2. Tell the backend to kill the tour
         try {
-            await fetch(`http://127.0.0.1:8000/api/end-tour/${dbId}/`, {
+            await fetch(`https://liveatlas-cp-1.onrender.com/api/end-tour/${dbId}/`, {
                 method: 'POST'
             });
             console.log("Tour ended successfully");

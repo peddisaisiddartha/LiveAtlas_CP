@@ -6,7 +6,7 @@ const UserDashboard = () => {
   const [tours, setTours] = useState([]);
 
   useEffect(() => {
-    fetch('https://liveatlas-cp-1.onrender.com/api/tours/')
+    fetch('http://127.0.0.1:8000/api/tours/')
       .then(res => res.json())
       .then(data => setTours(data))
       .catch(err => console.error("Failed to load tours", err));
