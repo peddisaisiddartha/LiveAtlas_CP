@@ -79,20 +79,36 @@ ws.current = new WebSocket(
         if (localVideoRef.current) localVideoRef.current.srcObject = stream;
 
        peerConnection.current = new RTCPeerConnection({
+
   iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    {
-      urls: "turn:openrelay.metered.ca:80",
-      username: "openrelayproject",
-      credential: "openrelayproject"
-    },
-    {
-      urls: "turn:openrelay.metered.ca:443",
-      username: "openrelayproject",
-      credential: "openrelayproject"
-    }
-  ]
+      {
+        urls: "stun:stun.relay.metered.ca:80",
+      },
+      {
+        urls: "turn:global.relay.metered.ca:80",
+        username: "a08d7dab4952ac44632adaaa",
+        credential: "4+8LpWBi440BQE2K",
+      },
+      {
+        urls: "turn:global.relay.metered.ca:80?transport=tcp",
+        username: "a08d7dab4952ac44632adaaa",
+        credential: "4+8LpWBi440BQE2K",
+      },
+      {
+        urls: "turn:global.relay.metered.ca:443",
+        username: "a08d7dab4952ac44632adaaa",
+        credential: "4+8LpWBi440BQE2K",
+      },
+      {
+        urls: "turns:global.relay.metered.ca:443?transport=tcp",
+        username: "a08d7dab4952ac44632adaaa",
+        credential: "4+8LpWBi440BQE2K",
+      },
+  ],
+  iceTransportPolicy: "relay",
+  iceCandidatePoolSize: 10
 });
+
 
         stream.getTracks().forEach(track => peerConnection.current.addTrack(track, stream));
 
@@ -100,11 +116,12 @@ ws.current = new WebSocket(
             if (remoteVideoRef.current) remoteVideoRef.current.srcObject = event.streams[0];
         };
 
-        peerConnection.current.onicecandidate = (event) => {
-            if (event.candidate) {
-                ws.current.send(JSON.stringify({ type: 'candidate', candidate: event.candidate }));
-            }
-        };
+       peerConnection.current.onicecandidate = (event) => {
+         if (event.candidate) {
+            console.log("Candidate:", event.candidate.candidate);
+            ws.current.send(JSON.stringify({ type: 'candidate', candidate: event.candidate }));
+    }
+};
 
         setTimeout(createOffer, 1000);
     };

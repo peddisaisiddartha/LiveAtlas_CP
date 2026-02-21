@@ -74,9 +74,9 @@ const UserDashboard = () => {
             </div>
           ) : (
             tours.map(tour => {
-                const imageUrl = tour.thumbnail
-                ? `https://liveatlas-cp-1.onrender.com/media/${tour.thumbnail}`
-                : `https://source.unsplash.com/random/400x300/?travel-${tour.title}`;
+               const imageUrl = tour.thumbnail
+                ? tour.thumbnail
+                : "https://via.placeholder.com/400x300";
                 return (
                     <div key={tour.id} style={{
                       background: 'white',
