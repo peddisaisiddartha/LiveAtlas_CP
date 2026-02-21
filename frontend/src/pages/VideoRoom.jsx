@@ -75,7 +75,19 @@ ws.current = new WebSocket(
     }, [roomID]);
 
     const setupWebRTC = async () => {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: {facingMode:{ideal:cameraFacing} }, audio: true });
+        const stream = await navigator.mediaDevices.getUserMedia({
+  video: {
+    facingMode: { ideal: cameraFacing },
+    width: { ideal: 1280 },
+    height: { ideal: 720 },
+    frameRate: { ideal: 24, max: 30 }
+  },
+  audio: {
+    echoCancellation: true,
+    noiseSuppression: true,
+    autoGainControl: true
+  }
+});
         if (localVideoRef.current) localVideoRef.current.srcObject = stream;
 
        peerConnection.current = new RTCPeerConnection({
@@ -105,12 +117,32 @@ ws.current = new WebSocket(
         credential: "4+8LpWBi440BQE2K",
       },
   ],
-  iceTransportPolicy: "relay",
+
   iceCandidatePoolSize: 10
 });
 
 
         stream.getTracks().forEach(track => peerConnection.current.addTrack(track, stream));
+
+        const senders = peerConnection.current.getSenders();
+
+senders.forEach(sender => {
+  if (sender.track && sender.track.kind === "video") {
+    const params = sender.getParameters();
+    if (!params.encodings) params.encodings = [{}];
+    params.encodings[0].maxBitrate = 1500000;
+    sender.setParameters(params);
+  }
+});
+
+senders.forEach(sender => {
+  if (sender.track && sender.track.kind === "audio") {
+    const params = sender.getParameters();
+    if (!params.encodings) params.encodings = [{}];
+    params.encodings[0].maxBitrate = 64000;
+    sender.setParameters(params);
+  }
+});
 
         peerConnection.current.ontrack = (event) => {
             if (remoteVideoRef.current) remoteVideoRef.current.srcObject = event.streams[0];
@@ -123,7 +155,7 @@ ws.current = new WebSocket(
     }
 };
 
-        setTimeout(createOffer, 1000);
+        setTimeout(createOffer, 200);
     };
 
     const createOffer = async () => {
@@ -169,7 +201,7 @@ ws.current = new WebSocket(
 
         // 2. Tell the backend to kill the tour
         try {
-            await fetch(`https://liveatlas-cp-1.onrender.com/api/end-tour/${dbId}/`, {
+            await fetch(`https://liveatlas-cp.onrender.com/api/end-tour/${dbId}/`, {
                 method: 'POST'
             });
             console.log("Tour ended successfully");
