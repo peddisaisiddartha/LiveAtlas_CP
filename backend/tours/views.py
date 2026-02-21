@@ -3,6 +3,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.models import User
 from .models import Tour
 import json
+import cloudinary.uploader
 
 
 def get_tours(request):
@@ -16,7 +17,7 @@ def get_tours(request):
             "description": tour.description,
             "guide_username": tour.guide.username,
             "price": str(tour.price),
-            "thumbnail": request.build_absolute_uri(tour.thumbnail.url) if tour.thumbnail else None
+           "thumbnail": tour.thumbnail if tour.thumbnail else None
         })
 
     return JsonResponse(data, safe=False)
@@ -40,14 +41,21 @@ def create_tour(request):
                 password="password"
             )
 
+        thumbnail_url = None
+
+        if thumbnail:
+           upload_result = cloudinary.uploader.upload(thumbnail)
+           thumbnail_url = upload_result.get("secure_url")
+
         tour = Tour.objects.create(
-            guide=guide,
-            title=title,
-            description=description,
-            price=price,
-            thumbnail=thumbnail,
-            is_active=True
-        )
+           guide=guide,
+           title=title,
+           description=description,
+           price=price,
+           thumbnail=thumbnail_url,
+           is_active=True
+)
+
 
         return JsonResponse({"status": "success", "tour_id": tour.id})
 

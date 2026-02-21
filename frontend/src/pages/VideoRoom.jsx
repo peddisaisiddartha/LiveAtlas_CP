@@ -25,13 +25,13 @@ const VideoRoom = () => {
   // Stop old stream tracks
     const oldStream = localVideoRef.current?.srcObject;
     if (oldStream) {
-        oldStream.getTracks().forEach(track => track.stop());
+        oldStream.getVideoTracks().forEach(track => track.stop());
     }
 
   try {
     const newStream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: { ideal: newFacing } },
-      audio: true
+
     });
 
     // Replace local video
@@ -124,25 +124,6 @@ ws.current = new WebSocket(
 
         stream.getTracks().forEach(track => peerConnection.current.addTrack(track, stream));
 
-        const senders = peerConnection.current.getSenders();
-
-senders.forEach(sender => {
-  if (sender.track && sender.track.kind === "video") {
-    const params = sender.getParameters();
-    if (!params.encodings) params.encodings = [{}];
-    params.encodings[0].maxBitrate = 1500000;
-    sender.setParameters(params);
-  }
-});
-
-senders.forEach(sender => {
-  if (sender.track && sender.track.kind === "audio") {
-    const params = sender.getParameters();
-    if (!params.encodings) params.encodings = [{}];
-    params.encodings[0].maxBitrate = 64000;
-    sender.setParameters(params);
-  }
-});
 
         peerConnection.current.ontrack = (event) => {
             if (remoteVideoRef.current) remoteVideoRef.current.srcObject = event.streams[0];
@@ -182,11 +163,16 @@ senders.forEach(sender => {
     // --- CONTROLS LOGIC ---
 
     const toggleAudio = () => {
-        const stream = localVideoRef.current.srcObject;
-        const audioTrack = stream.getAudioTracks()[0];
-        audioTrack.enabled = !audioTrack.enabled;
-        setIsAudioOn(audioTrack.enabled);
-    };
+    const stream = localVideoRef.current?.srcObject;
+    if (!stream) return;
+
+    const audioTracks = stream.getAudioTracks();
+    if (!audioTracks.length) return;
+
+    const audioTrack = audioTracks[0];
+    audioTrack.enabled = !audioTrack.enabled;
+    setIsAudioOn(audioTrack.enabled);
+};
 
     const toggleVideo = () => {
         const stream = localVideoRef.current.srcObject;
