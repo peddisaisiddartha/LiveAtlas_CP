@@ -55,7 +55,7 @@ const VideoRoom = () => {
     useEffect(() => {
         const protocol = window.location.protocol === "https:" ? "wss" : "ws";
 ws.current = new WebSocket(
-  `${protocol}://liveatlas-cp-1.onrender.com/ws/tours/${roomID}/`
+  `${protocol}://liveatlas-cp.onrender.com/ws/tours/${roomID}/`
 );
 
         ws.current.onopen = () => {
