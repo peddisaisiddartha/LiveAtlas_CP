@@ -76,7 +76,7 @@ const UserDashboard = () => {
             tours.map(tour => {
                const imageUrl = tour.thumbnail
                 ? tour.thumbnail
-                : "https://via.placeholder.com/400x300";
+              : "https://via.placeholder.com/400x300";
                 return (
                     <div key={tour.id} style={{
                       background: 'white',
