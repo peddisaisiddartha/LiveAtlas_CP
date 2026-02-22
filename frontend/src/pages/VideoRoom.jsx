@@ -78,9 +78,9 @@ ws.current = new WebSocket(
         const stream = await navigator.mediaDevices.getUserMedia({
   video: {
     facingMode: { ideal: cameraFacing },
-    width: { ideal: 1280 },
-    height: { ideal: 720 },
-    frameRate: { ideal: 24, max: 30 }
+    width: { ideal: 1920 },
+    height: { ideal: 1080 },
+    frameRate: { ideal: 30, max: 30 }
   },
   audio: {
     echoCancellation: true,
@@ -136,7 +136,7 @@ ws.current = new WebSocket(
     }
 };
 
-        setTimeout(createOffer, 200);
+        setTimeout(createOffer, 500);
     };
 
     const createOffer = async () => {
