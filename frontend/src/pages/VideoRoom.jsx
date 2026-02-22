@@ -12,6 +12,9 @@ const VideoRoom = () => {
     const [isVideoOn, setIsVideoOn] = useState(true);
     const [isFullScreen, setIsFullScreen] = useState(false);
     const [cameraFacing, setCameraFacing] = useState("environment");
+    const [connectionQuality, setConnectionQuality ] = useState("good"); // "good", "poor", "disconnected"
+    const [micLevel, setMicLevel] = useState(0); // 0 to 1 for visualizer
+    const [isReconnecting, setIsReconnecting] = useState(false);
 
     const localVideoRef = useRef(null);
     const remoteVideoRef = useRef(null);
@@ -54,19 +57,33 @@ const VideoRoom = () => {
 
     useEffect(() => {
         const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-ws.current = new WebSocket(
-  `${protocol}://liveatlas-cp.onrender.com/ws/tours/${roomID}/`
-);
+const connectWebSocket = () => {
+    ws.current = new WebSocket(
+        `${protocol}://liveatlas-cp.onrender.com/ws/tours/${roomID}/`
+    );
 
-        ws.current.onopen = () => {
-            console.log("Connected to WebSocket");
-            setupWebRTC();
-        };
+    ws.current.onopen = () => {
+        console.log("WebSocket connected");
+        setIsReconnecting(false);
+        setupWebRTC();
+    };
 
-        ws.current.onmessage = async (event) => {
-            const data = JSON.parse(event.data);
-            handleSignalMessage(data);
-        };
+    ws.current.onclose = () => {
+        console.log("WebSocket disconnected. Reconnecting...");
+        setIsReconnecting(true);
+
+        setTimeout(() => {
+            connectWebSocket();
+        }, 2000);
+    };
+
+    ws.current.onmessage = async (event) => {
+        const data = JSON.parse(event.data);
+        handleSignalMessage(data);
+    };
+};
+
+connectWebSocket();
 
         return () => {
             if (ws.current) ws.current.close();
@@ -89,6 +106,24 @@ ws.current = new WebSocket(
   }
 });
         if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+
+        // Mic level analyzer
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const analyser = audioContext.createAnalyser();
+            const microphone = audioContext.createMediaStreamSource(stream);
+            microphone.connect(analyser);
+            analyser.fftSize = 256;
+
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+            const checkMicLevel = () => {
+               analyser.getByteFrequencyData(dataArray);
+               const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+               setMicLevel(avg);
+               requestAnimationFrame(checkMicLevel);
+};
+
+checkMicLevel();
 
        peerConnection.current = new RTCPeerConnection({
 
@@ -135,6 +170,26 @@ ws.current = new WebSocket(
             ws.current.send(JSON.stringify({ type: 'candidate', candidate: event.candidate }));
     }
 };
+
+  // Monitor connection quality
+setInterval(async () => {
+    if (!peerConnection.current) return;
+
+    const stats = await peerConnection.current.getStats();
+    stats.forEach(report => {
+        if (report.type === "candidate-pair" && report.state === "succeeded") {
+            const rtt = report.currentRoundTripTime;
+
+            if (rtt < 0.15) {
+                setConnectionQuality("good");
+            } else if (rtt < 0.3) {
+                setConnectionQuality("medium");
+            } else {
+                setConnectionQuality("poor");
+            }
+        }
+    });
+}, 3000);
 
         setTimeout(createOffer, 500);
     };
@@ -211,6 +266,12 @@ ws.current = new WebSocket(
 
     return (
         <div className={`room-container ${isFullScreen ? 'fullscreen-mode' : ''}`}>
+
+            {isReconnecting && (
+                <div className="reconnect-banner">
+                  Reconnecting...
+                </div>
+            )}
             {/* Header */}
             {!isFullScreen && (
                 <div className="room-header">
@@ -234,9 +295,22 @@ ws.current = new WebSocket(
             </div>
 
             {/* Controls Bar */}
+
+            <div className={`connection-indicator ${connectionQuality}`}>
+                {connectionQuality === "good" && "🟢 Good"}
+                {connectionQuality === "medium" && "🟡 Medium"}
+                {connectionQuality === "poor" && "🔴 Poor"}
+            </div>
+
             <div className="controls-bar">
                 <button className={`control-btn ${!isAudioOn ? 'off' : ''}`} onClick={toggleAudio}>
                     {isAudioOn ? <FaMicrophone /> : <FaMicrophoneSlash />}
+                    <div className="mic-meter">
+                    <div
+                         className="mic-fill"
+                        style={{ height: `${Math.min(micLevel, 100)}%` }}
+                     ></div>
+                    </div>
                 </button>
 
                 <button className={`control-btn ${!isVideoOn ? 'off' : ''}`} onClick={toggleVideo}>
