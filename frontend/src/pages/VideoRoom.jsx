@@ -282,13 +282,13 @@ setInterval(async () => {
 
             <div className="video-grid">
                 {/* Local Video (You) - Hidden in Fullscreen Mode usually, or becomes a small PiP */}
-                <div className={`video-wrapper local ${isFullScreen ? 'pip' : ''}`}>
+                <div className="video-wrapper local">
                     <video ref={localVideoRef} autoPlay playsInline muted />
                     <div className="name-tag">You {!isAudioOn && '(Muted)'}</div>
                 </div>
 
                 {/* Remote Video (Them) - Takes full space in Fullscreen */}
-                <div className={`video-wrapper remote ${isFullScreen ? 'expanded' : ''}`}>
+                <div className="video-wrapper remote">
                     <video ref={remoteVideoRef} autoPlay playsInline />
                     <div className="name-tag">Live Feed</div>
                 </div>
