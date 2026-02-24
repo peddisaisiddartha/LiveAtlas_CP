@@ -6,6 +6,7 @@ const GuideDashboard = () => {
   const [title, setTitle] = useState('');
   const [desc, setDesc] = useState('');
   const [image, setImage] = useState(null);
+  const [isCreating, setIsCreating] = useState(false);
   const navigate = useNavigate();
 
   const handleImageChange = (e) => {
@@ -15,6 +16,8 @@ const GuideDashboard = () => {
   };
 
   const createTour = async () => {
+    if (isCreating) return; // Prevent multiple clicks
+    setIsCreating(true);
     if (!title) {
       alert("Please enter a title!");
       return;
@@ -41,14 +44,17 @@ const GuideDashboard = () => {
       const data = await response.json();
 
       if (response.ok && data.status === 'success') {
+        setIsCreating(false);
         navigate(`/room/tour-${data.tour_id}`);
       } else {
         console.error("Backend error:", data);
         alert("Failed to create tour.");
+        setIsCreating(false);
       }
     } catch (error) {
       console.error("Network error:", error);
       alert("Something went wrong.");
+      setIsCreating(false);
     }
   };
 

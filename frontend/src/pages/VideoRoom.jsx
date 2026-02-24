@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import './VideoRoom.css';
 import { FaMicrophone, FaMicrophoneSlash, FaVideo, FaVideoSlash, FaPhoneSlash, FaExpand, FaCompress, FaGlobeAmericas, FaSyncAlt } from 'react-icons/fa';
+import { initVR, disposeVR } from "../vr/vrEngine";
 
 const VideoRoom = () => {
     const { roomID } = useParams();
@@ -11,6 +12,7 @@ const VideoRoom = () => {
     const [isAudioOn, setIsAudioOn] = useState(true);
     const [isVideoOn, setIsVideoOn] = useState(true);
     const [isFullScreen, setIsFullScreen] = useState(false);
+    const [isVRMode, setIsVRMode] = useState(false);
     const [cameraFacing, setCameraFacing] = useState("environment");
     const [connectionQuality, setConnectionQuality ] = useState("good"); // "good", "poor", "disconnected"
     const [micLevel, setMicLevel] = useState(0); // 0 to 1 for visualizer
@@ -18,6 +20,7 @@ const VideoRoom = () => {
 
     const localVideoRef = useRef(null);
     const remoteVideoRef = useRef(null);
+    const vrContainerRef = useRef(null);
     const ws = useRef(null);
     const peerConnection = useRef(null);
 
@@ -62,6 +65,7 @@ const connectWebSocket = () => {
         `${protocol}://liveatlas-cp.onrender.com/ws/tours/${roomID}/`
     );
 
+
     ws.current.onopen = () => {
         console.log("WebSocket connected");
         setIsReconnecting(false);
@@ -90,6 +94,20 @@ connectWebSocket();
             if (peerConnection.current) peerConnection.current.close();
         };
     }, [roomID]);
+
+    useEffect(() => {
+    if (!remoteVideoRef.current || !vrContainerRef.current) return;
+
+    if (isVRMode) {
+        initVR(remoteVideoRef.current, vrContainerRef.current);
+    } else {
+        disposeVR();
+    }
+
+    return () => {
+        disposeVR();
+    };
+}, [isVRMode]);
 
     const setupWebRTC = async () => {
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -264,6 +282,18 @@ setInterval(async () => {
         setIsFullScreen(!isFullScreen);
     };
 
+    const toggleVRMode = () => {
+    setIsVRMode(prev => !prev);
+    };
+
+    useEffect(() => {
+        if (isVRMode && vrContainerRef.current) {
+            initVR(localVideoRef.current, vrContainerRef.current);
+        } else if (!isVRMode && vrContainerRef.current) {
+            disposeVR();
+        }
+    }, [isVRMode]);
+
     return (
         <div className={`room-container ${isFullScreen ? 'fullscreen-mode' : ''}`}>
 
@@ -279,7 +309,7 @@ setInterval(async () => {
                     <span className="brand-text">Live<span style={{color: '#0EA5E9'}}>Atlas</span></span>
                 </div>
             )}
-
+            {!isVRMode && (
             <div className="video-grid">
                 {/* Local Video (You) - Hidden in Fullscreen Mode usually, or becomes a small PiP */}
                 <div className="video-wrapper local">
@@ -293,6 +323,23 @@ setInterval(async () => {
                     <div className="name-tag">Live Feed</div>
                 </div>
             </div>
+            )}
+
+            {isVRMode && (
+                <div
+                ref={vrContainerRef}
+                style={{
+                    width: "100vw",
+                    height: "100vh",
+                    position: "fixed",
+                    top: 0,
+                    left: 0,
+                    zIndex: 9999,
+                    backgroundColor: "black"
+                }}
+                />
+
+            )}
 
             {/* Controls Bar */}
 
@@ -327,6 +374,10 @@ setInterval(async () => {
 
                 <button className="control-btn" onClick={toggleFullScreen}>
                     {isFullScreen ? <FaCompress /> : <FaExpand />}
+                </button>
+
+                <button className="control-btn" onClick={toggleVRMode}>
+                    {isVRMode ? "Exit VR" : "VR"}
                 </button>
             </div>
         </div>
