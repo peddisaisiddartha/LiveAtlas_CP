@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { DeviceOrientationControls } from "three/examples/jsm/controls/DeviceOrientationControls.js";
+
 
 let renderer = null;
 let scene = null;
@@ -49,9 +49,7 @@ export function initVR(container, videoElement) {
     sphere = new THREE.Mesh(geometry, material);
     scene.add(sphere);
 
-    if (!navigator.xr) {
-    controls = new DeviceOrientationControls(camera);
-}
+
 
     window.addEventListener("resize", () => {
     if (!camera || !renderer) return;
@@ -65,7 +63,6 @@ export function initVR(container, videoElement) {
 });
 
 renderer.setAnimationLoop(() => {
-        if (controls) controls.update();
         renderer.render(scene, camera);
 });
 }
