@@ -96,10 +96,10 @@ connectWebSocket();
     }, [roomID]);
 
     useEffect(() => {
-    if (!remoteVideoRef.current || !vrContainerRef.current) return;
+    if (!remoteVideoRef.current) return;
 
     if (isVRMode) {
-        initVR(remoteVideoRef.current, vrContainerRef.current);
+        initVR(vrContainerRef.current, remoteVideoRef.current);
     } else {
         disposeVR();
     }
@@ -286,17 +286,13 @@ setInterval(async () => {
     setIsVRMode(prev => !prev);
     };
 
-    useEffect(() => {
-        if (isVRMode && vrContainerRef.current) {
-            initVR(localVideoRef.current, vrContainerRef.current);
-        } else if (!isVRMode && vrContainerRef.current) {
-            disposeVR();
-        }
-    }, [isVRMode]);
+
 
     return (
-        <div className={`room-container ${isFullScreen ? 'fullscreen-mode' : ''}`}>
-
+        <div
+            className={`room-container ${isFullScreen ? 'fullscreen-mode' : ''}`}
+            style={{ position: "relative" }}
+        >
             {isReconnecting && (
                 <div className="reconnect-banner">
                   Reconnecting...
@@ -329,13 +325,10 @@ setInterval(async () => {
                 <div
                 ref={vrContainerRef}
                 style={{
-                    width: "100vw",
-                    height: "100vh",
-                    position: "fixed",
-                    top: 0,
-                    left: 0,
-                    zIndex: 9999,
-                    backgroundColor: "black"
+                    position: "absolute",
+                    inset: 0,
+                    backgroundColor: "black",
+                    pointerEvents: "none"
                 }}
                 />
 

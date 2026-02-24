@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { VRButton } from "three/examples/jsm/webxr/VRButton.js";
+import { DeviceOrientationControls } from "three/examples/jsm/controls/DeviceOrientationControls.js";
 
 let renderer = null;
 let scene = null;
@@ -7,8 +7,10 @@ let camera = null;
 let sphere = null;
 let videoTexture = null;
 let animationId = null;
+let xrSession = null;
+let controls = null;
 
-export function initVR(videoElement, container) {
+export function initVR(container, videoElement) {
     // Scene
     scene = new THREE.Scene();
 
@@ -25,8 +27,11 @@ export function initVR(videoElement, container) {
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.xr.enabled = true; // Enable WebXR
+
 
     container.appendChild(renderer.domElement);
+
 
     // Create sphere
     const geometry = new THREE.SphereGeometry(500, 60, 40);
@@ -44,23 +49,46 @@ export function initVR(videoElement, container) {
     sphere = new THREE.Mesh(geometry, material);
     scene.add(sphere);
 
-    animate();
+    if (!navigator.xr) {
+    controls = new DeviceOrientationControls(camera);
 }
 
-function animate() {
-    animationId = requestAnimationFrame(animate);
-    renderer.render(scene, camera);
+    window.addEventListener("resize", () => {
+    if (!camera || !renderer) return;
+
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+    renderer.setSize(width, height);
+});
+
+renderer.setAnimationLoop(() => {
+        if (controls) controls.update();
+        renderer.render(scene, camera);
+});
 }
+
 
 export function disposeVR() {
-    if (animationId) cancelAnimationFrame(animationId);
+    if (!renderer) return;
 
-    if (renderer) {
-        renderer.dispose();
-        if (renderer.domElement?.parentNode) {
-            renderer.domElement.parentNode.removeChild(renderer.domElement);
-        }
+    renderer.setAnimationLoop(null);
+
+    if (xrSession) {
+        xrSession.end();
+        xrSession = null;
     }
+
+    if (renderer.domElement?.parentNode) {
+        renderer.domElement.parentNode.removeChild(renderer.domElement);
+    }
+
+    if (videoTexture) videoTexture.dispose();
+    if (sphere) sphere.geometry.dispose();
+
+    renderer.dispose();
 
     scene = null;
     camera = null;
@@ -68,3 +96,4 @@ export function disposeVR() {
     videoTexture = null;
     renderer = null;
 }
+
