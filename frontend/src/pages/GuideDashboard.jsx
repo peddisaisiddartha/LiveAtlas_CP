@@ -17,11 +17,13 @@ const GuideDashboard = () => {
 
   const createTour = async () => {
     if (isCreating) return; // Prevent multiple clicks
-    setIsCreating(true);
+
     if (!title) {
       alert("Please enter a title!");
       return;
     }
+
+    setIsCreating(true);
 
     const formData = new FormData();
     formData.append('title', title);
@@ -33,29 +35,32 @@ const GuideDashboard = () => {
     }
 
     try {
-      const response = await fetch(
-        'https://liveatlas-cp.onrender.com/api/create-tour/',
-        {
-          method: 'POST',
-          body: formData,
-        }
-      );
-
-      const data = await response.json();
-
-      if (response.ok && data.status === 'success') {
-        setIsCreating(false);
-        navigate(`/room/tour-${data.tour_id}`);
-      } else {
-        console.error("Backend error:", data);
-        alert("Failed to create tour.");
-        setIsCreating(false);
-      }
-    } catch (error) {
-      console.error("Network error:", error);
-      alert("Something went wrong.");
-      setIsCreating(false);
+  const response = await fetch(
+    'https://liveatlas-cp.onrender.com/api/create-tour/',
+    {
+      method: 'POST',
+      body: formData,
     }
+  );
+
+  if (!response.ok) {
+    throw new Error("Server error");
+  }
+
+  const data = await response.json();
+
+  if (data.status === 'success') {
+    navigate(`/room/tour_${data.tour_id}`);
+  } else {
+    alert("Failed to create tour.");
+  }
+
+} catch (error) {
+  console.error("Network error:", error);
+  alert("Network issue. Please try again.");
+} finally {
+  setIsCreating(false);
+}
   };
 
   return (
@@ -204,6 +209,7 @@ const GuideDashboard = () => {
 
           <button
             onClick={createTour}
+            disabled={isCreating}
             style={{
               width: '100%',
               padding: '16px',
