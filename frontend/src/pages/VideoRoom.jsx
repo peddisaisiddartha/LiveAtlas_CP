@@ -240,7 +240,7 @@ if (peerConnection.current.signalingState === "stable") {
 
     const endCall = async () => {
 
-        const dbId = roomID.split('-')[1];
+        const dbId = roomID.split('_')[1];
 
 
         try {
