@@ -59,7 +59,7 @@ const VideoRoom = () => {
 
         const connectWebSocket = () => {
             ws.current = new WebSocket(
-                `${protocol}://liveatlas-cp.onrender.com/ws/tours/${roomID}/`
+                `${protocol}://${window.location.host}/ws/tours/${roomID}/`
             );
 
             ws.current.onopen = async () => {
