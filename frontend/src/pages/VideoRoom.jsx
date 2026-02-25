@@ -60,7 +60,7 @@ const VideoRoom = () => {
         const connectWebSocket = () => {
             const normalizedRoomID = roomID.replace("_", "-");
             ws.current = new WebSocket(
-                `${protocol}://${window.location.host}/ws/tours/${normalizedRoomID}/`
+                `${protocol}://liveatlas-cp.onrender.com/ws/tours/${normalizedRoomID}/`
             );
 
             ws.current.onopen = async () => {
