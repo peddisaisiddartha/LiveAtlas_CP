@@ -66,11 +66,26 @@ const connectWebSocket = () => {
     );
 
 
-    ws.current.onopen = () => {
-        console.log("WebSocket connected");
-        setIsReconnecting(false);
-        setupWebRTC();
-    };
+   ws.current.onopen = async () => {
+    console.log("WebSocket connected");
+    setIsReconnecting(false);
+
+    await setupWebRTC();
+
+    // Controlled single offer
+    setTimeout(async () => {
+        if (!peerConnection.current) return;
+
+        const offer = await peerConnection.current.createOffer();
+        await peerConnection.current.setLocalDescription(offer);
+
+        ws.current.send(JSON.stringify({
+            type: "offer",
+            offer: offer
+        }));
+
+    }, 1000);
+};
 
     ws.current.onclose = () => {
         console.log("WebSocket disconnected. Reconnecting...");
@@ -178,7 +193,9 @@ checkMicLevel();
         stream.getTracks().forEach(track => peerConnection.current.addTrack(track, stream));
 
 
+
         peerConnection.current.ontrack = (event) => {
+            console.log("Remote stream received");
             if (remoteVideoRef.current) remoteVideoRef.current.srcObject = event.streams[0];
         };
 
@@ -209,15 +226,10 @@ setInterval(async () => {
     });
 }, 3000);
 
-        setTimeout(createOffer, 500);
+
     };
 
-    const createOffer = async () => {
-        if (!peerConnection.current) return;
-        const offer = await peerConnection.current.createOffer();
-        await peerConnection.current.setLocalDescription(offer);
-        ws.current.send(JSON.stringify({ type: 'offer', offer: offer }));
-    };
+
 
     const handleSignalMessage = async (data) => {
         if (!peerConnection.current) return;
