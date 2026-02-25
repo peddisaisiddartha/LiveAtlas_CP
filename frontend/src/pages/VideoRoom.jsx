@@ -58,8 +58,9 @@ const VideoRoom = () => {
         const protocol = window.location.protocol === "https:" ? "wss" : "ws";
 
         const connectWebSocket = () => {
+            const normalizedRoomID = roomID.replace("_", "-");
             ws.current = new WebSocket(
-                `${protocol}://${window.location.host}/ws/tours/${roomID}/`
+                `${protocol}://${window.location.host}/ws/tours/${normalizedRoomID}/`
             );
 
             ws.current.onopen = async () => {
