@@ -199,6 +199,7 @@ if (peerConnection.current.signalingState === "stable") {
     };
 
     const handleSignalMessage = async (data) => {
+        console.log("Signal received:", data.type);
         if (!peerConnection.current) return;
 
         if (data.type === 'offer') {
