@@ -242,27 +242,7 @@ if (peerConnection.current.signalingState === "stable") {
     };
 
 
-    if (peerConnection.current.iceConnectionState === "connected") {
 
-        const sender = peerConnection.current.getSenders().find(
-            s => s.track && s.track.kind === "video"
-        );
-
-        if (sender) {
-            const params = sender.getParameters();
-
-            if (!params.encodings) {
-                params.encodings = [{}];
-            }
-
-            params.encodings[0].maxBitrate = 5000000; // 5 Mbps
-            params.encodings[0].maxFramerate = 30;
-            params.degradationPreference = "maintain-resolution";
-
-            sender.setParameters(params);
-        }
-    }
-};
 
     const handleSignalMessage = async (data) => {
         console.log("Signal received:", data.type);
