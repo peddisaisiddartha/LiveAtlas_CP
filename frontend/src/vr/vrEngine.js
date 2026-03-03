@@ -32,7 +32,7 @@ export function initVR(container, videoElement) {
 
     renderer.setSize(width, height);
     renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.xr.enabled = true; // Enable WebXR
+
 
 
     container.appendChild(renderer.domElement);
