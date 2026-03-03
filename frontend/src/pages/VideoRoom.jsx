@@ -163,6 +163,29 @@ const VideoRoom = () => {
             iceCandidatePoolSize: 10
         });
 
+        peerConnection.current.oniceconnectionstatechange = () => {
+    if (peerConnection.current.iceConnectionState === "connected") {
+
+        const sender = peerConnection.current.getSenders().find(
+            s => s.track && s.track.kind === "video"
+        );
+
+        if (sender) {
+            const params = sender.getParameters();
+
+            if (!params.encodings) {
+                params.encodings = [{}];
+            }
+
+            params.encodings[0].maxBitrate = 5000000;
+            params.encodings[0].maxFramerate = 30;
+            params.degradationPreference = "maintain-resolution";
+
+            sender.setParameters(params);
+        }
+    }
+};
+
         stream.getTracks().forEach(track =>
             peerConnection.current.addTrack(track, stream)
         );
@@ -218,7 +241,7 @@ if (peerConnection.current.signalingState === "stable") {
         };
     };
 
-    peerConnection.current.oniceconnectionstatechange = () => {
+
     if (peerConnection.current.iceConnectionState === "connected") {
 
         const sender = peerConnection.current.getSenders().find(
