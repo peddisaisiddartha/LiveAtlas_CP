@@ -94,9 +94,16 @@ const VideoRoom = () => {
 
         if (isVRMode) {
             initVR(vrContainerRef.current, remoteVideoRef.current);
-        } else {
-            disposeVR();
-        }
+       } else {
+    disposeVR();
+
+    if (remoteVideoRef.current) {
+        const stream = remoteVideoRef.current.srcObject;
+        remoteVideoRef.current.srcObject = null;
+        remoteVideoRef.current.srcObject = stream;
+        remoteVideoRef.current.play().catch(() => {});
+    }
+}
 
         return () => disposeVR();
     }, [isVRMode]);
@@ -177,7 +184,7 @@ const VideoRoom = () => {
                 params.encodings = [{}];
             }
 
-            params.encodings[0].maxBitrate = 5000000;
+            params.encodings[0].maxBitrate = 2500000; // 2.5 Mbps
             params.encodings[0].maxFramerate = 30;
             params.degradationPreference = "maintain-resolution";
 

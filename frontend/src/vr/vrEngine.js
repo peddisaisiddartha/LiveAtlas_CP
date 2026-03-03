@@ -44,11 +44,15 @@ export function initVR(container, videoElement) {
 
     if (videoElement.readyState < 2) {
     videoElement.play().catch(() => {});
-    }
+}
+
+   const createSphere = () => {
     videoTexture = new THREE.VideoTexture(videoElement);
+    videoTexture.colorSpace = THREE.SRGBColorSpace;
+    videoTexture.generateMipmaps = false;
     videoTexture.minFilter = THREE.LinearFilter;
     videoTexture.magFilter = THREE.LinearFilter;
-    videoTexture.format = THREE.RGBFormat;
+    videoTexture.needsUpdate = true;
 
     const material = new THREE.MeshBasicMaterial({
         map: videoTexture
@@ -56,6 +60,21 @@ export function initVR(container, videoElement) {
 
     sphere = new THREE.Mesh(geometry, material);
     scene.add(sphere);
+};
+
+// Wait until video has actual dimensions
+if (videoElement.videoWidth > 0 && videoElement.videoHeight > 0) {
+    createSphere();
+} else {
+    const waitForVideo = () => {
+        if (videoElement.videoWidth > 0 && videoElement.videoHeight > 0) {
+            createSphere();
+        } else {
+            requestAnimationFrame(waitForVideo);
+        }
+    };
+    waitForVideo();
+}
 
 
 
