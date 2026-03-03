@@ -104,11 +104,11 @@ const VideoRoom = () => {
     const setupWebRTC = async () => {
 
         const stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-                facingMode: { ideal: cameraFacing },
-                width: { ideal: 1920 },
-                height: { ideal: 1080 },
-                frameRate: { ideal: 30, max: 30 }
+           video: {
+                facingMode: cameraFacing,
+                width: { min: 1280, ideal: 1920, max: 1920 },
+                height: { min: 720, ideal: 1080, max: 1080 },
+                frameRate: { min: 24, ideal: 30, max: 30 }
             },
             audio: {
                 echoCancellation: true,
@@ -167,6 +167,24 @@ const VideoRoom = () => {
             peerConnection.current.addTrack(track, stream)
         );
 
+        const sender = peerConnection.current.getSenders().find(
+  s => s.track && s.track.kind === "video"
+);
+
+if (sender) {
+  const params = sender.getParameters();
+
+  if (!params.encodings) {
+    params.encodings = [{}];
+  }
+
+  params.encodings[0].maxBitrate = 5000000; // 5 Mbps
+  params.encodings[0].maxFramerate = 30;
+  params.degradationPreference = "maintain-resolution";
+
+  sender.setParameters(params);
+}
+
         // ---- INITIAL OFFER CREATION ----
 if (peerConnection.current.signalingState === "stable") {
     const offer = await peerConnection.current.createOffer();
@@ -183,11 +201,12 @@ if (peerConnection.current.signalingState === "stable") {
 
 
 
-        peerConnection.current.ontrack = (event) => {
-            console.log("Remote stream received");
-            if (remoteVideoRef.current)
-                remoteVideoRef.current.srcObject = event.streams[0];
-        };
+       peerConnection.current.ontrack = (event) => {
+    if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = event.streams[0];
+        remoteVideoRef.current.play().catch(() => {});
+    }
+};
 
         peerConnection.current.onicecandidate = (event) => {
             if (event.candidate) {
@@ -198,6 +217,29 @@ if (peerConnection.current.signalingState === "stable") {
             }
         };
     };
+
+    peerConnection.current.oniceconnectionstatechange = () => {
+    if (peerConnection.current.iceConnectionState === "connected") {
+
+        const sender = peerConnection.current.getSenders().find(
+            s => s.track && s.track.kind === "video"
+        );
+
+        if (sender) {
+            const params = sender.getParameters();
+
+            if (!params.encodings) {
+                params.encodings = [{}];
+            }
+
+            params.encodings[0].maxBitrate = 5000000; // 5 Mbps
+            params.encodings[0].maxFramerate = 30;
+            params.degradationPreference = "maintain-resolution";
+
+            sender.setParameters(params);
+        }
+    }
+};
 
     const handleSignalMessage = async (data) => {
         console.log("Signal received:", data.type);

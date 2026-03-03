@@ -15,17 +15,22 @@ export function initVR(container, videoElement) {
     scene = new THREE.Scene();
 
     // Camera
+
     camera = new THREE.PerspectiveCamera(
         75,
-        window.innerWidth / window.innerHeight,
+        container.clientWidth / container.clientHeight,
         0.1,
         1000
     );
-    camera.position.set(0, 0, 0.1);
+    camera.position.set(0,0,1);
 
     // Renderer
     renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
+
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+
+    renderer.setSize(width, height);
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.xr.enabled = true; // Enable WebXR
 
@@ -37,6 +42,9 @@ export function initVR(container, videoElement) {
     const geometry = new THREE.SphereGeometry(500, 60, 40);
     geometry.scale(-1, 1, 1); // Invert sphere
 
+    if (videoElement.readyState < 2) {
+    videoElement.play().catch(() => {});
+    }
     videoTexture = new THREE.VideoTexture(videoElement);
     videoTexture.minFilter = THREE.LinearFilter;
     videoTexture.magFilter = THREE.LinearFilter;
@@ -62,8 +70,11 @@ export function initVR(container, videoElement) {
     renderer.setSize(width, height);
 });
 
-renderer.setAnimationLoop(() => {
-        renderer.render(scene, camera);
+    renderer.setAnimationLoop(() => {
+        if (videoTexture) {
+        videoTexture.needsUpdate = true;
+    }
+    renderer.render(scene, camera);
 });
 }
 
@@ -83,8 +94,10 @@ export function disposeVR() {
     }
 
     if (videoTexture) videoTexture.dispose();
-    if (sphere) sphere.geometry.dispose();
-
+   if (sphere) {
+        sphere.geometry.dispose();
+        if (sphere.material) sphere.material.dispose();
+  }
     renderer.dispose();
 
     scene = null;
