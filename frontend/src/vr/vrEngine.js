@@ -20,6 +20,9 @@ export function initVR(container, videoElement) {
     vrVideo.autoplay = true;
     vrVideo.play().catch(() => {});
 
+    vrVideo.style.display = "none";
+    document.body.appendChild(vrVideo);
+
 
     // Scene
     scene = new THREE.Scene();
@@ -32,7 +35,8 @@ export function initVR(container, videoElement) {
         0.1,
         1000
     );
-    camera.position.set(0,0,1);
+    camera.position.set(0,0,0);
+    camera.lookAt(0, 0, -1);
 
     // Renderer
     renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -69,6 +73,7 @@ export function initVR(container, videoElement) {
     });
 
     sphere = new THREE.Mesh(geometry, material);
+    sphere.rotation.y = Math.PI; // Rotate to correct orientation
     scene.add(sphere);
 };
 
@@ -119,6 +124,7 @@ export function disposeVR() {
     if (vrVideo) {
     vrVideo.pause();
     vrVideo.srcObject = null;
+    vrVideo.remove();
     vrVideo = null;
 }
 

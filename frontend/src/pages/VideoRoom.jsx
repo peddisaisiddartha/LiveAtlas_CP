@@ -97,16 +97,16 @@ const VideoRoom = () => {
        } else {
     disposeVR();
 
-    if (remoteVideoRef.current) {
-        const stream = remoteVideoRef.current.srcObject;
-        remoteVideoRef.current.srcObject = null;
-        remoteVideoRef.current.srcObject = stream;
-        remoteVideoRef.current.play().catch(() => {});
+        if (remoteVideoRef.current) {
+            const stream = remoteVideoRef.current.srcObject;
+            remoteVideoRef.current.srcObject = null;
+            remoteVideoRef.current.srcObject = stream;
+            remoteVideoRef.current.play().catch(() => {});
+        }
     }
-}
 
-        return () => disposeVR();
-    }, [isVRMode]);
+    return () => disposeVR();
+}, [isVRMode]);
 
     const setupWebRTC = async () => {
 
