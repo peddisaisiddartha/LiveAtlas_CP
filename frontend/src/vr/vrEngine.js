@@ -9,8 +9,18 @@ let videoTexture = null;
 let animationId = null;
 let xrSession = null;
 let controls = null;
+let vrVideo = null;
 
 export function initVR(container, videoElement) {
+
+    vrVideo = document.createElement("video");
+    vrVideo.srcObject = videoElement.srcObject;
+    vrVideo.muted = true;
+    vrVideo.playsInline = true;
+    vrVideo.autoplay = true;
+    vrVideo.play().catch(() => {});
+
+
     // Scene
     scene = new THREE.Scene();
 
@@ -42,12 +52,12 @@ export function initVR(container, videoElement) {
     const geometry = new THREE.SphereGeometry(500, 60, 40);
     geometry.scale(-1, 1, 1); // Invert sphere
 
-    if (videoElement.readyState < 2) {
-    videoElement.play().catch(() => {});
+    if (vrVideo.readyState < 2) {
+    vrVideo.play().catch(() => {});
 }
 
    const createSphere = () => {
-    videoTexture = new THREE.VideoTexture(videoElement);
+    videoTexture = new THREE.VideoTexture(vrVideo);
     videoTexture.colorSpace = THREE.SRGBColorSpace;
     videoTexture.generateMipmaps = false;
     videoTexture.minFilter = THREE.LinearFilter;
@@ -62,21 +72,15 @@ export function initVR(container, videoElement) {
     scene.add(sphere);
 };
 
-// Wait until video has actual dimensions
-if (videoElement.videoWidth > 0 && videoElement.videoHeight > 0) {
-    createSphere();
-} else {
-    const waitForVideo = () => {
-        if (videoElement.videoWidth > 0 && videoElement.videoHeight > 0) {
-            createSphere();
-        } else {
-            requestAnimationFrame(waitForVideo);
-        }
-    };
-    waitForVideo();
-}
+vrVideo.addEventListener("playing", () => {
+    if (!sphere) {
+        createSphere();
+    }
+});
 
-
+    if (vrVideo.readyState >= 3 && !sphere) {
+        createSphere();
+    }
 
     window.addEventListener("resize", () => {
     if (!camera || !renderer) return;
@@ -111,6 +115,12 @@ export function disposeVR() {
     if (renderer.domElement?.parentNode) {
         renderer.domElement.parentNode.removeChild(renderer.domElement);
     }
+
+    if (vrVideo) {
+    vrVideo.pause();
+    vrVideo.srcObject = null;
+    vrVideo = null;
+}
 
     if (videoTexture) videoTexture.dispose();
    if (sphere) {
