@@ -69,7 +69,8 @@ export function initVR(container, videoElement) {
     videoTexture.needsUpdate = true;
 
     const material = new THREE.MeshBasicMaterial({
-        map: videoTexture
+        color: 0xff0000,
+        side: THREE.BackSide
     });
 
     sphere = new THREE.Mesh(geometry, material);
