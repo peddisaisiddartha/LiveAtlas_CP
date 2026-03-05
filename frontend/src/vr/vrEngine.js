@@ -1,33 +1,34 @@
 import * as THREE from "three";
 
-
 let renderer = null;
 let scene = null;
 let camera = null;
 let sphere = null;
 let videoTexture = null;
-let animationId = null;
-let xrSession = null;
-let controls = null;
 let vrVideo = null;
+
+let videoCanvas = null;
+let videoCtx = null;
 
 export function initVR(container, videoElement) {
 
+    // clone the stream into a hidden video
     vrVideo = document.createElement("video");
     vrVideo.srcObject = videoElement.srcObject;
     vrVideo.muted = true;
     vrVideo.playsInline = true;
     vrVideo.autoplay = true;
-    vrVideo.play().catch(() => {});
-
     vrVideo.style.display = "none";
     document.body.appendChild(vrVideo);
 
+    vrVideo.play().catch(() => {});
 
-    // Scene
+    // canvas used to copy video frames
+    videoCanvas = document.createElement("canvas");
+    videoCtx = videoCanvas.getContext("2d");
+
+    // THREE scene
     scene = new THREE.Scene();
-
-    // Camera
 
     camera = new THREE.PerspectiveCamera(
         75,
@@ -35,111 +36,107 @@ export function initVR(container, videoElement) {
         0.1,
         1000
     );
-    camera.position.set(0,0,0);
-    camera.lookAt(0, 0, -1);
 
-    // Renderer
-    renderer = new THREE.WebGLRenderer({ antialias: true });
+    camera.position.set(0,0,0.1);
 
-    const width = container.clientWidth;
-    const height = container.clientHeight;
+    renderer = new THREE.WebGLRenderer({ antialias:true });
 
-    renderer.setSize(width, height);
+    renderer.setSize(
+        container.clientWidth,
+        container.clientHeight
+    );
+
     renderer.setPixelRatio(window.devicePixelRatio);
-
-
 
     container.appendChild(renderer.domElement);
 
+    // sphere
+    const geometry = new THREE.SphereGeometry(500,60,40);
+    geometry.scale(-1,1,1);
 
-    // Create sphere
-    const geometry = new THREE.SphereGeometry(500, 60, 40);
-    geometry.scale(-1, 1, 1); // Invert sphere
-
-    if (vrVideo.readyState < 2) {
-    vrVideo.play().catch(() => {});
-}
-
-   const createSphere = () => {
-    videoTexture = new THREE.VideoTexture(vrVideo);
-    videoTexture.colorSpace = THREE.SRGBColorSpace;
-    videoTexture.generateMipmaps = false;
-    videoTexture.minFilter = THREE.LinearFilter;
-    videoTexture.magFilter = THREE.LinearFilter;
-    videoTexture.needsUpdate = true;
+    videoTexture = new THREE.CanvasTexture(videoCanvas);
 
     const material = new THREE.MeshBasicMaterial({
         map: videoTexture,
         side: THREE.BackSide
     });
 
-    sphere = new THREE.Mesh(geometry, material);
-    sphere.rotation.y = Math.PI; // Rotate to correct orientation
+    sphere = new THREE.Mesh(geometry,material);
     scene.add(sphere);
-};
 
-vrVideo.addEventListener("playing", () => {
-    if (!sphere) {
-        createSphere();
-    }
-});
+    // resize handling
+    window.addEventListener("resize",()=>{
 
-    if (vrVideo.readyState >= 3 && !sphere) {
-        createSphere();
-    }
+        if(!renderer || !camera) return;
 
-    window.addEventListener("resize", () => {
-    if (!camera || !renderer) return;
+        const width = container.clientWidth;
+        const height = container.clientHeight;
 
-    const width = container.clientWidth;
-    const height = container.clientHeight;
+        camera.aspect = width / height;
+        camera.updateProjectionMatrix();
 
-    camera.aspect = width / height;
-    camera.updateProjectionMatrix();
-    renderer.setSize(width, height);
-});
+        renderer.setSize(width,height);
 
-    renderer.setAnimationLoop(() => {
-        if (videoTexture) {
-        videoTexture.needsUpdate = true;
-    }
-    renderer.render(scene, camera);
-});
+    });
+
+    // render loop
+    renderer.setAnimationLoop(()=>{
+
+        if(vrVideo && vrVideo.readyState >= 2){
+
+            videoCanvas.width = vrVideo.videoWidth;
+            videoCanvas.height = vrVideo.videoHeight;
+
+            videoCtx.drawImage(
+                vrVideo,
+                0,
+                0,
+                videoCanvas.width,
+                videoCanvas.height
+            );
+
+            if(videoTexture){
+                videoTexture.needsUpdate = true;
+            }
+
+        }
+
+        renderer.render(scene,camera);
+
+    });
+
 }
 
+export function disposeVR(){
 
-export function disposeVR() {
-    if (!renderer) return;
+    if(!renderer) return;
 
     renderer.setAnimationLoop(null);
 
-    if (xrSession) {
-        xrSession.end();
-        xrSession = null;
-    }
-
-    if (renderer.domElement?.parentNode) {
+    if(renderer.domElement?.parentNode){
         renderer.domElement.parentNode.removeChild(renderer.domElement);
     }
 
-    if (vrVideo) {
-    vrVideo.pause();
-    vrVideo.srcObject = null;
-    vrVideo.remove();
-    vrVideo = null;
-}
+    if(vrVideo){
+        vrVideo.pause();
+        vrVideo.srcObject = null;
+        vrVideo.remove();
+        vrVideo = null;
+    }
 
-    if (videoTexture) videoTexture.dispose();
-   if (sphere) {
+    if(videoTexture) videoTexture.dispose();
+
+    if(sphere){
         sphere.geometry.dispose();
-        if (sphere.material) sphere.material.dispose();
-  }
+        sphere.material.dispose();
+    }
+
     renderer.dispose();
 
     scene = null;
     camera = null;
     sphere = null;
-    videoTexture = null;
     renderer = null;
-}
+    videoTexture = null;
 
+}
