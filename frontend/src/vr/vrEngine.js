@@ -23,6 +23,11 @@ export function initVR(container, videoElement) {
 
     vrVideo.play().catch(() => {});
 
+    vrVideo.addEventListener("loadedmetadata", () => {
+    videoCanvas.width = vrVideo.videoWidth;
+    videoCanvas.height = vrVideo.videoHeight;
+});
+
     // canvas used to copy video frames
     videoCanvas = document.createElement("canvas");
     videoCtx = videoCanvas.getContext("2d");
@@ -84,8 +89,6 @@ export function initVR(container, videoElement) {
 
         if(vrVideo && vrVideo.readyState >= 2){
 
-            videoCanvas.width = vrVideo.videoWidth;
-            videoCanvas.height = vrVideo.videoHeight;
 
             videoCtx.drawImage(
                 vrVideo,
