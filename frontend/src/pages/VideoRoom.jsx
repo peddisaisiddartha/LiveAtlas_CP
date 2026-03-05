@@ -97,12 +97,7 @@ const VideoRoom = () => {
        } else {
     disposeVR();
 
-        if (remoteVideoRef.current) {
-            const stream = remoteVideoRef.current.srcObject;
-            remoteVideoRef.current.srcObject = null;
-            remoteVideoRef.current.srcObject = stream;
-            remoteVideoRef.current.play().catch(() => {});
-        }
+
     }
 
     return () => disposeVR();
@@ -328,8 +323,11 @@ if (peerConnection.current.signalingState === "stable") {
                 </div>
             )}
 
-            {!isVRMode && (
-                <div className="video-grid">
+
+                <div
+                    className="video-grid"
+                    style={{ display: isVRMode ? "none" : "grid" }}
+                >
                     <div className="video-wrapper local">
                         <video ref={localVideoRef} autoPlay playsInline muted />
                         <div className="name-tag">You</div>
@@ -339,7 +337,7 @@ if (peerConnection.current.signalingState === "stable") {
                         <div className="name-tag">Live Feed</div>
                     </div>
                 </div>
-            )}
+
 
             {isVRMode && (
                 <div ref={vrContainerRef} style={{

@@ -69,7 +69,7 @@ export function initVR(container, videoElement) {
     videoTexture.needsUpdate = true;
 
     const material = new THREE.MeshBasicMaterial({
-        color: 0xff0000,
+        map: videoTexture,
         side: THREE.BackSide
     });
 
