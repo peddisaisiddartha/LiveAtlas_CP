@@ -309,7 +309,27 @@ if (peerConnection.current.signalingState === "stable") {
         navigate('/');
     };
 
-    const toggleFullScreen = () => setIsFullScreen(!isFullScreen);
+    const toggleFullScreen = async () => {
+
+    if (!document.fullscreenElement) {
+
+        const element = document.querySelector(".room-container");
+
+        if (element.requestFullscreen) {
+            await element.requestFullscreen();
+        }
+
+        setIsFullScreen(true);
+
+    } else {
+
+        if (document.exitFullscreen) {
+            await document.exitFullscreen();
+        }
+
+        setIsFullScreen(false);
+    }
+};
     const toggleVRMode = () => setIsVRMode(prev => !prev);
 
     return (
@@ -328,14 +348,18 @@ if (peerConnection.current.signalingState === "stable") {
                     className="video-grid"
                     style={{ display: isVRMode ? "none" : "grid" }}
                 >
+                    {!isFullScreen && (
                     <div className="video-wrapper local">
                         <video ref={localVideoRef} autoPlay playsInline muted />
                         <div className="name-tag">You</div>
                     </div>
+                    )}
+
                     <div className="video-wrapper remote">
                         <video ref={remoteVideoRef} autoPlay playsInline />
                         <div className="name-tag">Live Feed</div>
                     </div>
+
                 </div>
 
 
@@ -349,23 +373,28 @@ if (peerConnection.current.signalingState === "stable") {
 
 
 
+            {!isFullScreen && (
             <div className="controls-bar">
                 <button onClick={toggleAudio}>
                     {isAudioOn ? <FaMicrophone /> : <FaMicrophoneSlash />}
-
                 </button>
+
                 <button onClick={toggleVideo}>
                     {isVideoOn ? <FaVideo /> : <FaVideoSlash />}
                 </button>
+
                 <button onClick={endCall}>
                     <FaPhoneSlash />
                 </button>
+
                 <button onClick={switchCamera}>
                     <FaSyncAlt />
                 </button>
+
                 <button onClick={toggleFullScreen}>
                     {isFullScreen ? <FaCompress /> : <FaExpand />}
                 </button>
+
                 <button onClick={toggleVRMode}>
                     {isVRMode ? "Exit VR" : "VR"}
                 </button>
