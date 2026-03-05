@@ -399,6 +399,7 @@ if (peerConnection.current.signalingState === "stable") {
                     {isVRMode ? "Exit VR" : "VR"}
                 </button>
             </div>
+            )}
         </div>
     );
 };
