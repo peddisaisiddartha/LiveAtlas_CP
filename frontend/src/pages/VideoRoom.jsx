@@ -373,7 +373,7 @@ if (peerConnection.current.signalingState === "stable") {
 
 
 
-            {!isFullScreen && (
+
             <div className="controls-bar">
                 <button onClick={toggleAudio}>
                     {isAudioOn ? <FaMicrophone /> : <FaMicrophoneSlash />}
@@ -399,7 +399,7 @@ if (peerConnection.current.signalingState === "stable") {
                     {isVRMode ? "Exit VR" : "VR"}
                 </button>
             </div>
-            )}
+
         </div>
     );
 };

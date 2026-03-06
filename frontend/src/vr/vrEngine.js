@@ -5,32 +5,12 @@ let scene = null;
 let camera = null;
 let sphere = null;
 let videoTexture = null;
-let vrVideo = null;
 
-let videoCanvas = null;
-let videoCtx = null;
+
 
 export function initVR(container, videoElement) {
 
-    // clone the stream into a hidden video
-    vrVideo = document.createElement("video");
-    vrVideo.srcObject = videoElement.srcObject;
-    vrVideo.muted = true;
-    vrVideo.playsInline = true;
-    vrVideo.autoplay = true;
-    vrVideo.style.display = "none";
-    document.body.appendChild(vrVideo);
 
-    vrVideo.play().catch(() => {});
-
-    vrVideo.addEventListener("loadedmetadata", () => {
-    videoCanvas.width = vrVideo.videoWidth;
-    videoCanvas.height = vrVideo.videoHeight;
-});
-
-    // canvas used to copy video frames
-    videoCanvas = document.createElement("canvas");
-    videoCtx = videoCanvas.getContext("2d");
 
     // THREE scene
     scene = new THREE.Scene();
@@ -59,7 +39,7 @@ export function initVR(container, videoElement) {
     const geometry = new THREE.SphereGeometry(500,60,40);
     geometry.scale(-1,1,1);
 
-    videoTexture = new THREE.CanvasTexture(videoCanvas);
+    videoTexture = new THREE.VideoTexture(videoElement);
 
     const material = new THREE.MeshBasicMaterial({
         map: videoTexture,
@@ -85,28 +65,15 @@ export function initVR(container, videoElement) {
     });
 
     // render loop
-    renderer.setAnimationLoop(()=>{
+    renderer.setAnimationLoop(() => {
 
-        if(vrVideo && vrVideo.readyState >= 2){
+    if(videoTexture){
+        videoTexture.needsUpdate = true;
+    }
 
+    renderer.render(scene, camera);
 
-            videoCtx.drawImage(
-                vrVideo,
-                0,
-                0,
-                videoCanvas.width,
-                videoCanvas.height
-            );
-
-            if(videoTexture){
-                videoTexture.needsUpdate = true;
-            }
-
-        }
-
-        renderer.render(scene,camera);
-
-    });
+});
 
 }
 
@@ -120,12 +87,7 @@ export function disposeVR(){
         renderer.domElement.parentNode.removeChild(renderer.domElement);
     }
 
-    if(vrVideo){
-        vrVideo.pause();
-        vrVideo.srcObject = null;
-        vrVideo.remove();
-        vrVideo = null;
-    }
+
 
     if(videoTexture) videoTexture.dispose();
 
