@@ -344,10 +344,7 @@ if (peerConnection.current.signalingState === "stable") {
 
     const answer = await askAI(aiQuestion);
 
-    setAI
-
-
-    Answer(answer);
+    setAIAnswer(answer);
     setAILoading(false);
 
 };
@@ -398,6 +395,7 @@ style={{
     position: "absolute",
     right: "20px",
     bottom: "120px",
+    zIndex: 9999,
     background: "rgba(0,0,0,0.7)",
     padding: "10px",
     borderRadius: "8px",
