@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import './VideoRoom.css';
 import { FaMicrophone, FaMicrophoneSlash, FaVideo, FaVideoSlash, FaPhoneSlash, FaExpand, FaCompress, FaGlobeAmericas, FaSyncAlt } from 'react-icons/fa';
 import { initVR, disposeVR } from "../vr/vrEngine";
+import { askAI } from '../ai/aiService';
 
 const VideoRoom = () => {
     const { roomID } = useParams();
@@ -17,6 +18,9 @@ const VideoRoom = () => {
     const [connectionQuality, setConnectionQuality] = useState("good");
     const [micLevel, setMicLevel] = useState(0);
     const [isReconnecting, setIsReconnecting] = useState(false);
+    const [aiQuestion, setAIQuestion] = useState("");
+    const [aiAnswer, setAIAnswer] = useState("");
+    const [aiLoading, setAILoading] = useState(false);
 
     const localVideoRef = useRef(null);
     const remoteVideoRef = useRef(null);
@@ -332,6 +336,22 @@ if (peerConnection.current.signalingState === "stable") {
 };
     const toggleVRMode = () => setIsVRMode(prev => !prev);
 
+    const handleAskAI = async () => {
+
+    if(!aiQuestion) return;
+
+    setAILoading(true);
+
+    const answer = await askAI(aiQuestion);
+
+    setAI
+
+
+    Answer(answer);
+    setAILoading(false);
+
+};
+
     return (
         <div className={`room-container ${isFullScreen ? 'fullscreen-mode' : ''}`} style={{ position: "relative" }}>
             {isReconnecting && <div className="reconnect-banner">Reconnecting...</div>}
@@ -373,6 +393,43 @@ if (peerConnection.current.signalingState === "stable") {
 
 
 
+<div
+style={{
+    position: "absolute",
+    right: "20px",
+    bottom: "120px",
+    background: "rgba(0,0,0,0.7)",
+    padding: "10px",
+    borderRadius: "8px",
+    color: "white",
+    width: "260px"
+}}
+>
+
+<input
+    type="text"
+    placeholder="Ask AI about this place..."
+    value={aiQuestion}
+    onChange={(e)=>setAIQuestion(e.target.value)}
+    style={{width:"100%", padding:"6px"}}
+/>
+
+<button
+    onClick={handleAskAI}
+    style={{marginTop:"6px", width:"100%"}}
+>
+Ask
+</button>
+
+{aiLoading && <p>Thinking...</p>}
+
+{aiAnswer && (
+<p style={{marginTop:"8px"}}>
+{aiAnswer}
+</p>
+)}
+
+</div>
 
             <div className="controls-bar">
                 <button onClick={toggleAudio}>
