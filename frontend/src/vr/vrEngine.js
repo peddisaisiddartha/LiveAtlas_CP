@@ -1,18 +1,13 @@
 import * as THREE from "three";
 
-let renderer = null;
-let scene = null;
-let camera = null;
-let sphere = null;
-let videoTexture = null;
-
-
+let renderer;
+let scene;
+let camera;
+let sphere;
+let videoTexture;
 
 export function initVR(container, videoElement) {
 
-
-
-    // THREE scene
     scene = new THREE.Scene();
 
     camera = new THREE.PerspectiveCamera(
@@ -22,22 +17,16 @@ export function initVR(container, videoElement) {
         1000
     );
 
-    camera.position.set(0,0,0.1);
+    camera.position.set(0, 0, 0.1);
 
-    renderer = new THREE.WebGLRenderer({ antialias:true });
-
-    renderer.setSize(
-        container.clientWidth,
-        container.clientHeight
-    );
-
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
 
     container.appendChild(renderer.domElement);
 
-    // sphere
-    const geometry = new THREE.SphereGeometry(500,60,40);
-    geometry.scale(-1,1,1);
+    const geometry = new THREE.SphereGeometry(500, 60, 40);
+    geometry.scale(-1, 1, 1);
 
     videoTexture = new THREE.VideoTexture(videoElement);
 
@@ -46,13 +35,14 @@ export function initVR(container, videoElement) {
         side: THREE.BackSide
     });
 
-    sphere = new THREE.Mesh(geometry,material);
+    sphere = new THREE.Mesh(geometry, material);
     scene.add(sphere);
 
-    // resize handling
-    window.addEventListener("resize",()=>{
+    renderer.setAnimationLoop(() => {
+        renderer.render(scene, camera);
+    });
 
-        if(!renderer || !camera) return;
+    window.addEventListener("resize", () => {
 
         const width = container.clientWidth;
         const height = container.clientHeight;
@@ -60,20 +50,9 @@ export function initVR(container, videoElement) {
         camera.aspect = width / height;
         camera.updateProjectionMatrix();
 
-        renderer.setSize(width,height);
+        renderer.setSize(width, height);
 
     });
-
-    // render loop
-    renderer.setAnimationLoop(() => {
-
-    if(videoTexture){
-        videoTexture.needsUpdate = true;
-    }
-
-    renderer.render(scene, camera);
-
-});
 
 }
 
@@ -87,8 +66,6 @@ export function disposeVR(){
         renderer.domElement.parentNode.removeChild(renderer.domElement);
     }
 
-
-
     if(videoTexture) videoTexture.dispose();
 
     if(sphere){
@@ -98,10 +75,10 @@ export function disposeVR(){
 
     renderer.dispose();
 
+    renderer = null;
     scene = null;
     camera = null;
     sphere = null;
-    renderer = null;
     videoTexture = null;
 
 }
