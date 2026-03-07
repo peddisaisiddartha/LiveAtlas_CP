@@ -5,7 +5,7 @@ export async function askAI(question) {
     const API_KEY = import.meta.env.VITE_GEMINI_KEY;
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${API_KEY}`,
       {
         method: "POST",
         headers: {
@@ -27,7 +27,7 @@ export async function askAI(question) {
 
     const data = await response.json();
 
-    if (!data.candidates) {
+    if (!data.candidates || data.candidates.length === 0) {
       console.error(data);
       return "AI service unavailable";
     }
