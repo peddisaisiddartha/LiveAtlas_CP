@@ -336,15 +336,25 @@ if (peerConnection.current.signalingState === "stable") {
 };
     const toggleVRMode = () => setIsVRMode(prev => !prev);
 
-    const handleAskAI = async () => {
+   const handleAskAI = async () => {
 
-    if(!aiQuestion) return;
+    if(!aiQuestion || aiLoading) return;
 
     setAILoading(true);
 
-    const answer = await askAI(aiQuestion);
+    try{
 
-    setAIAnswer(answer);
+        const answer = await askAI(aiQuestion);
+
+        setAIAnswer(answer);
+
+    }catch(err){
+
+        console.error(err);
+        setAIAnswer("AI error occurred");
+
+    }
+
     setAILoading(false);
 
 };

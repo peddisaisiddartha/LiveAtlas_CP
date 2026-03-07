@@ -29,7 +29,7 @@ export async function askAI(question) {
 
     if (!data.candidates || data.candidates.length === 0) {
       console.error(data);
-      return "AI service unavailable";
+      return data.error?.message || "AI service unavailable";
     }
 
     return data.candidates[0].content.parts[0].text;
