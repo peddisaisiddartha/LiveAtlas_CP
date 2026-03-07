@@ -1,37 +1,42 @@
-export async function askAI(question){
+export async function askAI(question) {
 
-try{
+  try {
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions",{
-        method:"POST",
-        headers:{
-            "Content-Type":"application/json",
-            "Authorization":`Bearer ${import.meta.env.VITE_OPENAI_KEY}`
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${import.meta.env.VITE_GEMINI_KEY}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
         },
-        body:JSON.stringify({
-            model:"gpt-4o-mini",
-            messages:[
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
                 {
-                    role:"system",
-                    content:"You are a helpful travel guide explaining places to tourists."
-                },
-                {
-                    role:"user",
-                    content:question
+                  text: `You are a helpful travel guide explaining places to tourists. Question: ${question}`
                 }
-            ]
+              ]
+            }
+          ]
         })
-    });
+      }
+    );
 
     const data = await response.json();
 
-    return data.choices[0].message.content;
+    if (!data.candidates || data.candidates.length === 0) {
+      console.error(data);
+      return "AI service unavailable";
+    }
 
-}catch(err){
+    return data.candidates[0].content.parts[0].text;
+
+  } catch (err) {
 
     console.error(err);
     return "AI error occurred";
 
-}
+  }
 
 }
