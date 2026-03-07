@@ -2,8 +2,10 @@ export async function askAI(question) {
 
   try {
 
+    const API_KEY = import.meta.env.VITE_GEMINI_KEY;
+
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${API_KEY}`,
       {
         method: "POST",
         headers: {
@@ -25,7 +27,7 @@ export async function askAI(question) {
 
     const data = await response.json();
 
-    if (!data.candidates || data.candidates.length === 0) {
+    if (!data.candidates) {
       console.error(data);
       return "AI service unavailable";
     }
@@ -33,10 +35,8 @@ export async function askAI(question) {
     return data.candidates[0].content.parts[0].text;
 
   } catch (err) {
-
     console.error(err);
     return "AI error occurred";
-
   }
 
 }
