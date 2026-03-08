@@ -49,7 +49,7 @@ const GuideDashboard = () => {
     try {
 
       const response = await fetch(
-       "https://liveatlas-cp.onrender.com/api/create_tour/",
+       "https://liveatlas-cp.onrender.com/api/create-tour/",
         {
           method: 'POST',
           body: formData,
