@@ -21,6 +21,8 @@ const VideoRoom = () => {
     const [aiQuestion, setAIQuestion] = useState("");
     const [aiAnswer, setAIAnswer] = useState("");
     const [aiLoading, setAILoading] = useState(false);
+    const [guidelocation, setGuideLocation] = useState(null);
+    const [placeName, setPlaceName] = useState("");
 
     const localVideoRef = useRef(null);
     const remoteVideoRef = useRef(null);
@@ -59,6 +61,36 @@ const VideoRoom = () => {
     };
 
     useEffect(() => {
+
+        navigator.geolocation.getCurrentPosition((position) => {
+
+    const latitude = position.coords.latitude;
+    const longitude = position.coords.longitude;
+
+    setGuideLocation({
+        lat: latitude,
+        lon: longitude
+    });
+
+    fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`,{
+        headers: {
+            "User-Agent": "LiveAtlas/1.0 (https://liveatlas-cp-1.onrender.com)"
+        }
+    })
+    .then(res => res.json())
+    .then(data => {
+
+    if(data && data.display_name){
+        setPlaceName(data.display_name);
+    }
+
+    })
+.catch(err => console.error("Location API error:",err));
+
+    console.log("Guide location:", latitude, longitude);
+
+});
+
         const protocol = window.location.protocol === "https:" ? "wss" : "ws";
 
         const connectWebSocket = () => {
@@ -361,6 +393,23 @@ if (peerConnection.current.signalingState === "stable") {
 
     return (
         <div className={`room-container ${isFullScreen ? 'fullscreen-mode' : ''}`} style={{ position: "relative" }}>
+
+            {guideLocation && (
+            <div style={{
+            position:"absolute",
+            top:"80px",
+            left:"20px",
+            background:"rgba(0,0,0,0.6)",
+            padding:"8px",
+            borderRadius:"6px",
+            color:"white",
+            fontSize:"12px",
+            zIndex:10
+            }}>
+                📍 {placeName ? placeName : `${guideLocation.lat.toFixed(4)}, ${guideLocation.lon.toFixed(4)}`}
+            </div>
+            )}
+
             {isReconnecting && <div className="reconnect-banner">Reconnecting...</div>}
 
             {!isFullScreen && (
