@@ -49,11 +49,10 @@ const GuideDashboard = () => {
     try {
 
       const response = await fetch(
-        `${import.meta.env.VITE_BACKEND_URL}/api/create-tour/`,
+       "https://liveatlas-cp.onrender.com/api/create_tour/",
         {
           method: 'POST',
           body: formData,
-          credentials: 'include',
         }
       );
 
