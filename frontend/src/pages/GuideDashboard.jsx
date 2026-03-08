@@ -48,7 +48,13 @@ const GuideDashboard = () => {
     throw new Error("Server error");
   }
 
-  const data = await response.json();
+  let data = {}
+
+  try {
+    data = await response.json()
+  } catch (err) {
+    console.warn("Empty response from server")
+  }
 
   if (data.status === 'success') {
     navigate(`/room/tour_${data.tour_id}`);
