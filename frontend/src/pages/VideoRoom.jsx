@@ -21,7 +21,7 @@ const VideoRoom = () => {
     const [aiQuestion, setAIQuestion] = useState("");
     const [aiAnswer, setAIAnswer] = useState("");
     const [aiLoading, setAILoading] = useState(false);
-    const [guidelocation, setGuideLocation] = useState(null);
+    const [guideLocation, setGuideLocation] = useState(null);
     const [placeName, setPlaceName] = useState("");
 
     const localVideoRef = useRef(null);
@@ -29,6 +29,7 @@ const VideoRoom = () => {
     const vrContainerRef = useRef(null);
     const ws = useRef(null);
     const peerConnection = useRef(null);
+
 
     const switchCamera = async () => {
         const newFacing = cameraFacing === "environment" ? "user" : "environment";
