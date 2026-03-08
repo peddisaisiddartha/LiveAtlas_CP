@@ -25,16 +25,24 @@ def get_tours(request):
 
 @csrf_exempt
 def create_tour(request):
-    if request.method != "POST":
-        return JsonResponse({"error": "Only POST allowed"}, status=405)
 
     try:
+
+        if request.method != "POST":
+            return JsonResponse({"error": "Only POST allowed"}, status=405)
+
         title = request.POST.get("title")
         description = request.POST.get("description")
         price = request.POST.get("price")
         thumbnail = request.FILES.get("thumbnail")
 
+        print("TITLE:", title)
+        print("DESCRIPTION:", description)
+        print("PRICE:", price)
+        print("THUMBNAIL:", thumbnail)
+
         guide = User.objects.first()
+
         if not guide:
             guide = User.objects.create_user(
                 username="admin",
@@ -44,8 +52,8 @@ def create_tour(request):
         thumbnail_url = None
 
         if thumbnail:
-           upload_result = cloudinary.uploader.upload(thumbnail)
-           thumbnail_url = upload_result.get("secure_url")
+            upload_result = cloudinary.uploader.upload(thumbnail)
+            thumbnail_url = upload_result.get("secure_url")
 
         tour = Tour.objects.create(
             title=title,
@@ -60,11 +68,13 @@ def create_tour(request):
             "tour_id": tour.id
         })
 
-
-
-
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=400)
+
+        print("CREATE TOUR ERROR:", str(e))
+
+        return JsonResponse({
+            "error": str(e)
+        })
 
 
 @csrf_exempt

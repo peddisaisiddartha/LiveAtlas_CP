@@ -49,7 +49,7 @@ const GuideDashboard = () => {
     try {
 
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/create-tour/`,
+        `${import.meta.env.VITE_BACKEND_URL}/api/create-tour/`,
         {
           method: 'POST',
           body: formData
