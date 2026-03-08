@@ -52,7 +52,8 @@ const GuideDashboard = () => {
         `${import.meta.env.VITE_BACKEND_URL}/api/create-tour/`,
         {
           method: 'POST',
-          body: formData
+          body: formData,
+          credentials: 'include',
         }
       );
 
