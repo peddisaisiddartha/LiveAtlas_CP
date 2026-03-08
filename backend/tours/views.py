@@ -48,16 +48,20 @@ def create_tour(request):
            thumbnail_url = upload_result.get("secure_url")
 
         tour = Tour.objects.create(
-           guide=guide,
-           title=title,
-           description=description,
-           price=price,
-           thumbnail=thumbnail_url,
-           is_active=True
-)
+            title=title,
+            description=description,
+            price=price,
+            thumbnail=thumbnail_url,
+            guide=guide
+        )
+
+        return JsonResponse({
+            "status": "success",
+            "tour_id": tour.id
+        })
 
 
-        return JsonResponse({"status": "success", "tour_id": tour.id})
+
 
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=400)
