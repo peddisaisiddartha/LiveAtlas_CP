@@ -7,7 +7,10 @@ const GuideDashboard = () => {
   const [desc, setDesc] = useState('');
   const [image, setImage] = useState(null);
   const [isCreating, setIsCreating] = useState(false);
+
   const navigate = useNavigate();
+
+
 
   const handleImageChange = (e) => {
     if (e.target.files && e.target.files[0]) {
@@ -15,8 +18,13 @@ const GuideDashboard = () => {
     }
   };
 
+
+
   const createTour = async () => {
-    if (isCreating) return; // Prevent multiple clicks
+
+    if (isCreating) {
+      return;
+    }
 
     if (!title) {
       alert("Please enter a title!");
@@ -24,6 +32,8 @@ const GuideDashboard = () => {
     }
 
     setIsCreating(true);
+
+
 
     const formData = new FormData();
     formData.append('title', title);
@@ -34,41 +44,84 @@ const GuideDashboard = () => {
       formData.append('thumbnail', image);
     }
 
+
+
     try {
-  const response = await fetch(
-    `${import.meta.env.VITE_API_URL}/api/create-tour/`,
-    {
-      method: 'POST',
-      body: formData,
-      redirect: 'follow',
+
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/create-tour/`,
+        {
+          method: 'POST',
+          body: formData
+        }
+      );
+
+
+
+      const text = await response.text();
+
+      console.log("RAW SERVER RESPONSE:", text);
+
+
+
+      let data = {};
+
+      try {
+        data = JSON.parse(text);
+      } catch (err) {
+        console.error("Response is not JSON:", text);
+      }
+
+
+
+      if (!response.ok) {
+
+        console.error("Server error:", data);
+
+        if (data.error) {
+          alert(data.error);
+        } else {
+          alert("Server returned an error.");
+        }
+
+        return;
+      }
+
+
+
+      if (data.status === 'success') {
+
+        console.log("Tour created successfully:", data);
+
+        navigate(`/room/tour_${data.tour_id}`);
+
+      } else {
+
+        console.error("Create tour failed:", data);
+
+        if (data.error) {
+          alert(data.error);
+        } else {
+          alert("Failed to create tour.");
+        }
+
+      }
+
+    } catch (error) {
+
+      console.error("Network error:", error);
+
+      alert("Network issue. Please try again.");
+
+    } finally {
+
+      setIsCreating(false);
+
     }
-  );
 
-  if (!response.ok) {
-    throw new Error("Server error");
-  }
-
-  let data = {}
-
-  try {
-    data = await response.json()
-  } catch (err) {
-    console.warn("Empty response from server")
-  }
-
-  if (data.status === 'success') {
-    navigate(`/room/tour_${data.tour_id}`);
-  } else {
-    alert("Failed to create tour.");
-  }
-
-} catch (error) {
-  console.error("Network error:", error);
-  alert("Network issue. Please try again.");
-} finally {
-  setIsCreating(false);
-}
   };
+
+
 
   return (
     <div style={{ minHeight: '100vh', background: '#F0F9FF' }}>
@@ -102,6 +155,8 @@ const GuideDashboard = () => {
         </Link>
       </nav>
 
+
+
       <div style={{ maxWidth: '600px', margin: '60px auto', padding: '0 20px' }}>
         <div
           style={{
@@ -115,7 +170,8 @@ const GuideDashboard = () => {
             Create a Broadcast
           </h2>
 
-          {/* Title */}
+
+
           <div style={{ marginBottom: '20px' }}>
             <label
               style={{
@@ -127,6 +183,7 @@ const GuideDashboard = () => {
             >
               Tour Title
             </label>
+
             <input
               type="text"
               placeholder="e.g. Walking tour of Old City"
@@ -142,7 +199,8 @@ const GuideDashboard = () => {
             />
           </div>
 
-          {/* Image Upload */}
+
+
           <div style={{ marginBottom: '20px' }}>
             <label
               style={{
@@ -171,6 +229,7 @@ const GuideDashboard = () => {
                 style={{ display: 'none' }}
                 id="file-upload"
               />
+
               <label
                 htmlFor="file-upload"
                 style={{
@@ -184,10 +243,12 @@ const GuideDashboard = () => {
                 <FaImage size={24} style={{ marginBottom: '8px' }} />
                 {image ? image.name : 'Click to upload a cover photo'}
               </label>
+
             </div>
           </div>
 
-          {/* Description */}
+
+
           <div style={{ marginBottom: '30px' }}>
             <label
               style={{
@@ -199,6 +260,7 @@ const GuideDashboard = () => {
             >
               Description
             </label>
+
             <textarea
               placeholder="What will viewers see?"
               value={desc}
@@ -213,6 +275,8 @@ const GuideDashboard = () => {
               }}
             />
           </div>
+
+
 
           <button
             onClick={createTour}
@@ -231,6 +295,7 @@ const GuideDashboard = () => {
             <FaPlus style={{ marginRight: '8px' }} />
             Start Broadcast
           </button>
+
         </div>
       </div>
     </div>
