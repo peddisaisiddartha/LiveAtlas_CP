@@ -129,13 +129,11 @@ const VideoRoom = () => {
     useEffect(() => {
         if (!remoteVideoRef.current) return;
 
-        if (isVRMode) {
+       if (isVRMode && remoteVideoRef.current?.srcObject) {
             initVR(vrContainerRef.current, remoteVideoRef.current);
-       } else {
-    disposeVR();
-
-
-    }
+        } else {
+            disposeVR();
+        }
 
     return () => disposeVR();
 }, [isVRMode]);
@@ -231,23 +229,7 @@ const VideoRoom = () => {
             peerConnection.current.addTrack(track, stream)
         );
 
-        const sender = peerConnection.current.getSenders().find(
-  s => s.track && s.track.kind === "video"
-);
 
-if (sender) {
-  const params = sender.getParameters();
-
-  if (!params.encodings) {
-    params.encodings = [{}];
-  }
-
-  params.encodings[0].maxBitrate = 5000000; // 5 Mbps
-  params.encodings[0].maxFramerate = 30;
-  params.degradationPreference = "maintain-resolution";
-
-  sender.setParameters(params);
-}
 
         // ---- INITIAL OFFER CREATION ----
 if (peerConnection.current.signalingState === "stable") {
@@ -303,10 +285,20 @@ if (peerConnection.current.signalingState === "stable") {
             );
         }
         else if (data.type === 'candidate') {
+
+    if (peerConnection.current.remoteDescription) {
+        try {
             await peerConnection.current.addIceCandidate(
                 new RTCIceCandidate(data.candidate)
             );
+        } catch (err) {
+            console.error("ICE error:", err);
         }
+    } else {
+        console.log("Skipping ICE - remoteDescription not set yet");
+    }
+
+}
     };
 
     const toggleAudio = () => {
