@@ -29,6 +29,7 @@ export function initVR(container, videoElement) {
     geometry.scale(-1, 1, 1);
 
     videoTexture = new THREE.VideoTexture(videoElement);
+    videoElement.play().catch(() => {});
 
     const material = new THREE.MeshBasicMaterial({
         map: videoTexture,
@@ -38,8 +39,13 @@ export function initVR(container, videoElement) {
     sphere = new THREE.Mesh(geometry, material);
     scene.add(sphere);
 
-    renderer.setAnimationLoop(() => {
-        renderer.render(scene, camera);
+   renderer.setAnimationLoop(() => {
+
+    if (videoTexture) {
+        videoTexture.needsUpdate = true;
+    }
+
+    renderer.render(scene, camera);
     });
 
     window.addEventListener("resize", () => {
