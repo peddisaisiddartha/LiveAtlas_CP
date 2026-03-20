@@ -203,26 +203,28 @@ const VideoRoom = () => {
         });
 
         peerConnection.current.oniceconnectionstatechange = () => {
-    if (peerConnection.current.iceConnectionState === "connected") {
 
-        const sender = peerConnection.current.getSenders().find(
-            s => s.track && s.track.kind === "video"
-        );
+    const state = peerConnection.current.iceConnectionState;
 
-        if (sender) {
-            const params = sender.getParameters();
+    const sender = peerConnection.current.getSenders().find(
+        s => s.track && s.track.kind === "video"
+    );
 
-            if (!params.encodings) {
-                params.encodings = [{}];
-            }
+    if (!sender) return;
 
-            params.encodings[0].maxBitrate = 2500000; // 2.5 Mbps
-            params.encodings[0].maxFramerate = 30;
-            params.degradationPreference = "maintain-resolution";
+    const params = sender.getParameters();
 
-            sender.setParameters(params);
-        }
+    if (!params.encodings) params.encodings = [{}];
+
+    if (state === "connected") {
+        params.encodings[0].maxBitrate = 2500000;
     }
+
+    if (state === "disconnected" || state === "failed") {
+        params.encodings[0].maxBitrate = 800000;
+    }
+
+    sender.setParameters(params);
 };
 
         stream.getTracks().forEach(track =>
