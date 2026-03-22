@@ -28,8 +28,13 @@ export function initVR(container, videoElement) {
     const geometry = new THREE.SphereGeometry(500, 60, 40);
     geometry.scale(-1, 1, 1);
 
-    videoTexture = new THREE.VideoTexture(videoElement);
+    videoElement.muted = true;
     videoElement.play().catch(() => {});
+
+    videoTexture = new THREE.VideoTexture(videoElement);
+    videoTexture.minFilter = THREE.LinearFilter;
+    videoTexture.magFilter = THREE.LinearFilter;
+    videoTexture.colorSpace = THREE.SRGBColorSpace;
 
     const material = new THREE.MeshBasicMaterial({
         map: videoTexture,

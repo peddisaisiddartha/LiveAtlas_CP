@@ -126,16 +126,30 @@ const VideoRoom = () => {
         };
     }, [roomID]);
 
-    useEffect(() => {
-        if (!remoteVideoRef.current) return;
+   useEffect(() => {
+    if (!remoteVideoRef.current) return;
 
-       if (isVRMode && remoteVideoRef.current?.srcObject) {
-            initVR(vrContainerRef.current, remoteVideoRef.current);
+    const video = remoteVideoRef.current;
+
+    const startVR = () => {
+        if (isVRMode) {
+            initVR(vrContainerRef.current, video);
         } else {
             disposeVR();
         }
+    };
 
-    return () => disposeVR();
+    if (video.readyState >= 2) {
+        startVR();
+    } else {
+        video.onloadeddata = startVR;
+    }
+
+    return () => {
+        disposeVR();
+        video.onloadeddata = null;
+    };
+
 }, [isVRMode]);
 
     const setupWebRTC = async () => {
