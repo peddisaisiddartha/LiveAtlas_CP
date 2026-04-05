@@ -38,11 +38,7 @@ const VideoRoom = () => {
       .order("id", { ascending: false })
       .limit(1);
 
-   if (data && data.length > 0) {
-  setSelectedIntent(data[0].intent);
-} else {
-  setSelectedIntent("Explore");
-}
+  
       if (data && data.length > 0) {
   setSelectedIntent(data[0].intent);
   console.log("Fetched Intent:", data[0].intent);
@@ -608,83 +604,93 @@ Ask
 )}
 
 </div>
-
+            {!isFullScreen && (
             <div
-  style={{
-    position: "absolute",
-    top: "120px",
-    right: "20px",
-    zIndex: 1000,
-    background: "rgba(0,0,0,0.7)",
-    padding: "10px",
-    borderRadius: "8px",
-    color: "white"
-  }}
+            
+    style={{
+        position: "absolute",
+        top: "120px",
+        right: "20px",
+        zIndex: 1000,
+        background: "rgba(0,0,0,0.7)",
+        padding: "10px",
+        borderRadius: "8px",
+        color: "white"
+    }}
 >
-  <p>Change Intent</p>
+    <p>Change Intent</p>
 
-  <select
-    value={selectedIntent}
-    onChange={async (e) => {
-      const newIntent = e.target.value;
-      setSelectedIntent(newIntent);
+    <select
+        value={selectedIntent}
+        onChange={async (e) => {
+        const newIntent = e.target.value;
+        setSelectedIntent(newIntent);
 
      // 🧠 SAVE TO SUPABASE (NO DUPLICATES)
-await supabase
-  .from("session_intents")
-  .delete()
-  .eq("room_id", roomID);
+        await supabase
+        .from("session_intents")
+        .delete()
+        .eq("room_id", roomID);
 
-const { error } = await supabase
-  .from("session_intents")
-  .insert([
-    {
-      room_id: roomID,
-      intent: newIntent,
-    },
-  ]);
+        const { error } = await supabase
+        .from("session_intents")
+        .insert([
+        {
+            room_id: roomID,
+            intent: newIntent,
+        },
+        ]);
 
-      console.log("Intent Updated:", newIntent, error);
+        console.log("Intent Updated:", newIntent, error);
     }}
-    style={{ width: "100%", padding: "5px" }}
-  >
-    <option value="Explore">Explore</option>
-    <option value="Talk">Talk</option>
-    <option value="Learn">Learn</option>
-    <option value="Experience">Experience</option>
-  </select>
-</div>
+        style={{ width: "100%", padding: "5px" }}
+     >
+        <option value="Explore">Explore</option>
+        <option value="Talk">Talk</option>
+        <option value="Learn">Learn</option>
+        <option value="Experience">Experience</option>
+    </select>
+</div> 
+            )}
+            
 
-            {(!isFullScreen || showControls) && (
-                <div className="controls-bar">
-                <button onClick={toggleAudio}>
-                    {isAudioOn ? <FaMicrophone /> : <FaMicrophoneSlash />}
-                </button>
+            {(!isFullScreen || (isFullScreen && showControls)) && (
 
-                <button onClick={toggleVideo}>
-                    {isVideoOn ? <FaVideo /> : <FaVideoSlash />}
-                </button>
+               <div className={`controls-bar ${isFullScreen && !showControls ? 'controls-hidden' : ''}`}>
 
-                <button onClick={() => setShowLocalVideo(prev => !prev)}>
-                    {showLocalVideo ? "Hide Cam" : "Show Cam"}
-                </button>
+                {!isFullScreen && (
+                <>
+                    <button onClick={toggleAudio}>
+                        {isAudioOn ? <FaMicrophone /> : <FaMicrophoneSlash />}
+                    </button>
 
-                <button onClick={endCall}>
-                    <FaPhoneSlash />
-                </button>
+                    <button onClick={toggleVideo}>
+                        {isVideoOn ? <FaVideo /> : <FaVideoSlash />}
+                    </button>
 
-                <button onClick={switchCamera}>
-                    <FaSyncAlt />
-                </button>
+                    <button onClick={() => setShowLocalVideo(prev => !prev)}>
+                        {showLocalVideo ? "Hide Cam" : "Show Cam"}
+                    </button>
+
+                    <button onClick={endCall}>
+                        <FaPhoneSlash />
+                    </button>
+
+                    <button onClick={switchCamera}>
+                        <FaSyncAlt />
+                    </button>
+
+                    <button onClick={toggleVRMode}>
+                        {isVRMode ? "Exit VR" : "VR"}
+                    </button>
+                </>
+                )}
 
                 <button onClick={toggleFullScreen}>
                     {isFullScreen ? <FaCompress /> : <FaExpand />}
                 </button>
 
-                <button onClick={toggleVRMode}>
-                    {isVRMode ? "Exit VR" : "VR"}
-                </button>
-           </div>
+</div>
 )}
 </div>
     );
