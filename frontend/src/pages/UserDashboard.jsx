@@ -147,6 +147,7 @@ const UserDashboard = () => {
                         <div style={{marginTop: 'auto'}}>
                            <button
   onClick={async () => {
+  try {
     const { error } = await supabase
       .from("session_intents")
       .insert([
@@ -156,10 +157,18 @@ const UserDashboard = () => {
         },
       ]);
 
-    console.log("Saved:", intent, error);
+    if (error) throw error;
+
+    console.log("Intent Saved:", intent);
 
     window.location.href = `/room/tour-${tour.id}`;
-  }}
+
+  } catch (err) {
+    console.error("Join failed:", err);
+    alert("Something went wrong. Try again.");
+  }
+}}
+
   style={{
     width: "80%",
     margin: "0 auto",

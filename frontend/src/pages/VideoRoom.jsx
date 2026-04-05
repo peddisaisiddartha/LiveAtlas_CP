@@ -25,26 +25,73 @@ const VideoRoom = () => {
     const [guideLocation, setGuideLocation] = useState(null);
     const [placeName, setPlaceName] = useState("");
     const [selectedIntent, setSelectedIntent] = useState("Explore");
+    const [showControls, setShowControls] = useState(true);
+    const [showLocalVideo, setShowLocalVideo] = useState(true);
 
-     useEffect(() => {
+   useEffect(() => {
+
   async function fetchIntent() {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("session_intents")
       .select("*")
       .eq("room_id", roomID)
       .order("id", { ascending: false })
       .limit(1);
 
-    if (data && data.length > 0) {
-      setSelectedIntent(data[0].intent);
-      console.log("Fetched Intent:", data[0].intent);
-    } else {
-      console.log("No intent found, using default");
-    }
+   if (data && data.length > 0) {
+  setSelectedIntent(data[0].intent);
+} else {
+  setSelectedIntent("Explore");
+}
+      if (data && data.length > 0) {
+  setSelectedIntent(data[0].intent);
+  console.log("Fetched Intent:", data[0].intent);
+} else {
+  setSelectedIntent("Explore");
+}
+    
   }
 
   fetchIntent();
+
+  // 🔥 REALTIME SUBSCRIPTION
+  const channel = supabase
+    .channel('intent-live')
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'session_intents',
+        filter: `room_id=eq.${roomID}`
+      },
+      (payload) => {
+        console.log("Realtime Intent:", payload.new.intent);
+        setSelectedIntent(payload.new.intent);
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+
 }, [roomID]);
+
+
+useEffect(() => {
+  let timer;
+
+  if (isFullScreen && showControls) {
+    timer = setTimeout(() => {
+      setShowControls(false);
+    }, 3000);
+  }
+
+  return () => clearTimeout(timer);
+}, [isFullScreen, showControls]);
+
+
 
 useEffect(() => {
   console.log("Current Intent:", selectedIntent);
@@ -459,7 +506,13 @@ if (peerConnection.current.signalingState === "stable") {
 };
 
     return (
-        <div className={`room-container ${isFullScreen ? 'fullscreen-mode' : ''}`} style={{ position: "relative" }}>
+       <div
+  className={`room-container ${isFullScreen ? 'fullscreen-mode' : ''}`}
+  onClick={() => {
+    if (isFullScreen) setShowControls(true);
+  }}
+  style={{ position: "relative" }}
+>
 
             {guideLocation && (
             <div style={{
@@ -491,8 +544,9 @@ if (peerConnection.current.signalingState === "stable") {
                     className="video-grid"
                     style={{ display: isVRMode ? "none" : "grid" }}
                 >
-                    {!isFullScreen && (
-                    <div className="video-wrapper local">
+                    
+                    {showLocalVideo && !isFullScreen && (
+                        <div className="video-wrapper local">
                         <video ref={localVideoRef} autoPlay playsInline muted />
                         <div className="name-tag">You</div>
                     </div>
@@ -575,15 +629,20 @@ Ask
       const newIntent = e.target.value;
       setSelectedIntent(newIntent);
 
-      // 🔥 SAVE TO SUPABASE
-      const { error } = await supabase
-        .from("session_intents")
-        .insert([
-          {
-            room_id: roomID,
-            intent: newIntent
-          }
-        ]);
+     // 🧠 SAVE TO SUPABASE (NO DUPLICATES)
+await supabase
+  .from("session_intents")
+  .delete()
+  .eq("room_id", roomID);
+
+const { error } = await supabase
+  .from("session_intents")
+  .insert([
+    {
+      room_id: roomID,
+      intent: newIntent,
+    },
+  ]);
 
       console.log("Intent Updated:", newIntent, error);
     }}
@@ -596,13 +655,18 @@ Ask
   </select>
 </div>
 
-            <div className="controls-bar">
+            {(!isFullScreen || showControls) && (
+                <div className="controls-bar">
                 <button onClick={toggleAudio}>
                     {isAudioOn ? <FaMicrophone /> : <FaMicrophoneSlash />}
                 </button>
 
                 <button onClick={toggleVideo}>
                     {isVideoOn ? <FaVideo /> : <FaVideoSlash />}
+                </button>
+
+                <button onClick={() => setShowLocalVideo(prev => !prev)}>
+                    {showLocalVideo ? "Hide Cam" : "Show Cam"}
                 </button>
 
                 <button onClick={endCall}>
@@ -620,9 +684,9 @@ Ask
                 <button onClick={toggleVRMode}>
                     {isVRMode ? "Exit VR" : "VR"}
                 </button>
-            </div>
-
-        </div>
+           </div>
+)}
+</div>
     );
 };
 
