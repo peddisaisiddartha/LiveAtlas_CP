@@ -46,25 +46,39 @@ const VideoRoom = () => {
   fetchIntent();
 }, [roomID]);
 
-
-    useEffect(() => {
+useEffect(() => {
   console.log("Current Intent:", selectedIntent);
 
+  // 🌍 EXPLORE MODE
   if (selectedIntent === "Explore") {
-    console.log("🌍 Explore Mode Activated");
+    setIsVRMode(false);
+    console.log("🌍 Explore → Normal viewing mode");
   }
 
+  // 🗣 TALK MODE
   if (selectedIntent === "Talk") {
-    console.log("🗣 Talk Mode Activated");
+    setIsVRMode(false);
+    console.log("🗣 Talk → Interaction focused mode");
   }
 
+  // 📘 LEARN MODE
   if (selectedIntent === "Learn") {
-    console.log("📘 Learn Mode Activated");
+    setIsVRMode(false);
+
+    if (!aiQuestion) {
+      setAIQuestion("Explain this place");
+      handleAskAI();
+    }
+
+    console.log("📘 Learn → AI auto explanation triggered");
   }
 
+  // 🎥 EXPERIENCE MODE
   if (selectedIntent === "Experience") {
-    console.log("🎥 Experience Mode Activated");
+    setIsVRMode(true);
+    console.log("🎥 Experience → VR mode ON");
   }
+
 }, [selectedIntent]);
 
     const localVideoRef = useRef(null);
@@ -170,27 +184,25 @@ const VideoRoom = () => {
     }, [roomID]);
 
    useEffect(() => {
-    if (!remoteVideoRef.current) return;
+    console.log("VR Effect Triggered:", isVRMode);
 
     const video = remoteVideoRef.current;
 
-    const startVR = () => {
-        if (isVRMode) {
-            initVR(vrContainerRef.current, video);
-        } else {
-            disposeVR();
-        }
-    };
+    if (!video || !vrContainerRef.current) {
+        console.log("VR skipped: video or container missing");
+        return;
+    }
 
-    if (video.readyState >= 2) {
-        startVR();
+    if (isVRMode) {
+        console.log("Starting VR...");
+        initVR(vrContainerRef.current, video);
     } else {
-        video.onloadeddata = startVR;
+        console.log("Stopping VR...");
+        disposeVR();
     }
 
     return () => {
         disposeVR();
-        video.onloadeddata = null;
     };
 
 }, [isVRMode]);
@@ -418,7 +430,10 @@ if (peerConnection.current.signalingState === "stable") {
         setIsFullScreen(false);
     }
 };
-    const toggleVRMode = () => setIsVRMode(prev => !prev);
+    const toggleVRMode = () => {
+  console.log("VR TOGGLED:", !isVRMode);
+  setIsVRMode(prev => !prev);
+};
 
    const handleAskAI = async () => {
 
