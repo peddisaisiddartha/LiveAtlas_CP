@@ -536,10 +536,10 @@ if (peerConnection.current.signalingState === "stable") {
             )}
 
 
-                <div
-                    className="video-grid"
-                    style={{ display: isVRMode ? "none" : "grid" }}
-                >
+              <div
+                className="video-grid"
+                style={{ display: isVRMode ? "none" : "grid", position: "relative", zIndex: 1 }}
+            >
                     
                     {showLocalVideo && !isFullScreen && (
                         <div className="video-wrapper local">
@@ -557,11 +557,15 @@ if (peerConnection.current.signalingState === "stable") {
 
 
             {isVRMode && (
-                <div ref={vrContainerRef} style={{
-                    position: "absolute",
-                    inset: 0,
-                    backgroundColor: "black"
-                }} />
+                <div
+                    ref={vrContainerRef}
+                    style={{
+                        position: "absolute",
+                        inset: 0,
+                        backgroundColor: "black",
+                        zIndex: 0
+                    }}
+                />
             )}
 
 
@@ -652,7 +656,8 @@ Ask
     </select>
 </div> 
             )}
-            
+
+
 
                <div className={`controls-bar ${isFullScreen && !showControls ? 'controls-hidden' : ''}`}>
 
