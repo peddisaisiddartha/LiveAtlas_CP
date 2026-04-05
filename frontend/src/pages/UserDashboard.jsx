@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FaGlobeAmericas, FaUserCircle } from 'react-icons/fa';
+import { supabase } from '../lib/supabase';
 
 const UserDashboard = () => {
   const [tours, setTours] = useState([]);
