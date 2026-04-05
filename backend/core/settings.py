@@ -26,9 +26,8 @@ DEBUG = False
 
 ALLOWED_HOSTS = ['liveatlas-cp.onrender.com', 'liveatlas-cp-1.onrender.com',]
 
-CORS_ALLOWED_ORIGINS = [
-    'https://liveatlas-cp-1.onrender.com',
-]
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = True
 
 CSRF_TRUSTED_ORIGINS = [
     'https://liveatlas-cp-1.onrender.com',

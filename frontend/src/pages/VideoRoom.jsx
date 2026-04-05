@@ -4,6 +4,7 @@ import './VideoRoom.css';
 import { FaMicrophone, FaMicrophoneSlash, FaVideo, FaVideoSlash, FaPhoneSlash, FaExpand, FaCompress, FaGlobeAmericas, FaSyncAlt } from 'react-icons/fa';
 import { initVR, disposeVR } from "../vr/vrEngine";
 import { askAI } from '../ai/aiService';
+import { supabase } from '../lib/supabase';
 
 const VideoRoom = () => {
     const { roomID } = useParams();
@@ -23,6 +24,48 @@ const VideoRoom = () => {
     const [aiLoading, setAILoading] = useState(false);
     const [guideLocation, setGuideLocation] = useState(null);
     const [placeName, setPlaceName] = useState("");
+    const [selectedIntent, setSelectedIntent] = useState("Explore");
+
+     useEffect(() => {
+  async function fetchIntent() {
+    const { data, error } = await supabase
+      .from("session_intents")
+      .select("*")
+      .eq("room_id", roomID)
+      .order("id", { ascending: false })
+      .limit(1);
+
+    if (data && data.length > 0) {
+      setSelectedIntent(data[0].intent);
+      console.log("Fetched Intent:", data[0].intent);
+    } else {
+      console.log("No intent found, using default");
+    }
+  }
+
+  fetchIntent();
+}, [roomID]);
+
+
+    useEffect(() => {
+  console.log("Current Intent:", selectedIntent);
+
+  if (selectedIntent === "Explore") {
+    console.log("🌍 Explore Mode Activated");
+  }
+
+  if (selectedIntent === "Talk") {
+    console.log("🗣 Talk Mode Activated");
+  }
+
+  if (selectedIntent === "Learn") {
+    console.log("📘 Learn Mode Activated");
+  }
+
+  if (selectedIntent === "Experience") {
+    console.log("🎥 Experience Mode Activated");
+  }
+}, [selectedIntent]);
 
     const localVideoRef = useRef(null);
     const remoteVideoRef = useRef(null);

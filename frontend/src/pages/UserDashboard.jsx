@@ -4,6 +4,7 @@ import { FaGlobeAmericas, FaUserCircle } from 'react-icons/fa';
 
 const UserDashboard = () => {
   const [tours, setTours] = useState([]);
+  const [intent, setIntent] = useState("Explore");
 
   useEffect(() => {
     fetch('https://liveatlas-cp.onrender.com/api/tours/')
@@ -64,6 +65,19 @@ const UserDashboard = () => {
       {/* TOUR GRID */}
       <div style={{padding: '0 40px 60px 40px', maxWidth: '1200px', margin: '0 auto'}}>
         <h2 style={{marginBottom: '30px', color: '#0F172A', fontSize: '28px'}}>Active Broadcasts</h2>
+
+        <div style={{ marginBottom: "20px" }}>
+  <select
+    value={intent}
+    onChange={(e) => setIntent(e.target.value)}
+    style={{ padding: "8px", fontSize: "16px" }}
+  >
+    <option value="Explore">Explore</option>
+    <option value="Talk">Talk</option>
+    <option value="Learn">Learn</option>
+    <option value="Experience">Experience</option>
+  </select>
+</div>
 
         <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '30px'}}>
 
@@ -130,21 +144,37 @@ const UserDashboard = () => {
 
                         {/* UPDATED BUTTON: Centered with margin: 0 auto */}
                         <div style={{marginTop: 'auto'}}>
-                            <Link to={`/room/tour-${tour.id}`} className="btn" style={{
-                              width: '80%', /* Not 100% anymore */
-                              margin: '0 auto', /* This centers it */
-                              display: 'block',
-                              textAlign: 'center',
-                              padding: '12px 24px',
-                              borderRadius: '50px', /* More rounded pill shape */
-                              background: 'linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%)',
-                              color: 'white',
-                              textDecoration: 'none',
-                              fontWeight: '600',
-                              boxShadow: '0 4px 10px rgba(14, 165, 233, 0.4)'
-                            }}>
-                              Join Broadcast
-                            </Link>
+                           <button
+  onClick={async () => {
+    const { error } = await supabase
+      .from("session_intents")
+      .insert([
+        {
+          room_id: `tour-${tour.id}`,
+          intent: intent,
+        },
+      ]);
+
+    console.log("Saved:", intent, error);
+
+    window.location.href = `/room/tour-${tour.id}`;
+  }}
+  style={{
+    width: "80%",
+    margin: "0 auto",
+    display: "block",
+    textAlign: "center",
+    padding: "12px 24px",
+    borderRadius: "50px",
+    background: "linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%)",
+    color: "white",
+    border: "none",
+    fontWeight: "600",
+    cursor: "pointer",
+  }}
+>
+  Join Broadcast
+</button>
                         </div>
                       </div>
                     </div>
