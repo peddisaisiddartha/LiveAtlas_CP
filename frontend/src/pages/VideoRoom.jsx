@@ -654,8 +654,6 @@ Ask
             )}
             
 
-            {(!isFullScreen || (isFullScreen && showControls)) && (
-
                <div className={`controls-bar ${isFullScreen && !showControls ? 'controls-hidden' : ''}`}>
 
                 {!isFullScreen && (
@@ -691,7 +689,7 @@ Ask
                 </button>
 
 </div>
-)}
+
 </div>
     );
 };
