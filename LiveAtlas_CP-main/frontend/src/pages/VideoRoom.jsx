@@ -315,21 +315,47 @@ if (peerConnection.current.signalingState === "stable") {
 }
     };
 
-    const toggleAudio = () => {
-        const stream = localVideoRef.current?.srcObject;
-        if (!stream) return;
-        const track = stream.getAudioTracks()[0];
-        track.enabled = !track.enabled;
-        setIsAudioOn(track.enabled);
-    };
+  const toggleAudio = () => {
+  const stream = localVideoRef.current?.srcObject;
+  if (!stream) {
+    console.log("No local stream found");
+    return;
+  }
 
-    const toggleVideo = () => {
-        const stream = localVideoRef.current?.srcObject;
-        if (!stream) return;
-        const track = stream.getVideoTracks()[0];
-        track.enabled = !track.enabled;
-        setIsVideoOn(track.enabled);
-    };
+  const audioTracks = stream.getAudioTracks();
+
+  if (audioTracks.length === 0) {
+    console.log("No audio track");
+    return;
+  }
+
+  const track = audioTracks[0];
+  track.enabled = !track.enabled;
+
+  console.log("Audio enabled:", track.enabled);
+  setIsAudioOn(track.enabled);
+};
+
+ const toggleVideo = () => {
+  const stream = localVideoRef.current?.srcObject;
+  if (!stream) {
+    console.log("No local stream found");
+    return;
+  }
+
+  const videoTracks = stream.getVideoTracks();
+
+  if (videoTracks.length === 0) {
+    console.log("No video track");
+    return;
+  }
+
+  const track = videoTracks[0];
+  track.enabled = !track.enabled;
+
+  console.log("Video enabled:", track.enabled);
+  setIsVideoOn(track.enabled);
+};
 
     const endCall = async () => {
 
@@ -434,13 +460,13 @@ if (peerConnection.current.signalingState === "stable") {
                     style={{ display: isVRMode ? "none" : "grid" }}
                 >
                     {!isFullScreen && (
-                    <div className="video-wrapper local">
+                    <div className={`video-wrapper local ${isFullScreen ? 'pip' : ''}`}>
                         <video ref={localVideoRef} autoPlay playsInline muted />
                         <div className="name-tag">You</div>
                     </div>
                     )}
 
-                    <div className="video-wrapper remote">
+                    <div className={`video-wrapper remote ${isFullScreen ? 'expanded' : ''}`}>
                         <video ref={remoteVideoRef} autoPlay playsInline />
                         <div className="name-tag">Live Feed</div>
                     </div>
@@ -498,27 +524,27 @@ Ask
 </div>
 
             <div className="controls-bar">
-                <button onClick={toggleAudio}>
+                <button className={`control-btn ${!isAudioOn ? 'off' : ''}`} onClick={toggleAudio}>
                     {isAudioOn ? <FaMicrophone /> : <FaMicrophoneSlash />}
                 </button>
 
-                <button onClick={toggleVideo}>
+                <button className={`control-btn ${!isVideoOn ? 'off' : ''}`} onClick={toggleVideo}>
                     {isVideoOn ? <FaVideo /> : <FaVideoSlash />}
                 </button>
 
-                <button onClick={endCall}>
+                <button className="control-btn end-call" onClick={endCall}>
                     <FaPhoneSlash />
                 </button>
 
-                <button onClick={switchCamera}>
+                <button className="control-btn" onClick={switchCamera}>
                     <FaSyncAlt />
                 </button>
 
-                <button onClick={toggleFullScreen}>
+                <button className="control-btn" onClick={toggleFullScreen}>
                     {isFullScreen ? <FaCompress /> : <FaExpand />}
                 </button>
 
-                <button onClick={toggleVRMode}>
+                <button className="control-btn" onClick={toggleVRMode}>
                     {isVRMode ? "Exit VR" : "VR"}
                 </button>
             </div>
