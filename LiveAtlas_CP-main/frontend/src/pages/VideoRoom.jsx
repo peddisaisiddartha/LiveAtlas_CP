@@ -162,7 +162,7 @@ useEffect(() => {
         }
     };
 
-    tryStartVR();
+    setTimeout(tryStartVR, 200);
 
     return () => disposeVR();
 
