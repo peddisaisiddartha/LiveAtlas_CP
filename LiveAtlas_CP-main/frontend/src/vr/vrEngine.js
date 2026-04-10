@@ -6,8 +6,12 @@ let camera;
 let sphere;
 let videoTexture;
 let handleResize;
+let isVRRunning = false;
 
 export function initVR(container, videoElement) {
+
+    if (isVRRunning) return;
+    isVRRunning = true;
 
     if (renderer) {
         disposeVR();
@@ -149,5 +153,7 @@ export function disposeVR(){
     camera = null;
     sphere = null;
     videoTexture = null;
+    
+    isVRRunning = false;
 
 }

@@ -440,7 +440,12 @@ peerConnection.current.ontrack = (event) => {
         setIsFullScreen(false);
     }
 };
-    const toggleVRMode = () => setIsVRMode(prev => !prev);
+    const toggleVRMode = () => {
+    setIsVRMode(prev => {
+        console.log("VR TOGGLED:", !prev);
+        return !prev;
+    });
+};
 
    const handleAskAI = async () => {
 
