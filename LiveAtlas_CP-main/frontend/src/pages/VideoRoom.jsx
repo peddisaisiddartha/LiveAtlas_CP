@@ -129,30 +129,29 @@ const VideoRoom = () => {
 useEffect(() => {
 
     const video = remoteVideoRef.current;
-    const container = vrContainerRef.current;
 
-    if (!video || !container) {
-        console.log("VR skipped: video or container missing");
-        return;
-    }
+    if (!video) return;
 
     if (isVRMode) {
 
-        const startVR = () => {
-            if (video.srcObject) {
-                console.log("Starting VR...");
-                initVR(container, video);
+        const waitForVideo = () => {
+
+            if (
+                video.srcObject &&
+                video.readyState >= 3 &&
+                !video.paused
+            ) {
+                console.log("VR starting with valid video");
+
+                initVR(vrContainerRef.current, video);
+
             } else {
-                console.log("VR blocked: no srcObject");
+                console.log("Waiting for video...");
+                setTimeout(waitForVideo, 300);
             }
         };
 
-        const interval = setInterval(() => {
-            if (video.srcObject && video.readyState >= 2) {
-                startVR();
-                clearInterval(interval);
-            }
-        }, 300);
+        waitForVideo();
 
     } else {
         disposeVR();
@@ -272,13 +271,30 @@ if (peerConnection.current.signalingState === "stable") {
 
 
 peerConnection.current.ontrack = (event) => {
-    if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = event.streams[0];
 
-        console.log("Remote stream attached:", event.streams[0]);
+    if (!remoteVideoRef.current) return;
 
-        remoteVideoRef.current.play().catch(() => {});
-    }
+    const video = remoteVideoRef.current;
+
+    video.srcObject = event.streams[0];
+
+    console.log("Remote stream attached:", event.streams[0]);
+
+    video.onloadeddata = () => {
+        console.log("VIDEO LOADED DATA");
+    };
+
+    video.onplaying = () => {
+        console.log("VIDEO PLAYING ✅");
+    };
+
+    video.onpause = () => {
+        console.log("VIDEO PAUSED ❌");
+    };
+
+    video.play()
+        .then(() => console.log("PLAY SUCCESS"))
+        .catch((err) => console.log("PLAY FAILED ❌", err));
 };
 
 
