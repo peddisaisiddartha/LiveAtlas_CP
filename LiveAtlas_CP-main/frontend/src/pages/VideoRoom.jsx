@@ -128,41 +128,38 @@ const VideoRoom = () => {
 
 useEffect(() => {
 
-    const tryStartVR = () => {
+    if (!isVRMode) {
+        disposeVR();
+        return;
+    }
 
-        const video = remoteVideoRef.current;
-        const container = vrContainerRef.current;
+    const video = remoteVideoRef.current;
+    const container = vrContainerRef.current;
 
-        if (!isVRMode) {
-            disposeVR();
+    if (!video || !container) {
+        console.log("VR blocked: missing video/container");
+        return;
+    }
+
+    const startVR = () => {
+
+        if (!video.srcObject) {
+            console.log("VR blocked: no stream");
             return;
         }
 
-        if (
-            video &&
-            container &&
-            video.srcObject &&
-            video.readyState >= 3 &&
-            !video.paused
-        ) {
-            console.log("VR READY ✅");
-
-            initVR(container, video);
-
-        } else {
-            console.log("VR WAITING...", {
-                video: !!video,
-                container: !!container,
-                src: !!video?.srcObject,
-                ready: video?.readyState,
-                paused: video?.paused
-            });
-
-            setTimeout(tryStartVR, 300);
+        if (video.readyState < 3) {
+            console.log("VR waiting for video...");
+            setTimeout(startVR, 300);
+            return;
         }
+
+        console.log("VR STARTED SUCCESSFULLY");
+        initVR(container, video);
     };
 
-    setTimeout(tryStartVR, 200);
+    // 🔥 CRITICAL FIX (wait for DOM render)
+    setTimeout(startVR, 300);
 
     return () => disposeVR();
 
