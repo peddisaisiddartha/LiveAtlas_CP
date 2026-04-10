@@ -141,25 +141,30 @@ useEffect(() => {
         return;
     }
 
-    const startVR = () => {
+    const waitForStream = () => {
 
+        // 🔥 MUST HAVE STREAM
         if (!video.srcObject) {
-            console.log("VR blocked: no stream");
+            console.log("Waiting: no srcObject...");
+            setTimeout(waitForStream, 500);
             return;
         }
 
+        // 🔥 MUST HAVE DATA
         if (video.readyState < 3) {
-            console.log("VR waiting for video...");
-            setTimeout(startVR, 300);
+            console.log("Waiting: video not ready...");
+            setTimeout(waitForStream, 500);
             return;
         }
 
-        console.log("VR STARTED SUCCESSFULLY");
+        // 🔥 FORCE PLAY (CRITICAL)
+        video.play().catch(() => {});
+
+        console.log("VR FINAL START");
         initVR(container, video);
     };
 
-    // 🔥 CRITICAL FIX (wait for DOM render)
-    setTimeout(startVR, 300);
+    waitForStream();
 
     return () => disposeVR();
 
