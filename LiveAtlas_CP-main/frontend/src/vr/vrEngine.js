@@ -5,6 +5,7 @@ let scene;
 let camera;
 let sphere;
 let videoTexture;
+let handleResize;
 
 export function initVR(container, videoElement) {
 
@@ -105,17 +106,20 @@ window.addEventListener("deviceorientation", handleOrientation);
     renderer.render(scene, camera);
 });
 
-    window.addEventListener("resize", () => {
+   const handleResize = () => {
 
-        const width = container.clientWidth;
-        const height = container.clientHeight;
+    if (!camera || !renderer) return; // 🔥 CRITICAL FIX
 
-        camera.aspect = width / height;
-        camera.updateProjectionMatrix();
+    const width = container.clientWidth;
+    const height = container.clientHeight;
 
-        renderer.setSize(width, height);
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
 
-    });
+    renderer.setSize(width, height);
+};
+
+window.addEventListener("resize", handleResize);
 
 }
 
@@ -131,8 +135,12 @@ export function disposeVR(){
 
     if(videoTexture) videoTexture.dispose();
 
-    window.removeEventListener("deviceorientation", handleOrientation);
+    window.removeEventListener("resize", handleResize); // ✅ ADD THIS
 
+    if(sphere){
+        sphere.geometry.dispose();
+        sphere.material.dispose();
+    }
 
     renderer.dispose();
 
