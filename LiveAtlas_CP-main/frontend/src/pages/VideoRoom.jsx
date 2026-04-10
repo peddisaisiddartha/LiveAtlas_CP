@@ -126,29 +126,33 @@ const VideoRoom = () => {
         };
     }, [roomID]);
 
- useEffect(() => {
+useEffect(() => {
 
     const video = remoteVideoRef.current;
+    const container = vrContainerRef.current;
 
-    if (!video) return;
+    if (!video || !container) {
+        console.log("VR skipped: video or container missing");
+        return;
+    }
 
     if (isVRMode) {
 
         const startVR = () => {
-            initVR(vrContainerRef.current, video);
+            if (video.srcObject) {
+                console.log("Starting VR...");
+                initVR(container, video);
+            } else {
+                console.log("VR blocked: no srcObject");
+            }
         };
 
-        // 🔥 THIS IS THE REAL FIX
-        if (video.readyState >= 2) {
-            startVR();
-        } else {
-            const interval = setInterval(() => {
-                if (video.readyState >= 2) {
-                    startVR();
-                    clearInterval(interval);
-                }
-        }, 200);
-    }
+        const interval = setInterval(() => {
+            if (video.srcObject && video.readyState >= 2) {
+                startVR();
+                clearInterval(interval);
+            }
+        }, 300);
 
     } else {
         disposeVR();
@@ -267,12 +271,16 @@ if (peerConnection.current.signalingState === "stable") {
 
 
 
-       peerConnection.current.ontrack = (event) => {
+peerConnection.current.ontrack = (event) => {
     if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = event.streams[0];
+
+        console.log("Remote stream attached:", event.streams[0]);
+
         remoteVideoRef.current.play().catch(() => {});
     }
 };
+
 
         peerConnection.current.onicecandidate = (event) => {
             if (event.candidate) {
