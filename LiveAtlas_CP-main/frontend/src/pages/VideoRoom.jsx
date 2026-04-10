@@ -128,34 +128,41 @@ const VideoRoom = () => {
 
 useEffect(() => {
 
-    const video = remoteVideoRef.current;
+    const tryStartVR = () => {
 
-    if (!video) return;
+        const video = remoteVideoRef.current;
+        const container = vrContainerRef.current;
 
-    if (isVRMode) {
+        if (!isVRMode) {
+            disposeVR();
+            return;
+        }
 
-        const waitForVideo = () => {
+        if (
+            video &&
+            container &&
+            video.srcObject &&
+            video.readyState >= 3 &&
+            !video.paused
+        ) {
+            console.log("VR READY ✅");
 
-            if (
-                video.srcObject &&
-                video.readyState >= 3 &&
-                !video.paused
-            ) {
-                console.log("VR starting with valid video");
+            initVR(container, video);
 
-                initVR(vrContainerRef.current, video);
+        } else {
+            console.log("VR WAITING...", {
+                video: !!video,
+                container: !!container,
+                src: !!video?.srcObject,
+                ready: video?.readyState,
+                paused: video?.paused
+            });
 
-            } else {
-                console.log("Waiting for video...");
-                setTimeout(waitForVideo, 300);
-            }
-        };
+            setTimeout(tryStartVR, 300);
+        }
+    };
 
-        waitForVideo();
-
-    } else {
-        disposeVR();
-    }
+    tryStartVR();
 
     return () => disposeVR();
 
