@@ -8,6 +8,10 @@ let videoTexture;
 
 export function initVR(container, videoElement) {
 
+    if (renderer) {
+        disposeVR();
+    }
+
     scene = new THREE.Scene();
 
     camera = new THREE.PerspectiveCamera(
@@ -29,7 +33,14 @@ export function initVR(container, videoElement) {
     geometry.scale(-1, 1, 1);
 
     videoElement.muted = true;
+
+if (videoElement.readyState >= 2) {
     videoElement.play().catch(() => {});
+} else {
+    videoElement.onloadeddata = () => {
+        videoElement.play().catch(() => {});
+    };
+}
 
     videoTexture = new THREE.VideoTexture(videoElement);
     videoTexture.minFilter = THREE.LinearFilter;

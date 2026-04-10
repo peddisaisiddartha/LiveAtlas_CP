@@ -126,29 +126,35 @@ const VideoRoom = () => {
         };
     }, [roomID]);
 
-   useEffect(() => {
-    if (!remoteVideoRef.current) return;
+ useEffect(() => {
 
     const video = remoteVideoRef.current;
 
-    const startVR = () => {
-        if (isVRMode) {
-            initVR(vrContainerRef.current, video);
-        } else {
-            disposeVR();
-        }
-    };
+    if (!video) return;
 
-    if (video.readyState >= 2) {
-        startVR();
-    } else {
-        video.onloadeddata = startVR;
+    if (isVRMode) {
+
+        const startVR = () => {
+            initVR(vrContainerRef.current, video);
+        };
+
+        // 🔥 THIS IS THE REAL FIX
+        if (video.readyState >= 2) {
+            startVR();
+        } else {
+            const interval = setInterval(() => {
+                if (video.readyState >= 2) {
+                    startVR();
+                    clearInterval(interval);
+                }
+        }, 200);
     }
 
-    return () => {
+    } else {
         disposeVR();
-        video.onloadeddata = null;
-    };
+    }
+
+    return () => disposeVR();
 
 }, [isVRMode]);
 
