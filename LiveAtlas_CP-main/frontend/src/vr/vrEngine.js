@@ -29,10 +29,9 @@ export function initVR(container, videoElement) {
 
     container.appendChild(renderer.domElement);
 
-    const geometry = new THREE.SphereGeometry(500, 60, 40);
-    geometry.scale(-1, 1, 1);
+   // 🎬 Curved Screen Setup
 
-    videoElement.muted = true;
+videoElement.muted = true;
 
 if (videoElement.readyState >= 2) {
     videoElement.play().catch(() => {});
@@ -42,27 +41,69 @@ if (videoElement.readyState >= 2) {
     };
 }
 
-    videoTexture = new THREE.VideoTexture(videoElement);
-    videoTexture.minFilter = THREE.LinearFilter;
-    videoTexture.magFilter = THREE.LinearFilter;
-    videoTexture.colorSpace = THREE.SRGBColorSpace;
+videoTexture = new THREE.VideoTexture(videoElement);
+videoTexture.minFilter = THREE.LinearFilter;
+videoTexture.magFilter = THREE.LinearFilter;
+videoTexture.colorSpace = THREE.SRGBColorSpace;
 
-    const material = new THREE.MeshBasicMaterial({
-        map: videoTexture,
-        side: THREE.BackSide
-    });
+// Curved geometry
+const geometry = new THREE.PlaneGeometry(16, 9, 32, 32);
 
-    sphere = new THREE.Mesh(geometry, material);
-    scene.add(sphere);
+const position = geometry.attributes.position;
 
-   renderer.setAnimationLoop(() => {
+for (let i = 0; i < position.count; i++) {
+    const x = position.getX(i);
+    const z = Math.sin((x / 16) * Math.PI) * -2;
+    position.setZ(i, z);
+}
+
+geometry.computeVertexNormals();
+
+// Material
+const material = new THREE.MeshBasicMaterial({
+    map: videoTexture
+});
+
+// Mesh
+const screen = new THREE.Mesh(geometry, material);
+scene.add(screen);
+
+// Camera adjustment
+camera.position.set(0, 0, 10);
+
+// 🎯 VR Orientation Control
+let lon = 0;
+let lat = 0;
+
+const handleOrientation = (event) => {
+    const gamma = event.gamma || 0; // left-right
+    const beta = event.beta || 0;   // up-down
+
+    lon = gamma * 2;
+    lat = beta * 2;
+};
+
+window.addEventListener("deviceorientation", handleOrientation);
+
+ renderer.setAnimationLoop(() => {
+
+    const phi = THREE.MathUtils.degToRad(90 - lat);
+    const theta = THREE.MathUtils.degToRad(lon);
+
+    const radius = 10;
+
+    camera.position.x = radius * Math.sin(phi) * Math.cos(theta);
+    camera.position.y = radius * Math.cos(phi);
+    camera.position.z = radius * Math.sin(phi) * Math.sin(theta);
+
+    camera.lookAt(0, 0, 0);
 
     if (videoTexture) {
         videoTexture.needsUpdate = true;
     }
 
     renderer.render(scene, camera);
-    });
+});
 
     window.addEventListener("resize", () => {
 
@@ -90,10 +131,8 @@ export function disposeVR(){
 
     if(videoTexture) videoTexture.dispose();
 
-    if(sphere){
-        sphere.geometry.dispose();
-        sphere.material.dispose();
-    }
+    window.removeEventListener("deviceorientation", handleOrientation);
+
 
     renderer.dispose();
 
