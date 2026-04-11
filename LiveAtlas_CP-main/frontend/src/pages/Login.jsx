@@ -21,6 +21,12 @@ const handleLogin = (role) => {
 
   useEffect(() => {
     const scene = new THREE.Scene();
+
+    let targetRotationX = 0;
+    let targetRotationY = 0;
+    let currentRotationX = 0;
+    let currentRotationY = 0;
+
     const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 2000);
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -58,6 +64,27 @@ const handleLogin = (role) => {
     const globe = new THREE.Mesh(geometry, material);
     scene.add(globe);
 
+    const handleMove = (e) => {
+      const x = (e.clientX / window.innerWidth) - 0.5;
+      const y = (e.clientY / window.innerHeight) - 0.5;
+
+      targetRotationY = x * 1.5;
+      targetRotationX = y * 0.8;
+    };
+
+    const handleTouch = (e) => {
+      const touch = e.touches[0];
+
+      const x = (touch.clientX / window.innerWidth) - 0.5;
+      const y = (touch.clientY / window.innerHeight) - 0.5;
+
+      targetRotationY = x * 1.5;
+      targetRotationX = y * 0.8;
+    };
+
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("touchmove", handleTouch);
+
     // Starfield
     const starsGeometry = new THREE.BufferGeometry();
     const starsCount = 5000;
@@ -83,8 +110,15 @@ const handleLogin = (role) => {
     // Animation
     const animate = () => {
       animationRef.current = requestAnimationFrame(animate);
-     globe.rotation.y += 0.0008;
-     globe.rotation.x = Math.sin(Date.now() * 0.0002) * 0.05;
+
+     currentRotationY += (targetRotationY - currentRotationY) * 0.05;
+     currentRotationX += (targetRotationX - currentRotationX) * 0.05;
+
+    globe.rotation.y = currentRotationY;
+    globe.rotation.x = currentRotationX;
+
+    // slight auto rotation
+    globe.rotation.y += 0.0005;
       renderer.render(scene, camera);
     };
     animate();
@@ -108,6 +142,8 @@ const handleLogin = (role) => {
 
     // Cleanup
     return () => {
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("touchmove", handleTouch);
       cancelAnimationFrame(animationRef.current);
       resizeObserver.disconnect();
       window.removeEventListener('resize', updateSize);
