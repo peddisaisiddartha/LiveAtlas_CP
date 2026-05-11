@@ -23,6 +23,8 @@ const VideoRoom = () => {
     const [aiLoading, setAILoading] = useState(false);
     const [guideLocation, setGuideLocation] = useState(null);
     const [placeName, setPlaceName] = useState("");
+    const [showControls, setShowControls] = useState(true);
+    const [showLocalVideo, setShowLocalVideo] = useState(true);
 
     const localVideoRef = useRef(null);
     const remoteVideoRef = useRef(null);
@@ -126,6 +128,28 @@ const VideoRoom = () => {
         };
     }, [roomID]);
 
+    useEffect(() => {
+
+    let timer;
+
+    if (isFullScreen) {
+
+        setShowControls(true);
+
+        timer = setTimeout(() => {
+            setShowControls(false);
+        }, 2500);
+
+    } else {
+
+        setShowControls(true);
+
+    }
+
+    return () => clearTimeout(timer);
+
+}, [isFullScreen]);
+
 useEffect(() => {
 
     if (!isVRMode) {
@@ -173,12 +197,28 @@ useEffect(() => {
     const setupWebRTC = async () => {
 
         const stream = await navigator.mediaDevices.getUserMedia({
-           video: {
-                facingMode: cameraFacing,
-                width: { min: 1280, ideal: 1920, max: 1920 },
-                height: { min: 720, ideal: 1080, max: 1080 },
-                frameRate: { min: 24, ideal: 30, max: 30 }
-            },
+          video: {
+    facingMode: cameraFacing,
+
+    width: {
+        ideal: 1920,
+        max: 1920
+    },
+
+    height: {
+        ideal: 1080,
+        max: 1080
+    },
+
+    frameRate: {
+        ideal: 30,
+        max: 30
+    },
+
+    aspectRatio: 16 / 9,
+
+    resizeMode: "crop-and-scale"
+},
             audio: {
                 echoCancellation: true,
                 noiseSuppression: true,
@@ -471,7 +511,15 @@ peerConnection.current.ontrack = (event) => {
 };
 
     return (
-        <div className={`room-container ${isFullScreen ? 'fullscreen-mode' : ''}`} style={{ position: "relative" }}>
+       <div
+            className={`room-container ${isFullScreen ? 'fullscreen-mode' : ''}`}
+            style={{ position: "relative" }}
+            onClick={() => {
+                if (isFullScreen) {
+                    setShowControls(true);
+                }
+            }}
+        >
 
             {guideLocation && (
             <div style={{
@@ -567,7 +615,7 @@ Ask
 
 </div>
 
-            <div className="controls-bar">
+            <div className={`controls-bar ${!showControls ? 'controls-hidden' : ''}`}>
                 <button className={`control-btn ${!isAudioOn ? 'off' : ''}`} onClick={toggleAudio}>
                     {isAudioOn ? <FaMicrophone /> : <FaMicrophoneSlash />}
                 </button>
