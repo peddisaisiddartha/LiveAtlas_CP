@@ -152,22 +152,47 @@ const VideoRoom = () => {
 }, [isFullScreen]);
 
 useEffect(() => {
-  const video = remoteVideoRef.current;
-  const container = vrContainerRef.current;
-
-  if (isVRMode) {
-    if (video && container) {
-      initVR(container, video);
-    } else {
-      console.warn("VR init skipped: missing video or container", { video, container });
-    }
-  } else {
+  if (!isVRMode) {
     disposeVR();
+    return;
   }
 
-  // cleanup if component unmounts while VR running
+  let cancelled = false;
+  let retryTimer = null;
+
+  const tryStartVR = () => {
+    if (cancelled) return;
+
+    const video = remoteVideoRef.current;
+    const container = vrContainerRef.current;
+
+    if (!video || !container) {
+      console.log("VR waiting: missing video or container");
+      retryTimer = setTimeout(tryStartVR, 300);
+      return;
+    }
+
+    if (!video.srcObject) {
+      console.log("VR waiting: no remote stream yet");
+      retryTimer = setTimeout(tryStartVR, 300);
+      return;
+    }
+
+    if (video.readyState < 2) {
+      console.log("VR waiting: video not ready yet");
+      retryTimer = setTimeout(tryStartVR, 300);
+      return;
+    }
+
+    video.play().catch(() => {});
+    initVR(container, video);
+  };
+
+  tryStartVR();
+
   return () => {
-    if (!isVRMode) return;
+    cancelled = true;
+    if (retryTimer) clearTimeout(retryTimer);
     disposeVR();
   };
 }, [isVRMode]);
