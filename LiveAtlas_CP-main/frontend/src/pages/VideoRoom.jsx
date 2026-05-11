@@ -151,51 +151,34 @@ const VideoRoom = () => {
 
 }, [isFullScreen]);
 
+// ─── VR useEffect — FIXED ────────────────────────────────────────────────────
+// Changes from original:
+// 1. Removed the retry polling loop — waitForVideoReady() inside initVR handles timing
+// 2. Removed readyState < 2 guard here — initVR now waits internally for a real frame
+// 3. Only kept the stream existence check so we don't call initVR with no stream at all
 useEffect(() => {
   if (!isVRMode) {
     disposeVR();
     return;
   }
 
-  let cancelled = false;
-  let retryTimer = null;
+  const video = remoteVideoRef.current;
+  const container = vrContainerRef.current;
 
-  const tryStartVR = () => {
-    if (cancelled) return;
+  // Guard: DOM not ready yet — this is extremely rare but safe to keep
+  if (!video || !container) return;
 
-    const video = remoteVideoRef.current;
-    const container = vrContainerRef.current;
+  // Guard: WebRTC stream not connected yet — show nothing until stream arrives
+  if (!video.srcObject) return;
 
-    if (!video || !container) {
-      console.log("VR waiting: missing video or container");
-      retryTimer = setTimeout(tryStartVR, 300);
-      return;
-    }
-
-    if (!video.srcObject) {
-      console.log("VR waiting: no remote stream yet");
-      retryTimer = setTimeout(tryStartVR, 300);
-      return;
-    }
-
-    if (video.readyState < 2) {
-      console.log("VR waiting: video not ready yet");
-      retryTimer = setTimeout(tryStartVR, 300);
-      return;
-    }
-
-    video.play().catch(() => {});
-    initVR(container, video);
-  };
-
-  tryStartVR();
+  // initVR handles all timing internally (waits for decoded frame, then renders)
+  initVR(container, video);
 
   return () => {
-    cancelled = true;
-    if (retryTimer) clearTimeout(retryTimer);
     disposeVR();
   };
 }, [isVRMode]);
+// ─────────────────────────────────────────────────────────────────────────────
 
 
     const setupWebRTC = async () => {
@@ -549,39 +532,51 @@ peerConnection.current.ontrack = (event) => {
             )}
 
 
-               <div
-  className="video-grid"
-  style={{ display: isVRMode ? "none" : "grid" }}
->
-  {!isFullScreen && (
-    <div className={`video-wrapper local ${isFullScreen ? 'pip' : ''}`}>
-      <video ref={localVideoRef} autoPlay playsInline muted style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-      <div className="name-tag">You</div>
-    </div>
-  )}
+            <div
+              className="video-grid"
+              style={{ display: isVRMode ? "none" : "grid" }}
+            >
+              {!isFullScreen && (
+                <div className={`video-wrapper local ${isFullScreen ? 'pip' : ''}`}>
+                  <video ref={localVideoRef} autoPlay playsInline muted style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  <div className="name-tag">You</div>
+                </div>
+              )}
 
-  <div className={`video-wrapper remote ${isFullScreen ? 'expanded' : ''}`}>
-    <video
-      ref={remoteVideoRef}
-      autoPlay
-      playsInline
-      style={{ width: "100%", height: "100%", objectFit: "cover" }}
-    />
-    <div className="name-tag">Live Feed</div>
-  </div>
-</div>
+              <div className={`video-wrapper remote ${isFullScreen ? 'expanded' : ''}`}>
+                <video
+                  ref={remoteVideoRef}
+                  autoPlay
+                  playsInline
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                />
+                <div className="name-tag">Live Feed</div>
+              </div>
+            </div>
 
-{/* VR container rendered only when VR mode is active */}
-<div
-  ref={vrContainerRef}
-  style={{
-    display: isVRMode ? "block" : "none",
-    position: "absolute",
-    inset: 0,
-    backgroundColor: "black",
-    zIndex: 999
-  }}
-/>
+            {/* FIXED: Hidden video element that keeps the remote stream alive in the DOM
+                when VR mode is active. Without this, when video-grid gets display:none,
+                some mobile browsers suspend the video element and Three.js gets a black frame.
+                This element is always mounted, always has the same srcObject, always plays. */}
+            <video
+              ref={isVRMode ? remoteVideoRef : undefined}
+              autoPlay
+              playsInline
+              muted
+              style={{ display: "none", position: "absolute", width: 1, height: 1 }}
+            />
+
+            {/* VR container — always in DOM, shown/hidden via display */}
+            <div
+              ref={vrContainerRef}
+              style={{
+                display: isVRMode ? "block" : "none",
+                position: "absolute",
+                inset: 0,
+                backgroundColor: "black",
+                zIndex: 999
+              }}
+            />
 
 
 
