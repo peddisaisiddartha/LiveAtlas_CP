@@ -1,159 +1,119 @@
 import * as THREE from "three";
 
-let renderer;
-let scene;
-let camera;
-let sphere;
-let videoTexture;
-let handleResize;
+let renderer = null;
+let scene = null;
+let camera = null;
+let sphere = null;
+let videoTexture = null;
 let isVRRunning = false;
 
-export function initVR(container, videoElement) {
+/**
+ * Initialize VR environment once video is ready
+ */
+export async function initVR(container, video) {
+  if (isVRRunning || !container || !video) return;
 
-    if (isVRRunning) return;
-    isVRRunning = true;
+  // Ensure mobile compatibility
+  video.setAttribute("playsinline", "");
+  video.setAttribute("muted", "");
+  try {
+    await video.play();
+  } catch (err) {
+    console.warn("Autoplay blocked:", err);
+  }
 
-    if (renderer) {
-        disposeVR();
-    }
-
-    scene = new THREE.Scene();
-
-    camera = new THREE.PerspectiveCamera(
-        75,
-        container.clientWidth / container.clientHeight,
-        0.1,
-        1000
-    );
-
-    camera.position.set(0, 0, 0.1);
-
-    renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(container.clientWidth, container.clientHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
-
-    container.appendChild(renderer.domElement);
-
-   // 🎬 Curved Screen Setup
-
-videoElement.muted = true;
-
-if (videoElement.readyState >= 2) {
-    videoElement.play().catch(() => {});
-} else {
-    videoElement.onloadeddata = () => {
-        videoElement.play().catch(() => {});
-    };
+  // Wait until video starts decoding
+  video.onplaying = () => {
+    console.log("Video started — initializing VR...");
+    startVR(container, video);
+  };
 }
 
-videoTexture = new THREE.VideoTexture(videoElement);
-videoTexture.minFilter = THREE.LinearFilter;
-videoTexture.magFilter = THREE.LinearFilter;
-videoTexture.colorSpace = THREE.SRGBColorSpace;
+/**
+ * Start VR rendering
+ */
+function startVR(container, video) {
+  if (isVRRunning) return;
+  isVRRunning = true;
 
-// Curved geometry
-const geometry = new THREE.PlaneGeometry(16, 9, 32, 32);
+  // Create VideoTexture
+  videoTexture = new THREE.VideoTexture(video);
+  videoTexture.colorSpace = THREE.SRGBColorSpace;
+  videoTexture.minFilter = THREE.LinearFilter;
+  videoTexture.magFilter = THREE.LinearFilter;
+  videoTexture.generateMipmaps = false;
 
-const position = geometry.attributes.position;
+  // Scene setup
+  scene = new THREE.Scene();
 
-for (let i = 0; i < position.count; i++) {
-    const x = position.getX(i);
-    const z = Math.sin((x / 16) * Math.PI) * -2;
-    position.setZ(i, z);
-}
+  // Sphere geometry (inside-out)
+  const geometry = new THREE.SphereGeometry(500, 60, 40);
+  geometry.scale(-1, 1, 1);
 
-geometry.computeVertexNormals();
+  const material = new THREE.MeshBasicMaterial({ map: videoTexture });
+  sphere = new THREE.Mesh(geometry, material);
+  scene.add(sphere);
 
-// Material
-const material = new THREE.MeshBasicMaterial({
-    map: videoTexture
-});
+  // Camera setup
+  camera = new THREE.PerspectiveCamera(
+    75,
+    window.innerWidth / window.innerHeight,
+    1,
+    1100
+  );
 
-// Mesh
-const screen = new THREE.Mesh(geometry, material);
-scene.add(screen);
+  // Renderer setup
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+  container.appendChild(renderer.domElement);
 
-// Camera adjustment
-camera.position.set(0, 0, 10);
-
-// 🎯 VR Orientation Control
-let lon = 0;
-let lat = 0;
-
-const handleOrientation = (event) => {
-    const gamma = event.gamma || 0; // left-right
-    const beta = event.beta || 0;   // up-down
-
-    lon = gamma * 2;
-    lat = beta * 2;
-};
-
-window.addEventListener("deviceorientation", handleOrientation);
-
- renderer.setAnimationLoop(() => {
-
-    const phi = THREE.MathUtils.degToRad(90 - lat);
-    const theta = THREE.MathUtils.degToRad(lon);
-
-    const radius = 10;
-
-    camera.position.x = radius * Math.sin(phi) * Math.cos(theta);
-    camera.position.y = radius * Math.cos(phi);
-    camera.position.z = radius * Math.sin(phi) * Math.sin(theta);
-
-    camera.lookAt(0, 0, 0);
-
-    if (videoTexture) {
-        videoTexture.needsUpdate = true;
+  // Animation loop
+  renderer.setAnimationLoop(() => {
+    if (video.readyState >= 2) {
+      videoTexture.needsUpdate = true;
     }
-
     renderer.render(scene, camera);
-});
+  });
 
-   const handleResize = () => {
-
-    if (!camera || !renderer) return; // 🔥 CRITICAL FIX
-
-    const width = container.clientWidth;
-    const height = container.clientHeight;
-
-    camera.aspect = width / height;
-    camera.updateProjectionMatrix();
-
-    renderer.setSize(width, height);
-};
-
-window.addEventListener("resize", handleResize);
-
+  // Handle resize
+  window.addEventListener("resize", handleResize);
 }
 
-export function disposeVR(){
+/**
+ * Resize handler
+ */
+function handleResize() {
+  if (!camera || !renderer) return;
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
 
-    if(!renderer) return;
+/**
+ * Dispose VR environment
+ */
+export function disposeVR() {
+  if (!isVRRunning) return;
 
-    renderer.setAnimationLoop(null);
+  renderer?.setAnimationLoop(null);
+  if (renderer?.domElement?.parentNode) {
+    renderer.domElement.parentNode.removeChild(renderer.domElement);
+  }
 
-    if(renderer.domElement?.parentNode){
-        renderer.domElement.parentNode.removeChild(renderer.domElement);
-    }
+  sphere?.geometry?.dispose();
+  sphere?.material?.dispose();
+  videoTexture?.dispose();
+  renderer?.dispose();
 
-    if(videoTexture) videoTexture.dispose();
+  window.removeEventListener("resize", handleResize);
 
-    window.removeEventListener("resize", handleResize); // ✅ ADD THIS
+  scene = null;
+  camera = null;
+  sphere = null;
+  videoTexture = null;
+  renderer = null;
+  isVRRunning = false;
 
-    if(sphere){
-        sphere.geometry.dispose();
-        sphere.material.dispose();
-    }
-
-    renderer.dispose();
-
-    renderer = null;
-    scene = null;
-    camera = null;
-    sphere = null;
-    videoTexture = null;
-    
-    isVRRunning = false;
-
+  console.log("VR mode disposed successfully.");
 }

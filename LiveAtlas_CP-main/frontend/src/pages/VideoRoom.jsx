@@ -152,48 +152,26 @@ const VideoRoom = () => {
 }, [isFullScreen]);
 
 useEffect(() => {
+  const video = remoteVideoRef.current;
+  const container = vrContainerRef.current;
 
-    if (!isVRMode) {
-        disposeVR();
-        return;
+  if (isVRMode) {
+    if (video && container) {
+      initVR(container, video);
+    } else {
+      console.warn("VR init skipped: missing video or container", { video, container });
     }
+  } else {
+    disposeVR();
+  }
 
-    const video = remoteVideoRef.current;
-    const container = vrContainerRef.current;
-
-    if (!video || !container) {
-        console.log("VR blocked: missing video/container");
-        return;
-    }
-
-    const waitForStream = () => {
-
-        // 🔥 MUST HAVE STREAM
-        if (!video.srcObject) {
-            console.log("Waiting: no srcObject...");
-            setTimeout(waitForStream, 500);
-            return;
-        }
-
-        // 🔥 MUST HAVE DATA
-        if (video.readyState < 3) {
-            console.log("Waiting: video not ready...");
-            setTimeout(waitForStream, 500);
-            return;
-        }
-
-        // 🔥 FORCE PLAY (CRITICAL)
-        video.play().catch(() => {});
-
-        console.log("VR FINAL START");
-        initVR(container, video);
-    };
-
-    waitForStream();
-
-    return () => disposeVR();
-
+  // cleanup if component unmounts while VR running
+  return () => {
+    if (!isVRMode) return;
+    disposeVR();
+  };
 }, [isVRMode]);
+
 
     const setupWebRTC = async () => {
 
@@ -481,11 +459,9 @@ peerConnection.current.ontrack = (event) => {
         setIsFullScreen(false);
     }
 };
-    const toggleVRMode = () => {
-    setIsVRMode(prev => {
-        console.log("VR TOGGLED:", !prev);
-        return !prev;
-    });
+  const toggleVRMode = () => {
+  setIsVRMode(prev => !prev);
+  console.log("VR mode toggled");
 };
 
    const handleAskAI = async () => {
@@ -548,32 +524,40 @@ peerConnection.current.ontrack = (event) => {
             )}
 
 
-                <div
-                    className="video-grid"
-                    style={{ display: isVRMode ? "none" : "grid" }}
-                >
-                    {!isFullScreen && (
-                    <div className={`video-wrapper local ${isFullScreen ? 'pip' : ''}`}>
-                        <video ref={localVideoRef} autoPlay playsInline muted />
-                        <div className="name-tag">You</div>
-                    </div>
-                    )}
+               <div
+  className="video-grid"
+  style={{ display: isVRMode ? "none" : "grid" }}
+>
+  {!isFullScreen && (
+    <div className={`video-wrapper local ${isFullScreen ? 'pip' : ''}`}>
+      <video ref={localVideoRef} autoPlay playsInline muted style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+      <div className="name-tag">You</div>
+    </div>
+  )}
 
-                    <div className={`video-wrapper remote ${isFullScreen ? 'expanded' : ''}`}>
-                        <video ref={remoteVideoRef} autoPlay playsInline />
-                        <div className="name-tag">Live Feed</div>
-                    </div>
+  <div className={`video-wrapper remote ${isFullScreen ? 'expanded' : ''}`}>
+    <video
+      ref={remoteVideoRef}
+      autoPlay
+      playsInline
+      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+    />
+    <div className="name-tag">Live Feed</div>
+  </div>
+</div>
 
-                </div>
+{/* VR container rendered only when VR mode is active */}
+<div
+  ref={vrContainerRef}
+  style={{
+    display: isVRMode ? "block" : "none",
+    position: "absolute",
+    inset: 0,
+    backgroundColor: "black",
+    zIndex: 999
+  }}
+/>
 
-
-            {isVRMode && (
-                <div ref={vrContainerRef} style={{
-                    position: "absolute",
-                    inset: 0,
-                    backgroundColor: "black"
-                }} />
-            )}
 
 
 
