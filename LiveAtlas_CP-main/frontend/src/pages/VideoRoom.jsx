@@ -4,6 +4,7 @@ import './VideoRoom.css';
 import { FaMicrophone, FaMicrophoneSlash, FaVideo, FaVideoSlash, FaPhoneSlash, FaExpand, FaCompress, FaGlobeAmericas, FaSyncAlt } from 'react-icons/fa';
 import { initVR, disposeVR } from "../vr/vrEngine";
 import { askAI } from '../ai/aiService';
+import { supabase } from '../lib/supabase';
 
 const VideoRoom = () => {
     const { roomID } = useParams();
