@@ -1,165 +1,518 @@
-/* Reset */
+/* ============================================================
+   RESET
+============================================================ */
+
 * {
-  box-sizing: border-box;
   margin: 0;
   padding: 0;
+  box-sizing: border-box;
 }
 
-/* Prevent scroll + mobile resize glitches */
-html, body {
+html,
+body,
+#root {
   width: 100%;
   min-height: 100%;
-  overflow-x: hidden;
-  overflow-y: auto;
-  background: #000014;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  overflow: hidden;
+
+  background:
+    radial-gradient(circle at top, #0f172a 0%, #050816 65%, #000000 100%);
+
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
 }
 
-/* Main container */
+/* ============================================================
+   MAIN CONTAINER
+============================================================ */
+
 .login-container {
+
   position: relative;
+
   width: 100%;
-  min-height: 100svh; /* fixes mobile viewport bug */
+  height: 100vh;
+
+  overflow: hidden;
+
+  background:
+    radial-gradient(circle at center, #0f172a 0%, #050816 60%, #000000 100%);
 }
 
-/* Three.js canvas container */
+/* ============================================================
+   THREE.JS WORLD
+============================================================ */
+
 .globe-container {
+
   position: absolute;
   inset: 0;
+
   width: 100%;
   height: 100%;
+
+  z-index: 1;
 }
 
-/* Dark cinematic overlay */
+/* ============================================================
+   AMBIENT LIGHTING
+============================================================ */
+
+.ambient-gradient {
+
+  position: absolute;
+
+  width: 700px;
+  height: 700px;
+
+  border-radius: 50%;
+
+  filter: blur(120px);
+
+  pointer-events: none;
+
+  z-index: 2;
+}
+
+.ambient-gradient-1 {
+
+  top: -200px;
+  right: -200px;
+
+  background:
+    rgba(109,213,250,0.12);
+
+  animation:
+    ambientFloat 12s ease-in-out infinite;
+}
+
+.ambient-gradient-2 {
+
+  bottom: -200px;
+  left: -200px;
+
+  background:
+    rgba(142,45,226,0.12);
+
+  animation:
+    ambientFloatReverse 14s ease-in-out infinite;
+}
+
+/* ============================================================
+   OVERLAY
+============================================================ */
+
 .overlay {
+
   position: absolute;
   inset: 0;
+
   z-index: 10;
 
   display: flex;
   justify-content: center;
   align-items: center;
-  text-align: center;
 
   padding: 24px;
 
-  background: linear-gradient(
-  to top,
-  rgba(0, 0, 25, 0.9) 0%,
-  rgba(0, 0, 40, 0.75) 40%,
-  rgba(0, 0, 0, 0.35) 100%
-);
+  background:
+    linear-gradient(
+      to top,
+      rgba(0,0,25,0.85) 0%,
+      rgba(0,0,35,0.55) 45%,
+      rgba(0,0,0,0.15) 100%
+    );
 }
 
-/* Content wrapper */
-.login-content {
+/* ============================================================
+   PORTAL PANEL
+============================================================ */
+
+.portal-panel {
+
+  position: relative;
+
   width: 100%;
-  max-width: 420px;
+  max-width: 620px;
+
+  padding:
+    58px 48px;
+
+  border-radius: 36px;
+
+  overflow: hidden;
+
   color: white;
+
+  text-align: center;
+
+  background:
+    rgba(8, 12, 30, 0.38);
+
+  border:
+    1px solid rgba(255,255,255,0.08);
+
+  backdrop-filter:
+    blur(28px);
+
+  -webkit-backdrop-filter:
+    blur(28px);
+
+  box-shadow:
+    0 25px 100px rgba(0,0,0,0.45),
+    0 0 60px rgba(109,213,250,0.08);
+
+  animation:
+    portalReveal 1.5s cubic-bezier(0.16,1,0.3,1) forwards,
+    floatingPanel 7s ease-in-out infinite;
+
+  opacity: 0;
+
+  transform:
+    translateY(60px)
+    scale(0.96);
 }
 
-/* Logo */
-.logo {
-  font-size: clamp(32px, 6vw, 44px);
-  font-weight: 700;
-  letter-spacing: 1px;
-  margin-bottom: 16px;
+/* Glow Layer */
+.portal-panel::before {
 
-  background: linear-gradient(90deg, #6dd5fa, #ffffff);
+  content: "";
+
+  position: absolute;
+
+  width: 320px;
+  height: 320px;
+
+  top: -140px;
+  right: -140px;
+
+  background:
+    radial-gradient(
+      circle,
+      rgba(109,213,250,0.22),
+      transparent 70%
+    );
+
+  filter: blur(30px);
+}
+
+.portal-panel::after {
+
+  content: "";
+
+  position: absolute;
+
+  width: 280px;
+  height: 280px;
+
+  bottom: -120px;
+  left: -120px;
+
+  background:
+    radial-gradient(
+      circle,
+      rgba(142,45,226,0.18),
+      transparent 70%
+    );
+
+  filter: blur(40px);
+}
+
+/* ============================================================
+   TYPOGRAPHY
+============================================================ */
+
+.portal-topline {
+
+  letter-spacing: 0.35em;
+
+  text-transform: uppercase;
+
+  color:
+    rgba(255,255,255,0.55);
+
+  font-size: 0.75rem;
+
+  margin-bottom: 28px;
+}
+
+.portal-title {
+
+  font-size:
+    clamp(3rem, 7vw, 5.8rem);
+
+  line-height: 0.92;
+
+  letter-spacing: -0.05em;
+
+  margin-bottom: 26px;
+
+  font-weight: 700;
+
+  color: #ffffff;
+
+  text-shadow:
+    0 0 30px rgba(109,213,250,0.15);
+}
+
+.portal-title span {
+
+  display: block;
+
+  background:
+    linear-gradient(
+      90deg,
+      #6dd5fa,
+      #ffffff,
+      #8e2de2
+    );
+
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
-/* Tagline */
-.tagline {
-  font-size: clamp(14px, 3.5vw, 18px);
-  line-height: 1.6;
-  margin-bottom: 40px;
-  color: #d0d6ff;
+.portal-subtitle {
+
+  max-width: 520px;
+
+  margin: 0 auto 42px;
+
+  line-height: 1.9;
+
+  color:
+    rgba(255,255,255,0.72);
+
+  font-size:
+    clamp(0.95rem, 2vw, 1.08rem);
 }
 
-/* Buttons wrapper */
+/* ============================================================
+   BUTTONS
+============================================================ */
+
 .buttons {
+
   display: flex;
   flex-direction: column;
+
   gap: 18px;
 }
 
-/* Base button */
 .role-button {
+
+  position: relative;
+
   width: 100%;
-  padding: 18px;
-  border-radius: 40px;
-  font-size: 15px;
-  font-weight: 600;
-  border: none;
+
+  padding:
+    18px 24px;
+
+  border-radius: 999px;
+
+  border:
+    1px solid rgba(255,255,255,0.08);
+
+  color: white;
+
+  font-size: 0.95rem;
+  font-weight: 700;
+
+  letter-spacing: 0.12em;
+
   cursor: pointer;
-  transition: all 0.25s ease;
-  letter-spacing: 0.5px;
 
-  touch-action: manipulation;
+  overflow: hidden;
+
+  backdrop-filter:
+    blur(16px);
+
+  transition:
+    transform 0.45s cubic-bezier(0.16,1,0.3,1),
+    box-shadow 0.45s cubic-bezier(0.16,1,0.3,1),
+    border-color 0.45s ease;
 }
 
-/* Tourist button */
-.tourist {
-  background: linear-gradient(90deg, #00c6ff, #0072ff);
-  color: white;
+.role-button::before {
+
+  content: "";
+
+  position: absolute;
+
+  top: 0;
+  left: -120%;
+
+  width: 100%;
+  height: 100%;
+
+  background:
+    linear-gradient(
+      120deg,
+      transparent,
+      rgba(255,255,255,0.22),
+      transparent
+    );
+
+  transition:
+    left 0.9s ease;
 }
 
-/* Guide button */
-.guide {
-  background: linear-gradient(90deg, #8e2de2, #4a00e0);
-  color: white;
+.role-button:hover::before {
+  left: 120%;
 }
 
-/* Hover + tap feedback */
 .role-button:hover {
-  transform: scale(1.04);
-  box-shadow: 0 0 20px rgba(255, 255, 255, 0.25);
+
+  transform:
+    translateY(-6px)
+    scale(1.02);
 }
 
-.role-button:active {
-  transform: scale(0.98);
+.tourist {
+
+  background:
+    linear-gradient(
+      135deg,
+      #00c6ff,
+      #0072ff
+    );
+
+  box-shadow:
+    0 10px 35px rgba(0,114,255,0.35);
 }
 
-/* Desktop Enhancement */
-@media (min-width: 768px) {
-  .login-content {
-    max-width: 500px;
+.tourist:hover {
+
+  box-shadow:
+    0 20px 55px rgba(0,114,255,0.45);
+}
+
+.guide {
+
+  background:
+    linear-gradient(
+      135deg,
+      #8e2de2,
+      #4a00e0
+    );
+
+  box-shadow:
+    0 10px 35px rgba(142,45,226,0.35);
+}
+
+.guide:hover {
+
+  box-shadow:
+    0 20px 55px rgba(142,45,226,0.45);
+}
+
+/* ============================================================
+   FOOTER
+============================================================ */
+
+.portal-footer {
+
+  margin-top: 32px;
+
+  letter-spacing: 0.2em;
+
+  text-transform: uppercase;
+
+  font-size: 0.72rem;
+
+  color:
+    rgba(255,255,255,0.45);
+}
+
+/* ============================================================
+   ANIMATIONS
+============================================================ */
+
+@keyframes portalReveal {
+
+  to {
+
+    opacity: 1;
+
+    transform:
+      translateY(0px)
+      scale(1);
+  }
+}
+
+@keyframes floatingPanel {
+
+  0%, 100% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes ambientFloat {
+
+  0%, 100% {
+    transform:
+      translateY(0px)
+      scale(1);
+  }
+
+  50% {
+    transform:
+      translateY(-30px)
+      scale(1.08);
+  }
+}
+
+@keyframes ambientFloatReverse {
+
+  0%, 100% {
+    transform:
+      translateY(0px)
+      scale(1);
+  }
+
+  50% {
+    transform:
+      translateY(30px)
+      scale(1.1);
+  }
+}
+
+/* ============================================================
+   RESPONSIVE
+============================================================ */
+
+@media (max-width: 768px) {
+
+  .portal-panel {
+
+    padding:
+      42px 28px;
+
+    border-radius: 28px;
+  }
+
+  .portal-subtitle {
+    line-height: 1.7;
   }
 
   .role-button {
-    font-size: 16px;
+
+    padding:
+      16px 20px;
+
+    font-size: 0.82rem;
   }
-}
 
-/* ===== Premium Fade Entrance ===== */
+  .ambient-gradient {
 
-.login-content {
-  opacity: 0;
-  transform: translateY(40px);
-  animation: premiumFade 1.2s ease forwards;
-}
-
-@keyframes premiumFade {
-  to {
-    opacity: 1;
-    transform: translateY(0);
+    width: 420px;
+    height: 420px;
   }
-}
-
-/* ===== Premium Button Upgrade ===== */
-
-.role-button {
-  transition: all 0.35s ease;
-  transform: translateY(0);
-}
-
-.role-button:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 10px 25px rgba(0, 114, 255, 0.4);
-}
-
-.role-button:active {
-  transform: translateY(-1px);
 }
