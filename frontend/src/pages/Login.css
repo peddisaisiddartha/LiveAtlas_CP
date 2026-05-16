@@ -11,12 +11,19 @@
 html,
 body,
 #root {
+
   width: 100%;
-  min-height: 100%;
+  height: 100%;
+
   overflow: hidden;
 
   background:
-    radial-gradient(circle at top, #0f172a 0%, #050816 65%, #000000 100%);
+    radial-gradient(
+      circle at center,
+      #08111f 0%,
+      #040816 50%,
+      #000000 100%
+    );
 
   font-family:
     Inter,
@@ -26,27 +33,32 @@ body,
 }
 
 /* ============================================================
-   MAIN CONTAINER
+   MAIN WORLD
 ============================================================ */
 
-.login-container {
+.login-world {
 
   position: relative;
 
-  width: 100%;
+  width: 100vw;
   height: 100vh;
 
   overflow: hidden;
 
   background:
-    radial-gradient(circle at center, #0f172a 0%, #050816 60%, #000000 100%);
+    radial-gradient(
+      circle at center,
+      #08111f 0%,
+      #040816 50%,
+      #000000 100%
+    );
 }
 
 /* ============================================================
-   THREE.JS WORLD
+   THREE WORLD
 ============================================================ */
 
-.globe-container {
+.three-world {
 
   position: absolute;
   inset: 0;
@@ -58,10 +70,10 @@ body,
 }
 
 /* ============================================================
-   AMBIENT LIGHTING
+   AMBIENT LIGHTS
 ============================================================ */
 
-.ambient-gradient {
+.ambient {
 
   position: absolute;
 
@@ -77,358 +89,57 @@ body,
   z-index: 2;
 }
 
-.ambient-gradient-1 {
+.ambient-1 {
 
-  top: -200px;
-  right: -200px;
+  top: -250px;
+  left: -200px;
 
   background:
-    rgba(109,213,250,0.12);
+    rgba(0, 180, 255, 0.12);
 
   animation:
     ambientFloat 12s ease-in-out infinite;
 }
 
-.ambient-gradient-2 {
+.ambient-2 {
 
-  bottom: -200px;
-  left: -200px;
+  bottom: -250px;
+  right: -200px;
 
   background:
-    rgba(142,45,226,0.12);
+    rgba(140, 0, 255, 0.12);
 
   animation:
     ambientFloatReverse 14s ease-in-out infinite;
 }
 
 /* ============================================================
-   OVERLAY
+   LEFT HERO
 ============================================================ */
 
-.overlay {
+.hero-left {
 
   position: absolute;
-  inset: 0;
 
-  z-index: 10;
+  left: 7%;
+  top: 50%;
 
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  transform:
+    translateY(-50%);
 
-  padding: 24px;
+  z-index: 20;
 
-  /* MUCH LIGHTER OVERLAY */
-  background:
-    radial-gradient(
-      circle at center,
-      rgba(0,0,0,0.08) 0%,
-      rgba(0,0,20,0.18) 70%,
-      rgba(0,0,0,0.35) 100%
-    );
-}
-
-/* ============================================================
-   PORTAL PANEL
-============================================================ */
-
-.portal-panel {
-
-  position: relative;
-
-  width: 100%;
-  max-width: 560px;
-
-  padding:
-    52px 46px;
-
-  border-radius: 36px;
-
-  overflow: hidden;
-
-  color: white;
-
-  text-align: center;
-
-  /* MUCH MORE TRANSPARENT */
-  background:
-    linear-gradient(
-      135deg,
-      rgba(10,15,35,0.18),
-      rgba(10,15,35,0.10)
-    );
-
-  /* STRONGER GLASS */
-  backdrop-filter:
-    blur(40px);
-
-  -webkit-backdrop-filter:
-    blur(40px);
-
-  /* SUBTLE BORDER */
-  border:
-    1px solid rgba(255,255,255,0.06);
-
-  /* LIGHTER SHADOW */
-  box-shadow:
-    0 10px 60px rgba(0,0,0,0.22),
-    0 0 40px rgba(109,213,250,0.05);
+  width: 520px;
 
   animation:
-    portalReveal 1.5s cubic-bezier(0.16,1,0.3,1) forwards,
-    floatingPanel 7s ease-in-out infinite;
-
-  opacity: 0;
-
-  transform:
-    translateY(60px)
-    scale(0.96);
-
-  isolation: isolate;
+    heroReveal 1.6s cubic-bezier(0.16,1,0.3,1);
 }
 
-/* Glow Layer */
-.portal-panel::before {
+.topline {
 
-  content: "";
-
-  position: absolute;
-
-  width: 320px;
-  height: 320px;
-
-  top: -140px;
-  right: -140px;
-
-  background:
-    radial-gradient(
-      circle,
-      rgba(109,213,250,0.22),
-      transparent 70%
-    );
-
-  filter: blur(30px);
-}
-
-.portal-panel::after {
-
-  content: "";
-
-  position: absolute;
-
-  width: 280px;
-  height: 280px;
-
-  bottom: -120px;
-  left: -120px;
-
-  background:
-    radial-gradient(
-      circle,
-      rgba(142,45,226,0.18),
-      transparent 70%
-    );
-
-  filter: blur(40px);
-}
-
-/* ============================================================
-   TYPOGRAPHY
-============================================================ */
-
-.portal-topline {
+  margin-bottom: 24px;
 
   letter-spacing: 0.35em;
-
-  text-transform: uppercase;
-
-  color:
-    rgba(255,255,255,0.55);
-
-  font-size: 0.75rem;
-
-  margin-bottom: 28px;
-}
-
-.portal-title {
-
-  font-size:
-    clamp(3rem, 7vw, 5.8rem);
-
-  line-height: 0.92;
-
-  letter-spacing: -0.05em;
-
-  margin-bottom: 26px;
-
-  font-weight: 700;
-
-  color: #ffffff;
-
-  text-shadow:
-    0 0 30px rgba(109,213,250,0.15);
-}
-
-.portal-title span {
-
-  display: block;
-
-  background:
-    linear-gradient(
-      90deg,
-      #6dd5fa,
-      #ffffff,
-      #8e2de2
-    );
-
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.portal-subtitle {
-
-  max-width: 520px;
-
-  margin: 0 auto 42px;
-
-  line-height: 1.9;
-
-  color:
-    rgba(255,255,255,0.72);
-
-  font-size:
-    clamp(0.95rem, 2vw, 1.08rem);
-}
-
-/* ============================================================
-   BUTTONS
-============================================================ */
-
-.buttons {
-
-  display: flex;
-  flex-direction: column;
-
-  gap: 18px;
-}
-
-.role-button {
-
-  position: relative;
-
-  width: 100%;
-
-  padding:
-    18px 24px;
-
-  border-radius: 999px;
-
-  border:
-    1px solid rgba(255,255,255,0.08);
-
-  color: white;
-
-  font-size: 0.95rem;
-  font-weight: 700;
-
-  letter-spacing: 0.12em;
-
-  cursor: pointer;
-
-  overflow: hidden;
-
-  backdrop-filter:
-    blur(16px);
-
-  transition:
-    transform 0.45s cubic-bezier(0.16,1,0.3,1),
-    box-shadow 0.45s cubic-bezier(0.16,1,0.3,1),
-    border-color 0.45s ease;
-}
-
-.role-button::before {
-
-  content: "";
-
-  position: absolute;
-
-  top: 0;
-  left: -120%;
-
-  width: 100%;
-  height: 100%;
-
-  background:
-    linear-gradient(
-      120deg,
-      transparent,
-      rgba(255,255,255,0.22),
-      transparent
-    );
-
-  transition:
-    left 0.9s ease;
-}
-
-.role-button:hover::before {
-  left: 120%;
-}
-
-.role-button:hover {
-
-  transform:
-    translateY(-6px)
-    scale(1.02);
-}
-
-.tourist {
-
-  background:
-    linear-gradient(
-      135deg,
-      #00c6ff,
-      #0072ff
-    );
-
-  box-shadow:
-    0 10px 35px rgba(0,114,255,0.35);
-}
-
-.tourist:hover {
-
-  box-shadow:
-    0 20px 55px rgba(0,114,255,0.45);
-}
-
-.guide {
-
-  background:
-    linear-gradient(
-      135deg,
-      #8e2de2,
-      #4a00e0
-    );
-
-  box-shadow:
-    0 10px 35px rgba(142,45,226,0.35);
-}
-
-.guide:hover {
-
-  box-shadow:
-    0 20px 55px rgba(142,45,226,0.45);
-}
-
-/* ============================================================
-   FOOTER
-============================================================ */
-
-.portal-footer {
-
-  margin-top: 32px;
-
-  letter-spacing: 0.2em;
 
   text-transform: uppercase;
 
@@ -438,44 +149,267 @@ body,
     rgba(255,255,255,0.45);
 }
 
+.hero-title {
+
+  font-size:
+    clamp(4rem, 8vw, 7rem);
+
+  line-height: 0.9;
+
+  letter-spacing: -0.06em;
+
+  font-weight: 700;
+
+  color: white;
+
+  margin-bottom: 28px;
+
+  text-shadow:
+    0 0 35px rgba(0,180,255,0.12);
+}
+
+.hero-title span {
+
+  display: block;
+
+  background:
+    linear-gradient(
+      90deg,
+      #6dd5fa,
+      #ffffff,
+      #9d6bff
+    );
+
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.hero-sub {
+
+  max-width: 420px;
+
+  line-height: 1.9;
+
+  color:
+    rgba(255,255,255,0.68);
+
+  font-size:
+    clamp(1rem, 2vw, 1.08rem);
+}
+
+/* ============================================================
+   RIGHT CONTROLS
+============================================================ */
+
+.hero-right {
+
+  position: absolute;
+
+  right: 8%;
+  top: 50%;
+
+  transform:
+    translateY(-50%);
+
+  z-index: 20;
+
+  display: flex;
+  flex-direction: column;
+
+  gap: 40px;
+}
+
+/* ============================================================
+   PORTAL NODE
+============================================================ */
+
+.portal-node {
+
+  position: relative;
+
+  width: 190px;
+  height: 190px;
+
+  border-radius: 50%;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  cursor: pointer;
+
+  overflow: hidden;
+
+  backdrop-filter:
+    blur(30px);
+
+  -webkit-backdrop-filter:
+    blur(30px);
+
+  border:
+    1px solid rgba(255,255,255,0.08);
+
+  background:
+    rgba(255,255,255,0.03);
+
+  box-shadow:
+    0 10px 50px rgba(0,0,0,0.35);
+
+  transition:
+    transform 0.5s cubic-bezier(0.16,1,0.3,1),
+    box-shadow 0.5s cubic-bezier(0.16,1,0.3,1),
+    border-color 0.5s ease;
+
+  animation:
+    floatingNode 7s ease-in-out infinite;
+}
+
+/* Glow Layer */
+.node-glow {
+
+  position: absolute;
+
+  inset: 0;
+
+  border-radius: 50%;
+
+  opacity: 0;
+
+  transition:
+    opacity 0.5s ease;
+}
+
+.tourist-node .node-glow {
+
+  background:
+    radial-gradient(
+      circle,
+      rgba(0,180,255,0.35),
+      transparent 70%
+    );
+}
+
+.guide-node .node-glow {
+
+  background:
+    radial-gradient(
+      circle,
+      rgba(155,80,255,0.35),
+      transparent 70%
+    );
+}
+
+/* Hover */
+.portal-node:hover {
+
+  transform:
+    scale(1.08)
+    translateY(-8px);
+
+  border-color:
+    rgba(255,255,255,0.15);
+}
+
+.portal-node:hover .node-glow {
+  opacity: 1;
+}
+
+/* Labels */
+.node-label {
+
+  position: relative;
+
+  z-index: 5;
+
+  color: white;
+
+  letter-spacing: 0.22em;
+
+  font-size: 0.85rem;
+
+  font-weight: 700;
+}
+
+/* ============================================================
+   BOTTOM SYSTEM TEXT
+============================================================ */
+
+.bottom-system {
+
+  position: absolute;
+
+  bottom: 34px;
+  left: 50%;
+
+  transform:
+    translateX(-50%);
+
+  z-index: 20;
+
+  letter-spacing: 0.28em;
+
+  text-transform: uppercase;
+
+  font-size: 0.72rem;
+
+  color:
+    rgba(255,255,255,0.35);
+}
+
 /* ============================================================
    ANIMATIONS
 ============================================================ */
 
-@keyframes portalReveal {
+@keyframes heroReveal {
+
+  from {
+
+    opacity: 0;
+
+    transform:
+      translateY(-50%)
+      translateX(-50px);
+  }
 
   to {
 
     opacity: 1;
 
     transform:
-      translateY(0px)
-      scale(1);
+      translateY(-50%)
+      translateX(0px);
   }
 }
 
-@keyframes floatingPanel {
+@keyframes floatingNode {
 
   0%, 100% {
-    transform: translateY(0px);
+
+    transform:
+      translateY(0px);
   }
 
   50% {
-    transform: translateY(-10px);
+
+    transform:
+      translateY(-10px);
   }
 }
 
 @keyframes ambientFloat {
 
   0%, 100% {
+
     transform:
       translateY(0px)
       scale(1);
   }
 
   50% {
+
     transform:
-      translateY(-30px)
+      translateY(-40px)
       scale(1.08);
   }
 }
@@ -483,15 +417,17 @@ body,
 @keyframes ambientFloatReverse {
 
   0%, 100% {
+
     transform:
       translateY(0px)
       scale(1);
   }
 
   50% {
+
     transform:
-      translateY(30px)
-      scale(1.1);
+      translateY(40px)
+      scale(1.12);
   }
 }
 
@@ -499,31 +435,75 @@ body,
    RESPONSIVE
 ============================================================ */
 
+@media (max-width: 1100px) {
+
+  .hero-left {
+
+    left: 50%;
+    top: 20%;
+
+    width: 90%;
+
+    text-align: center;
+
+    transform:
+      translateX(-50%);
+  }
+
+  .hero-sub {
+    margin: 0 auto;
+  }
+
+  .hero-right {
+
+    right: 50%;
+    top: 68%;
+
+    transform:
+      translateX(50%);
+
+    flex-direction: row;
+
+    gap: 24px;
+  }
+
+  .portal-node {
+
+    width: 150px;
+    height: 150px;
+  }
+}
+
 @media (max-width: 768px) {
 
-  .portal-panel {
+  .hero-title {
 
-    padding:
-      42px 28px;
-
-    border-radius: 28px;
+    font-size:
+      clamp(3rem, 12vw, 5rem);
   }
 
-  .portal-subtitle {
+  .hero-right {
+
+    top: 72%;
+  }
+
+  .portal-node {
+
+    width: 130px;
+    height: 130px;
+  }
+
+  .node-label {
+
+    font-size: 0.72rem;
+  }
+
+  .bottom-system {
+
+    width: 90%;
+
+    text-align: center;
+
     line-height: 1.7;
-  }
-
-  .role-button {
-
-    padding:
-      16px 20px;
-
-    font-size: 0.82rem;
-  }
-
-  .ambient-gradient {
-
-    width: 420px;
-    height: 420px;
   }
 }
