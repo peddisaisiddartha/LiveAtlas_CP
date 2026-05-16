@@ -5,7 +5,8 @@ import VideoRoom from './pages/VideoRoom'; // Your existing video room
 import Login from './pages/Login.jsx';         // We will create this
 import GuideDashboard from './pages/GuideDashboard'; // We will create this
 import UserDashboard from './pages/UserDashboard';   // We will create this
-import TransitionOverlay from './components/TransitionOverlay';
+import TransitionOverlay from "./Components/TransitionOverlay";
+import "./Components/TransitionOverlay.css";
 
 function App() {
   // Mock login state for now (we will connect to backend later)
