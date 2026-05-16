@@ -5,16 +5,47 @@ import VideoRoom from './pages/VideoRoom'; // Your existing video room
 import Login from './pages/Login.jsx';         // We will create this
 import GuideDashboard from './pages/GuideDashboard'; // We will create this
 import UserDashboard from './pages/UserDashboard';   // We will create this
+import TransitionOverlay from './components/TransitionOverlay';
 
 function App() {
   // Mock login state for now (we will connect to backend later)
   const [userRole, setUserRole] = useState(null); // 'guide' or 'user' or null
+  const [transitionActive, setTransitionActive] = useState(false);
+
+const [transitionMessage, setTransitionMessage] =
+  useState("");
+
+  const startTransition = (message) => {
+
+  setTransitionMessage(message);
+
+  setTransitionActive(true);
+
+  setTimeout(() => {
+
+    setTransitionActive(false);
+
+  }, 2600);
+};
 
   return (
+
     <BrowserRouter>
+      <TransitionOverlay
+        active={transitionActive}
+        message={transitionMessage}
+      />
+
       <Routes>
-        {/* Login Page */}
-        <Route path="/" element={<Login setUserRole={setUserRole} />} />
+        <Route
+          path="/"
+          element={
+            <Login
+              setUserRole={setUserRole}
+              startTransition={startTransition}
+            />
+          }
+        />
 
         {/* Dashboards (Protected) */}
         <Route

@@ -3,7 +3,10 @@ import { useNavigate } from "react-router-dom";
 import * as THREE from "three";
 import "./Login.css";
 
-const Login = ({ setUserRole }) => {
+const Login = ({
+  setUserRole,
+  startTransition,
+}) => {
 
   const navigate = useNavigate();
 
@@ -11,17 +14,35 @@ const Login = ({ setUserRole }) => {
 
   const animationRef = useRef(null);
 
-  const handleLogin = (role) => {
+const handleLogin = (role) => {
 
-    setUserRole(role);
+  setUserRole(role);
 
-    if (role === "guide") {
+  if (role === "guide") {
+
+    startTransition(
+      "INITIALIZING BROADCAST STUDIO..."
+    );
+
+    setTimeout(() => {
+
       navigate("/guide-dashboard");
-    } else {
-      navigate("/user-dashboard");
-    }
-  };
 
+    }, 2400);
+
+  } else {
+
+    startTransition(
+      "CONNECTING TO LIVE WORLD NETWORK..."
+    );
+
+    setTimeout(() => {
+
+      navigate("/user-dashboard");
+
+    }, 2400);
+  }
+};
   useEffect(() => {
 
     /* =====================================================
