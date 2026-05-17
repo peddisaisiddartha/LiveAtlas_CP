@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 
 let renderer;
 let scene;
@@ -6,6 +7,7 @@ let camera;
 let sphere;
 let videoTexture;
 let animationId;
+let controls;
 
 function waitForVideo(video) {
 
@@ -151,6 +153,29 @@ export async function initVR(
         scene.add(sphere);
 
         /* =====================================================
+   ORBIT CONTROLS
+===================================================== */
+
+controls = new OrbitControls(
+    camera,
+    renderer.domElement
+);
+
+controls.enableZoom = false;
+
+controls.enablePan = false;
+
+controls.rotateSpeed = -0.35;
+
+controls.enableDamping = true;
+
+controls.dampingFactor = 0.05;
+
+controls.minDistance = 0.1;
+
+controls.maxDistance = 0.1;
+
+        /* =====================================================
            RENDER LOOP
         ===================================================== */
 
@@ -167,7 +192,9 @@ export async function initVR(
                 videoTexture.needsUpdate = true;
             }
 
-            sphere.rotation.y += 0.0003;
+            if (controls) {
+                controls.update();
+            }
 
             renderer.render(scene, camera);
         };
@@ -235,6 +262,13 @@ export function disposeVR() {
         videoTexture = null;
     }
 
+    if (controls) {
+
+    controls.dispose();
+
+    controls = null;
+}
+
     if (renderer) {
 
         renderer.dispose();
@@ -255,4 +289,5 @@ export function disposeVR() {
 
     scene = null;
     camera = null;
+    animationId = null;
 }
