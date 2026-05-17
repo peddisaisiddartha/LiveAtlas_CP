@@ -538,7 +538,12 @@ if (peerConnection.current.signalingState === "stable") {
 
               <div
                 className="video-grid"
-                style={{ display: isVRMode ? "none" : "grid", position: "relative", zIndex: 1 }}
+                style={{
+                    opacity: isVRMode ? 0 : 1,
+                    pointerEvents: isVRMode ? "none" : "auto",
+                    position: "relative",
+                    zIndex: 1
+                }}
             >
                     
                     {showLocalVideo && !isFullScreen && (
