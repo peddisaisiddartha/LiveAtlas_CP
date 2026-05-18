@@ -253,17 +253,38 @@ useEffect(() => {
     const setupWebRTC = async () => {
 
         const stream = await navigator.mediaDevices.getUserMedia({
-           video: {
-                facingMode: cameraFacing,
-                width: { min: 1280, ideal: 1920, max: 1920 },
-                height: { min: 720, ideal: 1080, max: 1080 },
-                frameRate: { min: 24, ideal: 30, max: 30 }
-            },
-            audio: {
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true
-            }
+         video: {
+
+     width: {
+    ideal: 1280
+  },
+
+  height: {
+    ideal: 720
+  },
+
+  frameRate: {
+    ideal: 60,
+    min: 30
+  },
+
+  facingMode: "environment"
+},
+
+audio: {
+
+  echoCancellation: true,
+
+  noiseSuppression: false,
+
+  autoGainControl: false,
+
+  channelCount: 2,
+
+  sampleRate: 48000,
+
+  sampleSize: 16
+}
         });
 
         if (localVideoRef.current)
@@ -337,9 +358,21 @@ useEffect(() => {
     sender.setParameters(params);
 };
 
-        stream.getTracks().forEach(track =>
-            peerConnection.current.addTrack(track, stream)
-        );
+        stream.getTracks().forEach(track => {
+
+    if (track.kind === "video") {
+
+        track.contentHint = "motion";
+    }
+
+    if (track.kind === "audio") {
+
+        track.contentHint = "speech";
+    }
+
+    peerConnection.current.addTrack(track, stream);
+
+});
 
 
 
