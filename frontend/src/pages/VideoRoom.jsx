@@ -256,11 +256,11 @@ useEffect(() => {
          video: {
 
      width: {
-    ideal: 1280
+    ideal: 1920
   },
 
   height: {
-    ideal: 720
+    ideal: 1080
   },
 
   frameRate: {
@@ -344,6 +344,8 @@ audio: {
     if (!sender) return;
 
     const params = sender.getParameters();
+
+    params.degradationPreference = "maintain-framerate";
 
     if (!params.encodings) params.encodings = [{}];
 
