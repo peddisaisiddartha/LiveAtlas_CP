@@ -7,7 +7,7 @@ import GuideDashboard from './pages/GuideDashboard'; // We will create this
 import UserDashboard from './pages/UserDashboard';   // We will create this
 import TransitionOverlay from "./Components/TransitionOverlay";
 import "./Components/TransitionOverlay.css";
-import Loader from './components/Loader';
+import Loader from './Components/Loader';
 
 function App() {
   // Mock login state for now (we will connect to backend later)
