@@ -196,6 +196,9 @@ useEffect(() => {
 
         const connectWebSocket = () => {
             const normalizedRoomID = roomID.replace("_", "-");
+
+            setIsReconnecting(true);
+
             ws.current = new WebSocket(
                 `${protocol}://liveatlas-cp.onrender.com/ws/tours/${normalizedRoomID}/`
             );
@@ -203,7 +206,10 @@ useEffect(() => {
             ws.current.onopen = async () => {
                 console.log("WebSocket connected");
                 setIsReconnecting(false);
+                if (!peerConnection.current) {
+
                 await setupWebRTC();
+                }
             };
 
             ws.current.onclose = () => {
@@ -353,6 +359,24 @@ audio: {
 
     const state = peerConnection.current.iceConnectionState;
 
+    console.log("ICE STATE:", state);
+
+if (
+    state === "disconnected" ||
+    state === "failed"
+) {
+
+    setConnectionQuality("poor");
+}
+
+if (
+    state === "connected" ||
+    state === "completed"
+) {
+
+    setConnectionQuality("good");
+}
+
     const sender = peerConnection.current.getSenders().find(
         s => s.track && s.track.kind === "video"
     );
@@ -365,8 +389,24 @@ audio: {
 
     if (!params.encodings) params.encodings = [{}];
 
+    if (
+    state === "connected" ||
+    state === "completed"
+) {
+
+    setConnectionQuality("good");
+
+} else {
+
+    setConnectionQuality("poor");
+}
+
     if (state === "connected") {
         params.encodings[0].maxBitrate = 2500000;
+
+        params.encodings[0].maxFramerate = 60;
+
+        params.encodings[0].scaleResolutionDownBy = 1.0;
     }
 
     if (state === "disconnected" || state === "failed") {
@@ -413,7 +453,18 @@ if (peerConnection.current.signalingState === "stable") {
        peerConnection.current.ontrack = (event) => {
     if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = event.streams[0];
-        remoteVideoRef.current.play().catch(() => {});
+        event.streams[0].getVideoTracks()[0].onended = () => {
+
+        console.log("Remote video track ended");
+
+        setConnectionQuality("poor");
+
+        setIsReconnecting(true);
+        };
+            remoteVideoRef.current.play().catch((err) => {
+
+        console.log("Autoplay blocked:", err);
+});
     }
 };
 
@@ -615,6 +666,25 @@ if (peerConnection.current.signalingState === "stable") {
                             onPlaying={() => setIsReconnecting(false)}
                         />
                         <div className="name-tag">Live Feed</div>
+
+                        <div
+                            style={{
+                            position: "absolute",
+                            top: "10px",
+                            right: "10px",
+                            background:
+                            connectionQuality === "good"
+                            ? "green"
+                            : "red",
+                            color: "white",
+                            padding: "4px 8px",
+                            borderRadius: "6px",
+                            fontSize: "12px"
+                    }}
+                >
+                    {connectionQuality}
+                </div>
+
                     </div>
 
                 </div>

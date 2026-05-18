@@ -32,7 +32,7 @@ function App() {
 
   setTimeout(() => {
 
-    setTransitionActive(false);
+    setTransitionActive(false); 
 
   }, 2600);
 };
