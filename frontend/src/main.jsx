@@ -3,6 +3,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App.jsx";
 import "./index.css";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 Sentry.init({
   dsn: "https://084baba49ed30f0e84f25b9bbda9217c@o4511077206130688.ingest.de.sentry.io/4511077219500112",
@@ -14,6 +15,8 @@ Sentry.init({
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
-    <App />
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </StrictMode>
 );
