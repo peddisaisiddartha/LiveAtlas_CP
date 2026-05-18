@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './index.css';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import VideoRoom from './pages/VideoRoom'; // Your existing video room
@@ -9,6 +9,7 @@ import TransitionOverlay from "./Components/TransitionOverlay";
 import "./Components/TransitionOverlay.css";
 import Loader from './Components/Loader';
 
+
 function App() {
   // Mock login state for now (we will connect to backend later)
   const [userRole, setUserRole] = useState(null); // 'guide' or 'user' or null
@@ -18,9 +19,12 @@ function App() {
   const [transitionMessage, setTransitionMessage] =
   useState("");
 
+  
+  const [loading, setLoading] = useState(true);
+
   const startTransition = (message) => {
 
-  const [loading, setLoading] = useState(true);
+
 
   setTransitionMessage(message);
 
