@@ -209,7 +209,14 @@ useEffect(() => {
             ws.current.onclose = () => {
                 console.log("WebSocket disconnected. Reconnecting...");
                 setIsReconnecting(true);
-                setTimeout(connectWebSocket, 2000);
+                setTimeout(() => {
+
+                if (document.visibilityState === "visible") {
+
+                    connectWebSocket();
+                }
+
+            }, 2000);
             };
 
             ws.current.onmessage = async (event) => {
@@ -223,6 +230,7 @@ useEffect(() => {
         return () => {
             if (ws.current) ws.current.close();
             if (peerConnection.current) peerConnection.current.close();
+            disposeVR();
         };
     }, [roomID]);
 
@@ -290,6 +298,12 @@ audio: {
         if (localVideoRef.current)
             localVideoRef.current.srcObject = stream;
 
+        if (!window.AudioContext && !window.webkitAudioContext) {
+            console.log("AudioContext unsupported");
+            return;
+        }
+
+
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
         const analyser = audioContext.createAnalyser();
         const microphone = audioContext.createMediaStreamSource(stream);
@@ -302,7 +316,9 @@ audio: {
             analyser.getByteFrequencyData(dataArray);
             const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
             setMicLevel(avg);
-            requestAnimationFrame(checkMicLevel);
+            if (!document.hidden) {
+                requestAnimationFrame(checkMicLevel);
+            }
         };
         checkMicLevel();
 
@@ -484,6 +500,7 @@ if (peerConnection.current.signalingState === "stable") {
         }
 
         if (ws.current) ws.current.close();
+        disposeVR();
         navigate('/');
     };
 
@@ -589,7 +606,14 @@ if (peerConnection.current.signalingState === "stable") {
                     )}
 
                     <div className="video-wrapper remote">
-                        <video ref={remoteVideoRef} autoPlay playsInline />
+                        <video
+                            ref={remoteVideoRef}
+                            autoPlay
+                            playsInline
+                            muted={false}
+                            onWaiting={() => setIsReconnecting(true)}
+                            onPlaying={() => setIsReconnecting(false)}
+                        />
                         <div className="name-tag">Live Feed</div>
                     </div>
 

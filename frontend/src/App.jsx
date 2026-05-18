@@ -7,16 +7,20 @@ import GuideDashboard from './pages/GuideDashboard'; // We will create this
 import UserDashboard from './pages/UserDashboard';   // We will create this
 import TransitionOverlay from "./Components/TransitionOverlay";
 import "./Components/TransitionOverlay.css";
+import Loader from './components/Loader';
 
 function App() {
   // Mock login state for now (we will connect to backend later)
   const [userRole, setUserRole] = useState(null); // 'guide' or 'user' or null
+
   const [transitionActive, setTransitionActive] = useState(false);
 
-const [transitionMessage, setTransitionMessage] =
+  const [transitionMessage, setTransitionMessage] =
   useState("");
 
   const startTransition = (message) => {
+
+  const [loading, setLoading] = useState(true);
 
   setTransitionMessage(message);
 
@@ -28,6 +32,24 @@ const [transitionMessage, setTransitionMessage] =
 
   }, 2600);
 };
+  
+  React.useEffect(() => {
+
+  const timer = setTimeout(() => {
+
+    setLoading(false);
+
+  }, 1800);
+
+  return () => clearTimeout(timer);
+
+}, []);
+
+if (loading) {
+
+  return <Loader />;
+}
+
 
   return (
 
@@ -60,6 +82,7 @@ const [transitionMessage, setTransitionMessage] =
 
         {/* Video Room */}
         <Route path="/room/:roomID" element={<VideoRoom />} />
+        <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </BrowserRouter>
   );
