@@ -19,12 +19,14 @@ const UserDashboard = () => {
 
       {/* NAVBAR */}
       <nav style={{
-        background: 'white',
+        background: 'rgba(255,255,255,0.06)',
+        backdropFilter: 'blur(18px)',
+        borderBottom: '1px solid rgba(255,255,255,0.08)',
         padding: '15px 40px',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.35)',
         position: 'sticky',
         top: 0,
         zIndex: 50
@@ -35,11 +37,13 @@ const UserDashboard = () => {
         </div>
         <Link to="/" className="btn" style={{
             textDecoration: 'none',
-            color: '#64748B',
+            color: 'rgba(255,255,255,0.82)',
             fontWeight: '600',
             padding: '8px 16px',
             borderRadius: '8px',
-            border: '1px solid #E2E8F0'
+            border: '1px solid rgba(255,255,255,0.12)',
+            background: 'rgba(255,255,255,0.04)',
+            backdropFilter: 'blur(12px)',
         }}>
             Logout
         </Link>
@@ -59,13 +63,39 @@ const UserDashboard = () => {
         textAlign: 'center',
         marginBottom: '40px'
       }}>
-        <h1 style={{fontSize: '48px', margin: '0 0 10px 0', fontWeight: '800'}}>Explore the World Live</h1>
-        <p style={{fontSize: '20px', opacity: 0.9, maxWidth: '600px'}}>Connect with local guides in real-time and experience destinations from your home.</p>
+        <h1
+          style={{
+                  fontSize: '72px',
+                  margin: '0 0 10px 0',
+                  fontWeight: '900',
+                  letterSpacing: '2px',
+                  textShadow: '0 0 30px rgba(0,255,255,0.35)'
+                }}
+>
+  Explore the World Live
+</h1>
+        <p
+          style={{
+            fontSize: '22px',
+            opacity: 0.88,
+            maxWidth: '720px',
+            lineHeight: '1.8',
+            color: 'rgba(255,255,255,0.82)'
+          }}
+        ></p>
       </div>
 
       {/* TOUR GRID */}
       <div style={{padding: '0 40px 60px 40px', maxWidth: '1200px', margin: '0 auto'}}>
-        <h2 style={{marginBottom: '30px', color: '#0F172A', fontSize: '28px'}}>Active Broadcasts</h2>
+        <h2
+          style={{
+            marginBottom: '30px',
+            color: 'white',
+            fontSize: '34px',
+            fontWeight: '800',
+            letterSpacing: '1px'
+          }}
+        ></h2>
 
         <div style={{ marginBottom: "20px" }}>
   <select
@@ -94,11 +124,13 @@ const UserDashboard = () => {
               : "https://via.placeholder.com/400x300";
                 return (
                     <div key={tour.id} style={{
-                      background: 'white',
+                      background: 'rgba(255,255,255,0.06)',
+                      backdropFilter: 'blur(18px)',
+                      border: '1px solid rgba(255,255,255,0.08)',
                       borderRadius: '20px',
                       overflow: 'hidden',
                       boxShadow: '0 10px 30px rgba(0,0,0,0.05)',
-                      transition: 'transform 0.2s',
+                      transition: 'all 0.35s ease',
                       border: '1px solid #F1F5F9',
                       display: 'flex',
                       flexDirection: 'column'
@@ -176,7 +208,11 @@ const UserDashboard = () => {
     textAlign: "center",
     padding: "12px 24px",
     borderRadius: "50px",
-    background: "linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%)",
+    background:
+    "linear-gradient(135deg, #06B6D4 0%, #8B5CF6 100%)",
+
+    boxShadow:
+    "0 0 30px rgba(139,92,246,0.35)",
     color: "white",
     border: "none",
     fontWeight: "600",

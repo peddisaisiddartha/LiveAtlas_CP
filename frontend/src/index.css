@@ -81,3 +81,103 @@ video {
   max-width: 100%;
   height: auto;
 }
+
+
+/* ===== LIVEATLAS IMMERSIVE UI SYSTEM ===== */
+
+body {
+  background:
+    radial-gradient(circle at top left, rgba(0,255,255,0.08), transparent 30%),
+    radial-gradient(circle at bottom right, rgba(128,0,255,0.12), transparent 35%),
+    linear-gradient(135deg, #020617 0%, #050816 45%, #0b1120 100%);
+    
+  background-attachment: fixed;
+  overflow-x: hidden;
+}
+
+/* Ambient animated layer */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+
+  background:
+    radial-gradient(circle at 20% 30%, rgba(0,255,255,0.08), transparent 20%),
+    radial-gradient(circle at 80% 70%, rgba(168,85,247,0.08), transparent 25%),
+    radial-gradient(circle at 50% 50%, rgba(59,130,246,0.05), transparent 30%);
+
+  animation: ambientFlow 18s ease-in-out infinite alternate;
+
+  z-index: -2;
+  pointer-events: none;
+}
+
+/* Cinematic fog motion */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+
+  background:
+    linear-gradient(
+      120deg,
+      transparent 0%,
+      rgba(255,255,255,0.02) 45%,
+      transparent 100%
+    );
+
+  animation: cinematicSweep 12s linear infinite;
+
+  z-index: -1;
+  pointer-events: none;
+}
+
+@keyframes ambientFlow {
+
+  0% {
+    transform: translateY(0px) scale(1);
+  }
+
+  100% {
+    transform: translateY(-40px) scale(1.08);
+  }
+}
+
+@keyframes cinematicSweep {
+
+  0% {
+    transform: translateX(-20%);
+  }
+
+  100% {
+    transform: translateX(20%);
+  }
+}
+
+/* Glass cards */
+.glass-panel {
+
+  background: rgba(255,255,255,0.06);
+
+  backdrop-filter: blur(18px);
+
+  border: 1px solid rgba(255,255,255,0.08);
+
+  box-shadow:
+    0 8px 32px rgba(0,0,0,0.45),
+    0 0 40px rgba(0,255,255,0.06);
+
+  border-radius: 24px;
+}
+
+/* Cinematic hover */
+.glass-panel:hover {
+
+  transform: translateY(-3px);
+
+  transition: all 0.3s ease;
+
+  box-shadow:
+    0 12px 40px rgba(0,0,0,0.55),
+    0 0 60px rgba(0,255,255,0.12);
+}
