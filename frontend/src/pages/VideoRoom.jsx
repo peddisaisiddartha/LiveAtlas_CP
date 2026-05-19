@@ -236,6 +236,24 @@ useEffect(() => {
             connectWebSocket();
         }
 
+        const handleVisibility = () => {
+
+            if (
+                document.visibilityState === "visible" &&
+                !ws.current
+            ) {
+
+                console.log("Tab became visible - reconnecting");
+
+                connectWebSocket();
+            }
+};
+
+document.addEventListener(
+    "visibilitychange",
+    handleVisibility
+);
+
         return () => {
            if (ws.current) {
 
@@ -247,6 +265,11 @@ useEffect(() => {
         }
             if (peerConnection.current) peerConnection.current.close();
             disposeVR();
+
+            document.removeEventListener(
+    "visibilitychange",
+    handleVisibility
+);
         };
     }, [roomID]);
 
@@ -412,9 +435,27 @@ if (
 }
 
     if (state === "connected") {
-        params.encodings[0].maxBitrate = 2500000;
+        if (
+            connectionQuality === "good"
+        ) {
 
-        params.encodings[0].maxFramerate = 60;
+            params.encodings[0].maxBitrate = 2500000;
+
+        } else {
+
+            params.encodings[0].maxBitrate = 1400000;
+            }
+
+        if (
+            connectionQuality === "good"
+        ) {
+
+            params.encodings[0].maxFramerate = 60;
+
+        } else {
+
+                params.encodings[0].maxFramerate = 30;
+        }
 
         params.encodings[0].scaleResolutionDownBy = 1.0;
     }
