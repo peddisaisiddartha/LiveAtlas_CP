@@ -231,10 +231,20 @@ useEffect(() => {
             };
         };
 
-        connectWebSocket();
+        if (!ws.current) {
+
+            connectWebSocket();
+        }
 
         return () => {
-            if (ws.current) ws.current.close();
+           if (ws.current) {
+
+            ws.current.onclose = null;
+
+            ws.current.close();
+
+            ws.current = null;
+        }
             if (peerConnection.current) peerConnection.current.close();
             disposeVR();
         };
@@ -411,6 +421,15 @@ if (
 
     if (state === "disconnected" || state === "failed") {
         params.encodings[0].maxBitrate = 800000;
+        if (
+            peerConnection.current &&
+            peerConnection.current.restartIce
+        ) {
+
+            console.log("Restarting ICE...");
+
+            peerConnection.current.restartIce();
+        }
     }
 
     sender.setParameters(params);
