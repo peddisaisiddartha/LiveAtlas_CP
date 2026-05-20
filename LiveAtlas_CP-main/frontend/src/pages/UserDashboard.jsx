@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FaGlobeAmericas, FaUserCircle } from 'react-icons/fa';
+import { supabase } from '../lib/supabase';
 
 const UserDashboard = () => {
   const [tours, setTours] = useState([]);
+  const [intent, setIntent] = useState("Explore");
 
   useEffect(() => {
     fetch('https://liveatlas-cp.onrender.com/api/tours/')
@@ -17,12 +19,14 @@ const UserDashboard = () => {
 
       {/* NAVBAR */}
       <nav style={{
-        background: 'white',
+        background: 'rgba(255,255,255,0.06)',
+        backdropFilter: 'blur(18px)',
+        borderBottom: '1px solid rgba(255,255,255,0.08)',
         padding: '15px 40px',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.35)',
         position: 'sticky',
         top: 0,
         zIndex: 50
@@ -33,11 +37,13 @@ const UserDashboard = () => {
         </div>
         <Link to="/" className="btn" style={{
             textDecoration: 'none',
-            color: '#64748B',
+            color: 'rgba(255,255,255,0.82)',
             fontWeight: '600',
             padding: '8px 16px',
             borderRadius: '8px',
-            border: '1px solid #E2E8F0'
+            border: '1px solid rgba(255,255,255,0.12)',
+            background: 'rgba(255,255,255,0.04)',
+            backdropFilter: 'blur(12px)',
         }}>
             Logout
         </Link>
@@ -57,13 +63,52 @@ const UserDashboard = () => {
         textAlign: 'center',
         marginBottom: '40px'
       }}>
-        <h1 style={{fontSize: '48px', margin: '0 0 10px 0', fontWeight: '800'}}>Explore the World Live</h1>
-        <p style={{fontSize: '20px', opacity: 0.9, maxWidth: '600px'}}>Connect with local guides in real-time and experience destinations from your home.</p>
+        <h1
+          style={{
+                  fontSize: '72px',
+                  margin: '0 0 10px 0',
+                  fontWeight: '900',
+                  letterSpacing: '2px',
+                  textShadow: '0 0 30px rgba(0,255,255,0.35)'
+                }}
+>
+  Explore the World Live
+</h1>
+        <p
+          style={{
+            fontSize: '22px',
+            opacity: 0.88,
+            maxWidth: '720px',
+            lineHeight: '1.8',
+            color: 'rgba(255,255,255,0.82)'
+          }}
+        ></p>
       </div>
 
       {/* TOUR GRID */}
       <div style={{padding: '0 40px 60px 40px', maxWidth: '1200px', margin: '0 auto'}}>
-        <h2 style={{marginBottom: '30px', color: '#0F172A', fontSize: '28px'}}>Active Broadcasts</h2>
+        <h2
+          style={{
+            marginBottom: '30px',
+            color: 'white',
+            fontSize: '34px',
+            fontWeight: '800',
+            letterSpacing: '1px'
+          }}
+        ></h2>
+
+        <div style={{ marginBottom: "20px" }}>
+  <select
+    value={intent}
+    onChange={(e) => setIntent(e.target.value)}
+    style={{ padding: "8px", fontSize: "16px" }}
+  >
+    <option value="Explore">Explore</option>
+    <option value="Talk">Talk</option>
+    <option value="Learn">Learn</option>
+    <option value="Experience">Experience</option>
+  </select>
+</div>
 
         <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '30px'}}>
 
@@ -79,11 +124,13 @@ const UserDashboard = () => {
               : "https://via.placeholder.com/400x300";
                 return (
                     <div key={tour.id} style={{
-                      background: 'white',
+                      background: 'rgba(255,255,255,0.06)',
+                      backdropFilter: 'blur(18px)',
+                      border: '1px solid rgba(255,255,255,0.08)',
                       borderRadius: '20px',
                       overflow: 'hidden',
                       boxShadow: '0 10px 30px rgba(0,0,0,0.05)',
-                      transition: 'transform 0.2s',
+                      transition: 'all 0.35s ease',
                       border: '1px solid #F1F5F9',
                       display: 'flex',
                       flexDirection: 'column'
@@ -130,21 +177,50 @@ const UserDashboard = () => {
 
                         {/* UPDATED BUTTON: Centered with margin: 0 auto */}
                         <div style={{marginTop: 'auto'}}>
-                            <Link to={`/room/tour-${tour.id}`} className="btn" style={{
-                              width: '80%', /* Not 100% anymore */
-                              margin: '0 auto', /* This centers it */
-                              display: 'block',
-                              textAlign: 'center',
-                              padding: '12px 24px',
-                              borderRadius: '50px', /* More rounded pill shape */
-                              background: 'linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%)',
-                              color: 'white',
-                              textDecoration: 'none',
-                              fontWeight: '600',
-                              boxShadow: '0 4px 10px rgba(14, 165, 233, 0.4)'
-                            }}>
-                              Join Broadcast
-                            </Link>
+                           <button
+  onClick={async () => {
+  try {
+    const { error } = await supabase
+      .from("session_intents")
+      .insert([
+        {
+          room_id: `tour-${tour.id}`,
+          intent: intent,
+        },
+      ]);
+
+    if (error) throw error;
+
+    console.log("Intent Saved:", intent);
+
+    window.location.href = `/room/tour-${tour.id}`;
+
+  } catch (err) {
+    console.error("Join failed:", err);
+    alert("Something went wrong. Try again.");
+  }
+}}
+
+  style={{
+    width: "80%",
+    margin: "0 auto",
+    display: "block",
+    textAlign: "center",
+    padding: "12px 24px",
+    borderRadius: "50px",
+    background:
+    "linear-gradient(135deg, #06B6D4 0%, #8B5CF6 100%)",
+
+    boxShadow:
+    "0 0 30px rgba(139,92,246,0.35)",
+    color: "white",
+    border: "none",
+    fontWeight: "600",
+    cursor: "pointer",
+  }}
+>
+  Join Broadcast
+</button>
                         </div>
                       </div>
                     </div>
