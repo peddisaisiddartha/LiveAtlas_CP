@@ -15,7 +15,7 @@ const UserDashboard = () => {
   }, []);
 
   return (
-    <div style={{minHeight: '100vh', background: '#F8FAFC', fontFamily: "'Inter', sans-serif"}}>
+    <div style={{minHeight: '100vh', background: 'transparent', fontFamily: "'Inter', sans-serif"}}>
 
       {/* NAVBAR */}
       <nav style={{
@@ -82,7 +82,9 @@ const UserDashboard = () => {
             lineHeight: '1.8',
             color: 'rgba(255,255,255,0.82)'
           }}
-        ></p>
+        >
+  Connect with local guides in real-time and experience destinations from your home.
+</p>
       </div>
 
       {/* TOUR GRID */}
@@ -95,7 +97,9 @@ const UserDashboard = () => {
             fontWeight: '800',
             letterSpacing: '1px'
           }}
-        ></h2>
+        >
+  Active Broadcasts
+      </h2>
 
         <div style={{ marginBottom: "20px" }}>
   <select
@@ -131,7 +135,6 @@ const UserDashboard = () => {
                       overflow: 'hidden',
                       boxShadow: '0 10px 30px rgba(0,0,0,0.05)',
                       transition: 'all 0.35s ease',
-                      border: '1px solid #F1F5F9',
                       display: 'flex',
                       flexDirection: 'column'
                     }}>
