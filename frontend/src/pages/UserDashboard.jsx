@@ -113,7 +113,9 @@ html, body { background: var(--bg); overflow-x: hidden; }
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 48px;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 0 clamp(16px, 4vw, 48px);  
   height: 64px;
   background: rgba(2,4,15,0.82);
   backdrop-filter: blur(20px);
@@ -193,7 +195,8 @@ html, body { background: var(--bg); overflow-x: hidden; }
 /* ══ HERO / COMMANDER PANEL ══ */
 .hud-hero {
   position: relative;
-  height: 420px;
+  min-height: 420px;
+  padding: 80px 20px 60px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -253,7 +256,7 @@ html, body { background: var(--bg); overflow-x: hidden; }
 .hud-hero-h1 {
   font-family: 'Orbitron', monospace;
   font-weight: 900;
-  font-size: clamp(36px, 5.5vw, 72px);
+  font-size: clamp(28px, 5vw, 72px);
   line-height: 1;
   letter-spacing: -1px;
   color: #fff;
@@ -334,7 +337,8 @@ html, body { background: var(--bg); overflow-x: hidden; }
 
 /* ══ SECTION ══ */
 .hud-section {
-  padding: 52px 48px 100px;
+  padding:
+  52px clamp(16px, 4vw, 48px) 100px;
   max-width: 1400px;
   margin: 0 auto;
 }
@@ -434,7 +438,8 @@ html, body { background: var(--bg); overflow-x: hidden; }
 /* ══ POLAROID GRID ══ */
 .hud-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns:
+  repeat(auto-fit, minmax(280px, 1fr));
   gap: 40px 32px;
   padding: 20px 8px 8px;
 }
@@ -729,12 +734,30 @@ const CityCanvas = () => {
     let mouse = { x: 0, y: 0 };
     let t = 0;
 
-    window.addEventListener('mousemove', e => {
-      mouse.x = e.clientX / window.innerWidth - 0.5;
-      mouse.y = e.clientY / window.innerHeight - 0.5;
-    });
+    const handleMouseMove = (e) => {
+  mouse.x = e.clientX / window.innerWidth - 0.5;
+  mouse.y = e.clientY / window.innerHeight - 0.5;
+};
 
-    const resize = () => { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; };
+window.addEventListener('mousemove', handleMouseMove);
+
+    const resize = () => {
+
+  W = window.innerWidth;
+  H = window.innerHeight;
+
+  const dpr = Math.min(
+    window.devicePixelRatio || 1,
+    1.5
+  );
+
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+  ctx.scale(dpr, dpr);
+};
     resize();
     window.addEventListener('resize', resize);
 
@@ -782,8 +805,19 @@ const CityCanvas = () => {
 
     genCity();
 
+    let isTabVisible = true;
+
+      document.addEventListener("visibilitychange", () => {
+      isTabVisible = document.visibilityState === "visible";
+    });
+
     const draw = () => {
-      t += 0.012;
+      if (!isTabVisible) {
+        raf = requestAnimationFrame(draw);
+        return;
+      }
+
+t += 0.012;
       ctx.clearRect(0, 0, W, H);
 
       // Sky gradient
@@ -914,15 +948,27 @@ const CityCanvas = () => {
       ctx.fillStyle = rg;
       ctx.fillRect(0, H * 0.78, W, H * 0.22);
 
-      raf = requestAnimationFrame(draw);
+      setTimeout(() => {
+        raf = requestAnimationFrame(draw);
+      }, 1000 / 45);
     };
 
     draw();
-    return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', resize); };
+
+return () => {
+  cancelAnimationFrame(raf);
+
+  window.removeEventListener('resize', resize);
+
+  window.removeEventListener(
+    'mousemove',
+    handleMouseMove
+  );
+};
   }, []);
 
   return <canvas ref={ref} id="city-canvas" />;
-};
+};  
 
 /* ══════════════════════════════════════════════════════════
    TILT POLAROID WRAPPER

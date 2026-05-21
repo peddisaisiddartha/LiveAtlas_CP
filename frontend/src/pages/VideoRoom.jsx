@@ -199,6 +199,27 @@ useEffect(() => {
 
             setIsReconnecting(true);
 
+            if (!navigator.onLine) {
+
+                console.warn(
+                "Offline: skipping reconnect"
+                );
+
+                return;
+            }
+
+            if (
+                ws.current &&
+                ws.current.readyState === WebSocket.OPEN
+            ) {
+
+                console.log(
+                    "WebSocket already connected"
+                );
+
+            return;
+            }
+
             ws.current = new WebSocket(
                 `${protocol}://liveatlas-cp.onrender.com/ws/tours/${normalizedRoomID}/`
             );
@@ -236,17 +257,27 @@ useEffect(() => {
             connectWebSocket();
         }
 
-        const handleVisibility = () => {
+   const handleVisibility = () => {
 
-            if (
-                document.visibilityState === "visible" &&
-                !ws.current
-            ) {
+    if (document.hidden) {
 
-                console.log("Tab became visible - reconnecting");
+        console.log("Tab hidden");
 
-                connectWebSocket();
-            }
+    } else {
+
+        console.log(
+            "Tab active again — checking stream health"
+        );
+
+        if (!ws.current) {
+
+            console.log(
+                "Tab became visible - reconnecting"
+            );
+
+            connectWebSocket();
+        }
+    }
 };
 
 document.addEventListener(
@@ -263,6 +294,15 @@ document.addEventListener(
 
             ws.current = null;
         }
+
+        if (localVideoRef.current?.srcObject) {
+
+    localVideoRef.current
+        .srcObject
+        .getTracks()
+        .forEach(track => track.stop());
+}
+
             if (peerConnection.current) peerConnection.current.close();
             disposeVR();
 
@@ -344,6 +384,7 @@ audio: {
 
 
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        audioContext.suspend();
         const analyser = audioContext.createAnalyser();
         const microphone = audioContext.createMediaStreamSource(stream);
         microphone.connect(analyser);
@@ -355,10 +396,11 @@ audio: {
             analyser.getByteFrequencyData(dataArray);
             const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
             setMicLevel(avg);
-            if (!document.hidden) {
-                requestAnimationFrame(checkMicLevel);
-            }
+                if (!document.hidden) {
+                    requestAnimationFrame(checkMicLevel);
+                }
         };
+        audioContext.resume();
         checkMicLevel();
 
         peerConnection.current = new RTCPeerConnection({
@@ -400,6 +442,30 @@ if (
 ) {
 
     setConnectionQuality("poor");
+    console.warn(
+    "WebRTC connection unstable:",
+    state
+);
+setTimeout(() => {
+
+    if (
+        peerConnection.current &&
+        peerConnection.current
+            .iceConnectionState !== "connected"
+    ) {
+
+        console.warn(
+            "Attempting ICE recovery..."
+        );
+    }
+
+}, 4000);
+}
+
+if (state === "closed") {
+  console.log(
+    "ICE connection closed"
+  );
 }
 
 if (
@@ -476,21 +542,35 @@ if (
     sender.setParameters(params);
 };
 
-        stream.getTracks().forEach(track => {
+            stream.getTracks().forEach(track => {
 
-    if (track.kind === "video") {
+        if (track.kind === "video") {
 
-        track.contentHint = "motion";
-    }
+            track.contentHint = "motion";
+        }
 
-    if (track.kind === "audio") {
+        if (track.kind === "audio") {
 
-        track.contentHint = "speech";
-    }
+            track.contentHint = "speech";
+        }
 
-    peerConnection.current.addTrack(track, stream);
+        const existingSender =
+    peerConnection.current
+        .getSenders()
+        .find(sender =>
+            sender.track &&
+            sender.track.kind === track.kind
+        );
 
-});
+if (!existingSender) {
+
+    peerConnection.current.addTrack(
+        track,
+        stream
+    );
+}
+
+    });
 
 
 
