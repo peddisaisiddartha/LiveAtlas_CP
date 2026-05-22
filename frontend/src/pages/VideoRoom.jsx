@@ -374,11 +374,28 @@ const VideoRoom = () => {
     iceCandidatePoolSize: 10,
     bundlePolicy: "max-bundle",
     rtcpMuxPolicy: "require",
+    encodedInsertableStreams: false,
 });
 
         /* ORIGINAL ICE state handler — quality thresholds upgraded */
         peerConnection.current.oniceconnectionstatechange = async () => {
             const state = peerConnection.current.iceConnectionState;
+            const stats = await peerConnection.current.getStats();
+
+            stats.forEach(report => {
+
+            if (
+                report.type === "candidate-pair" &&
+                report.state === "succeeded"
+            ) {
+
+                console.log(
+                    "Current Candidate Pair:",
+                    report.localCandidateId,
+                    report.remoteCandidateId
+                );
+            }
+            });
             console.log("ICE STATE:", state);
 
             if (state === "disconnected" || state === "failed") {
@@ -412,6 +429,7 @@ const VideoRoom = () => {
                 params.encodings[0].networkPriority  = "high";   // [QUALITY] added
                 params.encodings[0].priority         = "high";   // [QUALITY] added
                 params.encodings[0].scaleResolutionDownBy = 1.0;
+                params.encodings[0].adaptivePtime = true;
             } else {
                 setConnectionQuality("poor");
             }
@@ -468,6 +486,9 @@ const VideoRoom = () => {
 
                 /* [QUALITY] Force real-time playback — no buffering delay */
                 remoteVideoRef.current.playbackRate = 1.0;
+                remoteVideoRef.current.preservesPitch = false;
+
+                remoteVideoRef.current.disablePictureInPicture = true;
 
                 event.streams[0].getVideoTracks()[0].onended = () => {
                     console.log("Remote video track ended");
