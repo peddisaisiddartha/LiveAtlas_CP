@@ -12,9 +12,9 @@ import { supabase } from '../lib/supabase';
 const Q = {
   // Video resolution — min forces browser to actually deliver it
   VIDEO_W_MIN:  1280,
-  VIDEO_W_IDEAL: 1920,
+  VIDEO_W_IDEAL: 1280,
   VIDEO_H_MIN:  720,
-  VIDEO_H_IDEAL: 1080,
+  VIDEO_H_IDEAL: 720,
   FRAMERATE_MIN: 30,
   FRAMERATE_IDEAL: 30,
 
@@ -354,7 +354,7 @@ const VideoRoom = () => {
             username: "3f8759bd068204338517a31d",
             credential: "9n2CI75lIUpwOsnx",
         },
-        
+
         {
             urls: "turn:standard.relay.metered.ca:443",
             username: "3f8759bd068204338517a31d",
