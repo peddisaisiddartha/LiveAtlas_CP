@@ -343,21 +343,38 @@ const VideoRoom = () => {
         audioContext.resume();
         checkMicLevel();
 
-        /* ORIGINAL ICE servers (unchanged) */
-        peerConnection.current = new RTCPeerConnection({
-            iceServers: [
-                { urls: "stun:stun.relay.metered.ca:80" },
-                { urls: "turn:global.relay.metered.ca:80",              username: "a08d7dab4952ac44632adaaa", credential: "4+8LpWBi440BQE2K" },
-                { urls: "turn:global.relay.metered.ca:80?transport=tcp", username: "a08d7dab4952ac44632adaaa", credential: "4+8LpWBi440BQE2K" },
-                { urls: "turn:global.relay.metered.ca:443",              username: "a08d7dab4952ac44632adaaa", credential: "4+8LpWBi440BQE2K" },
-                { urls: "turns:global.relay.metered.ca:443?transport=tcp", username: "a08d7dab4952ac44632adaaa", credential: "4+8LpWBi440BQE2K" }
-            ],
-            iceCandidatePoolSize: 10,
-            /* [QUALITY] bundlePolicy: max-bundle reduces ICE overhead → lower latency */
-            bundlePolicy: "max-bundle",
-            /* [QUALITY] rtcpMuxPolicy: require means RTCP shares RTP port → less overhead */
-            rtcpMuxPolicy: "require",
-        });
+         /* UPDATED TURN + STUN servers */
+       peerConnection.current = new RTCPeerConnection({
+    iceServers: [
+        {
+            urls: "stun:stun.relay.metered.ca:80",
+        },
+        {
+            urls: "turn:standard.relay.metered.ca:80",
+            username: "3f8759bd068204338517a31d",
+            credential: "9n2CI75lIUpwOsnx",
+        },
+        {
+            urls: "turn:standard.relay.metered.ca:80?transport=tcp",
+            username: "3f8759bd068204338517a31d",
+            credential: "9n2CI75lIUpwOsnx",
+        },
+        {
+            urls: "turn:standard.relay.metered.ca:443",
+            username: "3f8759bd068204338517a31d",
+            credential: "9n2CI75lIUpwOsnx",
+        },
+        {
+            urls: "turns:standard.relay.metered.ca:443?transport=tcp",
+            username: "3f8759bd068204338517a31d",
+            credential: "9n2CI75lIUpwOsnx",
+        },
+    ],
+
+    iceCandidatePoolSize: 10,
+    bundlePolicy: "max-bundle",
+    rtcpMuxPolicy: "require",
+});
 
         /* ORIGINAL ICE state handler — quality thresholds upgraded */
         peerConnection.current.oniceconnectionstatechange = async () => {
