@@ -16,7 +16,7 @@ const Q = {
   VIDEO_H_MIN:  720,
   VIDEO_H_IDEAL: 1080,
   FRAMERATE_MIN: 30,
-  FRAMERATE_IDEAL: 60,
+  FRAMERATE_IDEAL: 30,
 
   // Bitrates (bits/sec)
   BITRATE_GOOD:  4_000_000,   // 4 Mbps  — crystal clear 1080p
@@ -354,21 +354,13 @@ const VideoRoom = () => {
             username: "3f8759bd068204338517a31d",
             credential: "9n2CI75lIUpwOsnx",
         },
-        {
-            urls: "turn:standard.relay.metered.ca:80?transport=tcp",
-            username: "3f8759bd068204338517a31d",
-            credential: "9n2CI75lIUpwOsnx",
-        },
+        
         {
             urls: "turn:standard.relay.metered.ca:443",
             username: "3f8759bd068204338517a31d",
             credential: "9n2CI75lIUpwOsnx",
         },
-        {
-            urls: "turns:standard.relay.metered.ca:443?transport=tcp",
-            username: "3f8759bd068204338517a31d",
-            credential: "9n2CI75lIUpwOsnx",
-        },
+        
     ],
 
     iceCandidatePoolSize: 10,
@@ -425,7 +417,7 @@ const VideoRoom = () => {
                 setConnectionQuality("good");
                 /* [QUALITY] Higher bitrates than original */
                 params.encodings[0].maxBitrate      = connectionQuality === "good" ? Q.BITRATE_GOOD : Q.BITRATE_OK;
-                params.encodings[0].maxFramerate     = connectionQuality === "good" ? 60 : 30;
+                params.encodings[0].maxFramerate     = connectionQuality === "good" ? 30 : 24;
                 params.encodings[0].networkPriority  = "high";   // [QUALITY] added
                 params.encodings[0].priority         = "high";   // [QUALITY] added
                 params.encodings[0].scaleResolutionDownBy = 1.0;
