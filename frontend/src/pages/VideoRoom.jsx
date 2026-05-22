@@ -297,7 +297,7 @@ const VideoRoom = () => {
                 width:     { min: Q.VIDEO_W_MIN,  ideal: Q.VIDEO_W_IDEAL },
                 height:    { min: Q.VIDEO_H_MIN,  ideal: Q.VIDEO_H_IDEAL },
                 frameRate: { min: Q.FRAMERATE_MIN, ideal: Q.FRAMERATE_IDEAL },
-                facingMode: "environment",
+                facingMode: cameraFacing,
                 /* [QUALITY] These hints tell Chrome/Firefox to use hardware encoder */
                 advanced: [
                     { width: 1920, height: 1080 },
@@ -325,7 +325,7 @@ const VideoRoom = () => {
         /* ORIGINAL mic level analyser (unchanged) */
         if (!window.AudioContext && !window.webkitAudioContext) {
             console.log("AudioContext unsupported");
-            return;
+            
         }
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
         audioContext.suspend();
@@ -614,7 +614,6 @@ const VideoRoom = () => {
                         ref={remoteVideoRef}
                         autoPlay
                         playsInline
-                        muted={false}
                         onWaiting={() => setIsReconnecting(true)}
                         onPlaying={() => setIsReconnecting(false)}
                     />
