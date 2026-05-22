@@ -19,7 +19,7 @@ const Q = {
   FRAMERATE_IDEAL: 30,
 
   // Bitrates (bits/sec)
-  BITRATE_GOOD:  2_800_000,   // 2.8 Mbps  — crystal clear 1080p
+  BITRATE_GOOD:  3_300_000,   // 3.3 Mbps  — crystal clear 1080p
   BITRATE_OK:    2_500_000,   // 2.5 Mbps — solid 720p
   BITRATE_POOR:  1_200_000,   // 1.2 Mbps — fallback
 
