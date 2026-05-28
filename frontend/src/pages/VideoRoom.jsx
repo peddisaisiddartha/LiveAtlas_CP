@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import './VideoRoom.css';
 import { FaMicrophone, FaMicrophoneSlash, FaVideo, FaVideoSlash, FaPhoneSlash, FaExpand, FaCompress, FaGlobeAmericas, FaSyncAlt } from 'react-icons/fa';
 import { initVR, disposeVR } from "../vr/vrEngine";
+import {startImmersiveVR,stopImmersiveVR,} from "../vr/immersiveVR";
 import { askAI } from '../ai/aiService';
 import { supabase } from '../lib/supabase';
 
@@ -106,6 +107,7 @@ const VideoRoom = () => {
     const [isVideoOn, setIsVideoOn] = useState(true);
     const [isFullScreen, setIsFullScreen] = useState(false);
     const [isVRMode, setIsVRMode] = useState(false);
+    const [isImmersiveVR, setIsImmersiveVR] = useState(false);
     const [cameraFacing, setCameraFacing] = useState("environment");
     const [connectionQuality, setConnectionQuality] = useState("good");
     const [micLevel, setMicLevel] = useState(0);
@@ -283,6 +285,32 @@ const VideoRoom = () => {
         else          { console.log("Stopping VR..."); disposeVR(); }
         return () => { disposeVR(); };
     }, [isVRMode]);
+
+    useEffect(() => {
+    const video = remoteVideoRef.current;
+
+    if (!video || !vrContainerRef.current) {
+        console.log("Immersive VR skipped: missing video or container");
+        return;
+    }
+
+    if (isImmersiveVR) {
+        console.log("Starting Immersive VR...");
+
+        startImmersiveVR(
+            vrContainerRef.current,
+            video
+        );
+    } else {
+        console.log("Stopping Immersive VR...");
+
+        stopImmersiveVR();
+    }
+
+    return () => {
+        stopImmersiveVR();
+    };
+}, [isImmersiveVR]);
 
     /* ══════════════════════════════════════════════════════
        setupWebRTC — ALL SIGNALING LOGIC PRESERVED
@@ -684,7 +712,24 @@ const VideoRoom = () => {
                         <button onClick={() => setShowLocalVideo(prev => !prev)}>{showLocalVideo ? "Hide Cam" : "Show Cam"}</button>
                         <button onClick={endCall}><FaPhoneSlash /></button>
                         <button onClick={switchCamera}><FaSyncAlt /></button>
-                        <button onClick={toggleVRMode}>{isVRMode ? "Exit VR" : "VR"}</button>
+                        <button onClick={toggleVRMode}>
+                            {isVRMode ? "Exit VR" : "VR"}
+                        </button>
+
+                        <button
+                            onClick={() => setIsImmersiveVR(prev => !prev)}
+                            style={{
+                            background: isImmersiveVR ? "#0EA5E9" : "rgba(0,0,0,0.6)",
+                            color: "white",
+                            border: "none",
+                            padding: "10px 14px",
+                            borderRadius: "10px",
+                            cursor: "pointer",
+                            fontWeight: "600"
+                            }}
+                        >
+                            {isImmersiveVR ? "Exit Immersive" : "Immersive VR"}
+                        </button>
                     </>
                 )}
                 <button onClick={toggleFullScreen}>{isFullScreen ? <FaCompress /> : <FaExpand />}</button>
