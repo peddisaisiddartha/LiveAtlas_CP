@@ -3,7 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import './VideoRoom.css';
 import { FaMicrophone, FaMicrophoneSlash, FaVideo, FaVideoSlash, FaPhoneSlash, FaExpand, FaCompress, FaGlobeAmericas, FaSyncAlt } from 'react-icons/fa';
 import { initVR, disposeVR } from "../vr/vrEngine";
-import {startImmersiveVR,stopImmersiveVR,} from "../vr/immersiveVR";
+import {
+  startImmersiveVR,
+  stopImmersiveVR
+} from "../vr/immersiveVR";
 import { askAI } from '../ai/aiService';
 import { supabase } from '../lib/supabase';
 
