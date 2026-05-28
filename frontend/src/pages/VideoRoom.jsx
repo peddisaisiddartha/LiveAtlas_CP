@@ -290,6 +290,7 @@ const VideoRoom = () => {
     }, [isVRMode]);
 
     useEffect(() => {
+
     const video = remoteVideoRef.current;
 
     if (!video || !vrContainerRef.current) {
@@ -298,14 +299,21 @@ const VideoRoom = () => {
     }
 
     if (isImmersiveVR) {
+
         console.log("Starting Immersive VR...");
+
+        setShowControls(false);
 
         startImmersiveVR(
             vrContainerRef.current,
             video
         );
+
     } else {
+
         console.log("Stopping Immersive VR...");
+
+        setShowControls(true);
 
         stopImmersiveVR();
     }
@@ -313,6 +321,7 @@ const VideoRoom = () => {
     return () => {
         stopImmersiveVR();
     };
+
 }, [isImmersiveVR]);
 
     /* ══════════════════════════════════════════════════════
@@ -585,6 +594,7 @@ const VideoRoom = () => {
         }
         if (ws.current) ws.current.close();
         disposeVR();
+        stopImmersiveVR();
         navigate('/');
     };
 
@@ -602,9 +612,15 @@ const VideoRoom = () => {
 
     /* ── ORIGINAL toggleVRMode (unchanged) ── */
     const toggleVRMode = () => {
-        console.log("VR TOGGLED:", !isVRMode);
-        setIsVRMode(prev => !prev);
-    };
+
+    if (!isVRMode) {
+        setIsImmersiveVR(false);
+    }
+
+    console.log("VR TOGGLED:", !isVRMode);
+
+    setIsVRMode(prev => !prev);
+};
 
     /* ── ORIGINAL handleAskAI (unchanged) ── */
     const handleAskAI = async () => {
@@ -644,7 +660,12 @@ const VideoRoom = () => {
 
             <div
                 className="video-grid"
-                style={{ opacity: isVRMode ? 0 : 1, pointerEvents: isVRMode ? "none" : "auto", position: "relative", zIndex: 1 }}
+                style={{
+                opacity: (isVRMode || isImmersiveVR) ? 0 : 1,
+                pointerEvents: (isVRMode || isImmersiveVR) ? "none" : "auto",
+                position: "relative",
+                zIndex: 1
+                }}
             >
                 {showLocalVideo && !isFullScreen && (
                     <div className="video-wrapper local">
@@ -668,7 +689,7 @@ const VideoRoom = () => {
                 </div>
             </div>
 
-            {isVRMode && (
+            {(isVRMode || isImmersiveVR) && (
                 <div ref={vrContainerRef} style={{ position:"absolute", inset:0, backgroundColor:"black", zIndex:0 }} />
             )}
 
@@ -720,7 +741,14 @@ const VideoRoom = () => {
                         </button>
 
                         <button
-                            onClick={() => setIsImmersiveVR(prev => !prev)}
+                            onClick={() => {
+
+                            if (!isImmersiveVR) {
+                            setIsVRMode(false);
+                            }
+
+                            setIsImmersiveVR(prev => !prev);
+                            }}
                             style={{
                             background: isImmersiveVR ? "#0EA5E9" : "rgba(0,0,0,0.6)",
                             color: "white",
