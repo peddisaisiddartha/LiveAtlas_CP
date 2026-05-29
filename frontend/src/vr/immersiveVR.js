@@ -109,6 +109,10 @@ export function startImmersiveVR(container, video) {
 
     vec2 uv = v_uv;
 
+    /* aspect correction */
+    uv.x = (uv.x - 0.5) * 0.88 + 0.5;
+
+    /* stereo offset */
     uv.x += u_eyeOffset * 0.6;
 
     vec2 center = vec2(0.5, 0.5);
@@ -207,10 +211,16 @@ export function startImmersiveVR(container, video) {
 
    orientationHandler = (event) => {
 
+    console.log(
+    "[GYRO]",
+    "gamma:", event.gamma,
+    "beta:", event.beta
+  );
+
   if (event.gamma != null) {
     targetYaw = Math.max(
       -1,
-      Math.min(1, event.gamma / 50)
+      Math.min(1, event.gamma / 35)
     );
   }
 
@@ -304,7 +314,7 @@ if (
 
     gl.uniform1f(
       eyeOffsetLocation,
-      -0.006 + yaw * 0.012
+      -0.004 - yaw * 0.010
     );
 
     gl.drawArrays(gl.TRIANGLES, 0, 6);
@@ -316,7 +326,7 @@ if (
 
     gl.uniform1f(
       eyeOffsetLocation,
-      0.006 + yaw * 0.012
+      0.004 - yaw * 0.010
     );
 
     gl.drawArrays(gl.TRIANGLES, 0, 6);
