@@ -307,29 +307,58 @@ if (
 
     gl.enable(gl.SCISSOR_TEST);
 
-    /* LEFT EYE */
-    gl.viewport(0, 0, width / 2, height);
+    const eyeWidth = width * 0.38;
+const eyeHeight = height * 0.82;
 
-    gl.scissor(0, 0, width / 2, height);
+const eyeY = height * 0.09;
 
-    gl.uniform1f(
-      eyeOffsetLocation,
-      -0.004 - yaw * 0.010
-    );
+/* LEFT EYE */
+const leftX = width * 0.08;
 
-    gl.drawArrays(gl.TRIANGLES, 0, 6);
+gl.viewport(
+  leftX,
+  eyeY,
+  eyeWidth,
+  eyeHeight
+);
 
-    /* RIGHT EYE */
-    gl.viewport(width / 2, 0, width / 2, height);
+gl.scissor(
+  leftX,
+  eyeY,
+  eyeWidth,
+  eyeHeight
+);
 
-    gl.scissor(width / 2, 0, width / 2, height);
+gl.uniform1f(
+  eyeOffsetLocation,
+  -0.004 - yaw * 0.020
+);
 
-    gl.uniform1f(
-      eyeOffsetLocation,
-      0.004 - yaw * 0.010
-    );
+gl.drawArrays(gl.TRIANGLES, 0, 6);
 
-    gl.drawArrays(gl.TRIANGLES, 0, 6);
+/* RIGHT EYE */
+const rightX = width * 0.54;
+
+gl.viewport(
+  rightX,
+  eyeY,
+  eyeWidth,
+  eyeHeight
+);
+
+gl.scissor(
+  rightX,
+  eyeY,
+  eyeWidth,
+  eyeHeight
+);
+
+gl.uniform1f(
+  eyeOffsetLocation,
+  0.004 - yaw * 0.020
+);
+
+gl.drawArrays(gl.TRIANGLES, 0, 6);
 
     gl.disable(gl.SCISSOR_TEST);
 
