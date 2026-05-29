@@ -109,6 +109,9 @@ export function startImmersiveVR(container, video) {
 
     vec2 uv = v_uv;
 
+    uv.x = 1.0 - uv.x;
+    uv.y = 1.0 - uv.y;
+
     /* aspect correction */
     uv.x = (uv.x - 0.5) * 0.88 + 0.5;
 
