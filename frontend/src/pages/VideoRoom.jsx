@@ -430,6 +430,38 @@ const VideoRoom = () => {
             });
             console.log("ICE STATE:", state);
 
+            const statsReport = await peerConnection.current.getStats();
+
+    statsReport.forEach(report => {
+
+        if (report.type === "candidate-pair" && report.state === "succeeded") {
+
+            console.log("━━━━━━━━━━━━━━━━━━━━━━");
+
+            console.log("RTT:", report.currentRoundTripTime);
+
+            console.log("Available Bitrate:", report.availableOutgoingBitrate);
+
+            console.log("Bytes Sent:", report.bytesSent);
+
+            console.log("Bytes Received:", report.bytesReceived);
+
+            console.log("Packets Sent:", report.packetsSent);
+
+            console.log("Packets Received:", report.packetsReceived);
+
+            console.log("Packets Lost:", report.packetsLost);
+
+            console.log("Requests Received:", report.requestsReceived);
+
+            console.log("Responses Received:", report.responsesReceived);
+
+            console.log("━━━━━━━━━━━━━━━━━━━━━━");
+
+        }
+
+});
+
             if (state === "disconnected" || state === "failed") {
                 setConnectionQuality("poor");
                 console.warn("WebRTC connection unstable:", state);
