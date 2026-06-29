@@ -482,7 +482,7 @@ const VideoRoom = () => {
             const sender = peerConnection.current.getSenders().find(s => s.track?.kind === "video");
             if (!sender) return;
             const params = sender.getParameters();
-            params.degradationPreference = "maintain-framerate";
+            params.degradationPreference = "balanced";
             if (!params.encodings) params.encodings = [{}];
 
             if (state === "connected" || state === "completed") {
@@ -575,6 +575,58 @@ const VideoRoom = () => {
                 ws.current.send(JSON.stringify({ type: 'candidate', candidate: event.candidate }));
             }
         };
+
+        // ===== LiveAtlas Communication Monitor =====
+const statsInterval = setInterval(async () => {
+
+    if (!peerConnection.current) return;
+
+    let stats;
+
+    try {
+        stats = await peerConnection.current.getStats();
+    } catch (err) {
+        return;
+    }
+
+    stats.forEach(report => {
+
+        if (report.type === "outbound-rtp" && report.kind === "video") {
+
+            console.log("====================================");
+            console.log("Frames Sent:", report.framesSent);
+            console.log("Frame Width:", report.frameWidth);
+            console.log("Frame Height:", report.frameHeight);
+            console.log("FPS:", report.framesPerSecond);
+            console.log("Bytes Sent:", report.bytesSent);
+            console.log("Packets Sent:", report.packetsSent);
+            console.log("Quality Limitation:", report.qualityLimitationReason);
+            console.log("====================================");
+
+        }
+
+        if (report.type === "candidate-pair" && report.state === "succeeded") {
+
+            console.log("RTT:", report.currentRoundTripTime);
+            console.log("Available Bitrate:", report.availableOutgoingBitrate);
+
+        }
+
+    });
+
+}, 1000);
+
+// Stop monitoring when connection closes
+peerConnection.current.onconnectionstatechange = () => {
+
+    if (
+        peerConnection.current.connectionState === "closed" ||
+        peerConnection.current.connectionState === "failed"
+    ) {
+        clearInterval(statsInterval);
+    }
+
+};
     };
 
     /* ── ORIGINAL handleSignalMessage (unchanged) ── */
