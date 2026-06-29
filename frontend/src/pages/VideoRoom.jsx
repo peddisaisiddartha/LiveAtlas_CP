@@ -488,8 +488,8 @@ const VideoRoom = () => {
             if (state === "connected" || state === "completed") {
                 setConnectionQuality("good");
                 /* [QUALITY] Higher bitrates than original */
-                params.encodings[0].maxBitrate      = connectionQuality === "good" ? Q.BITRATE_GOOD : Q.BITRATE_OK;
-                params.encodings[0].maxFramerate     = connectionQuality === "good" ? 30 : 24;
+                params.encodings[0].maxBitrate = Q.BITRATE_GOOD;
+                params.encodings[0].maxFramerate = 30;
                 params.encodings[0].networkPriority  = "high";   // [QUALITY] added
                 params.encodings[0].priority         = "high";   // [QUALITY] added
                 params.encodings[0].scaleResolutionDownBy = 1.0;
@@ -498,12 +498,25 @@ const VideoRoom = () => {
                 setConnectionQuality("poor");
             }
 
-            if (state === "disconnected" || state === "failed") {
-                params.encodings[0].maxBitrate = Q.BITRATE_POOR;
-                if (peerConnection.current?.restartIce) {
-                    console.log("Restarting ICE...");
-                    peerConnection.current.restartIce();
-                }
+          if (state === "disconnected" || state === "failed") {
+
+             params.encodings[0].maxBitrate = Q.BITRATE_POOR;
+
+             console.warn("Waiting before ICE restart...");
+
+                setTimeout(() => {
+
+                    if (
+                        peerConnection.current &&
+                        peerConnection.current.iceConnectionState !== "connected" &&
+                        peerConnection.current.restartIce
+                    ) {
+                        console.log("Restarting ICE...");
+                        peerConnection.current.restartIce();
+                    }
+
+                }, 3000);
+
             }
             sender.setParameters(params);
         };
@@ -517,14 +530,7 @@ const VideoRoom = () => {
             );
             if (!existingSender) peerConnection.current.addTrack(track, stream);
         });
-
-        /* [QUALITY] Apply bitrate immediately after adding tracks — 
-           don't wait for ICE connected. First frames = already high quality. */
-        setTimeout(async () => {
-            if (peerConnection.current) {
-                await applyBitrate(peerConnection.current, Q.BITRATE_GOOD);
-            }
-        }, 500);
+        
 
         /* ORIGINAL offer creation — with codec priority injected into SDP */
         if (peerConnection.current.signalingState === "stable") {
