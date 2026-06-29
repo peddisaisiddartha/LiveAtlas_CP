@@ -610,6 +610,10 @@ const statsInterval = setInterval(async () => {
             console.log("RTT:", report.currentRoundTripTime);
             console.log("Available Bitrate:", report.availableOutgoingBitrate);
 
+            console.log("Local Candidate ID:", report.localCandidateId);
+            console.log("Remote Candidate ID:", report.remoteCandidateId);
+            console.log("Selected Pair:", report.nominated);
+
         }
 
     });
