@@ -16,7 +16,7 @@ export class EncoderController {
             params.encodings = [{}];
         }
 
-        params.degradationPreference = "balanced";
+        params.degradationPreference = "maintain-resolution";
 
         params.encodings[0].maxBitrate = profile.bitrate;
         params.encodings[0].maxFramerate = profile.fps;

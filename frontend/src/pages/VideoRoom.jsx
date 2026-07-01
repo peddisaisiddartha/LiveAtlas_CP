@@ -498,43 +498,34 @@ const VideoRoom = () => {
             const sender = peerConnection.current.getSenders().find(s => s.track?.kind === "video");
             if (!sender) return;
             const params = sender.getParameters();
-            params.degradationPreference = "balanced";
+            params.degradationPreference = "maintain-resolution";
             if (!params.encodings) params.encodings = [{}];
 
             if (state === "connected" || state === "completed") {
                 setConnectionQuality("good");
-                /* [QUALITY] Higher bitrates than original */
-                params.encodings[0].maxBitrate = Q.BITRATE_GOOD;
-                params.encodings[0].maxFramerate = 30;
-                params.encodings[0].networkPriority  = "high";   // [QUALITY] added
-                params.encodings[0].priority         = "high";   // [QUALITY] added
-                params.encodings[0].scaleResolutionDownBy = 1.0;
-                params.encodings[0].adaptivePtime = true;
             } else {
                 setConnectionQuality("poor");
             }
 
           if (state === "disconnected" || state === "failed") {
 
-             params.encodings[0].maxBitrate = Q.BITRATE_POOR;
+    console.warn("Waiting before ICE restart...");
 
-             console.warn("Waiting before ICE restart...");
+    setTimeout(() => {
 
-                setTimeout(() => {
+        if (
+            peerConnection.current &&
+            peerConnection.current.iceConnectionState !== "connected" &&
+            peerConnection.current.restartIce
+        ) {
+            console.log("Restarting ICE...");
+            peerConnection.current.restartIce();
+        }
 
-                    if (
-                        peerConnection.current &&
-                        peerConnection.current.iceConnectionState !== "connected" &&
-                        peerConnection.current.restartIce
-                    ) {
-                        console.log("Restarting ICE...");
-                        peerConnection.current.restartIce();
-                    }
+    }, 3000);
 
-                }, 3000);
-
-            }
-            sender.setParameters(params);
+}
+            // sender.setParameters(params);
         };
 
         /* ORIGINAL track hints (unchanged) */
