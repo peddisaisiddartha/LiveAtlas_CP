@@ -9,6 +9,8 @@ import {
 } from "../vr/immersiveVR";
 import { askAI } from '../ai/aiService';
 import { supabase } from '../lib/supabase';
+import { Telemetry } from "../network/telemetry";
+import { NetworkEngine } from "../network/networkEngine";
 
 /* ─────────────────────────────────────────────────────────
    QUALITY CONSTANTS  — tweak here for different networks
@@ -130,6 +132,8 @@ const VideoRoom = () => {
     const vrContainerRef = useRef(null);
     const ws             = useRef(null);
     const peerConnection = useRef(null);
+    const telemetryRef = useRef(null);
+    const networkEngineRef = useRef(null);
 
     /* ── ORIGINAL INTENT FETCH + REALTIME (unchanged) ── */
     useEffect(() => {
@@ -273,7 +277,14 @@ const VideoRoom = () => {
             if (localVideoRef.current?.srcObject) {
                 localVideoRef.current.srcObject.getTracks().forEach(t => t.stop());
             }
-            if (peerConnection.current) peerConnection.current.close();
+           if (networkEngineRef.current) {
+                networkEngineRef.current.stop();
+            }
+
+            if (peerConnection.current) {
+                peerConnection.current.close();
+            }
+
             disposeVR();
             document.removeEventListener("visibilitychange", handleVisibility);
         };
@@ -408,6 +419,11 @@ const VideoRoom = () => {
     rtcpMuxPolicy: "require",
     encodedInsertableStreams: false,
 });
+
+        networkEngineRef.current = new NetworkEngine(peerConnection.current);
+        networkEngineRef.current.start();
+
+        window.liveAtlasNetwork = networkEngineRef.current;
 
         /* ORIGINAL ICE state handler — quality thresholds upgraded */
         peerConnection.current.oniceconnectionstatechange = async () => {
@@ -576,61 +592,7 @@ const VideoRoom = () => {
             }
         };
 
-        // ===== LiveAtlas Communication Monitor =====
-const statsInterval = setInterval(async () => {
-
-    if (!peerConnection.current) return;
-
-    let stats;
-
-    try {
-        stats = await peerConnection.current.getStats();
-    } catch (err) {
-        return;
-    }
-
-    stats.forEach(report => {
-
-        if (report.type === "outbound-rtp" && report.kind === "video") {
-
-            console.log("====================================");
-            console.log("Frames Sent:", report.framesSent);
-            console.log("Frame Width:", report.frameWidth);
-            console.log("Frame Height:", report.frameHeight);
-            console.log("FPS:", report.framesPerSecond);
-            console.log("Bytes Sent:", report.bytesSent);
-            console.log("Packets Sent:", report.packetsSent);
-            console.log("Quality Limitation:", report.qualityLimitationReason);
-            console.log("====================================");
-
-        }
-
-        if (report.type === "candidate-pair" && report.state === "succeeded") {
-
-            console.log("RTT:", report.currentRoundTripTime);
-            console.log("Available Bitrate:", report.availableOutgoingBitrate);
-
-            console.log("Local Candidate ID:", report.localCandidateId);
-            console.log("Remote Candidate ID:", report.remoteCandidateId);
-            console.log("Selected Pair:", report.nominated);
-
-        }
-
-    });
-
-}, 1000);
-
-// Stop monitoring when connection closes
-peerConnection.current.onconnectionstatechange = () => {
-
-    if (
-        peerConnection.current.connectionState === "closed" ||
-        peerConnection.current.connectionState === "failed"
-    ) {
-        clearInterval(statsInterval);
-    }
-
-};
+ 
     };
 
     /* ── ORIGINAL handleSignalMessage (unchanged) ── */
