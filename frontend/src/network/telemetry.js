@@ -47,13 +47,28 @@ export class Telemetry {
 
                     telemetry.rtt = report.currentRoundTripTime;
                     telemetry.availableBitrate = report.availableOutgoingBitrate;
-                    telemetry.localCandidate = report.localCandidateId;
-                    telemetry.remoteCandidate = report.remoteCandidateId;
-                    telemetry.selected = report.nominated;
+                    telemetry.localCandidateId = report.localCandidateId;
+                    telemetry.remoteCandidateId = report.remoteCandidateId;
+
+                }
+
+                if (report.type === "local-candidate") {
+
+                    telemetry.localCandidateType = report.candidateType;
+                    telemetry.localProtocol = report.protocol;
+
+                }
+
+                if (report.type === "remote-candidate") {
+
+                    telemetry.remoteCandidateType = report.candidateType;
+                    telemetry.remoteProtocol = report.protocol;
 
                 }
 
             });
+
+            console.log(telemetry);
 
             this.latestStats = telemetry;
 
