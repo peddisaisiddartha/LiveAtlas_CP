@@ -37,6 +37,17 @@ export class Telemetry {
                 frameHeight: 0,
                 fps: 0,
 
+                // Encoder
+                framesEncoded: 0,
+                totalEncodeTime: 0,
+
+                // Decoder
+                framesDecoded: 0,
+                totalDecodeTime: 0,
+
+                // Rendering
+                framesDropped: 0,
+
                 // Quality
                 qualityLimitation: "none",
 
@@ -65,6 +76,8 @@ export class Telemetry {
                         telemetry.frameWidth = report.frameWidth || telemetry.frameWidth;
                         telemetry.frameHeight = report.frameHeight || telemetry.frameHeight;
                         telemetry.fps = report.framesPerSecond || telemetry.fps;
+                        telemetry.framesEncoded = report.framesEncoded || 0;
+                        telemetry.totalEncodeTime = report.totalEncodeTime || 0;
                         telemetry.qualityLimitation =
                             report.qualityLimitationReason || "none";
 
@@ -75,6 +88,10 @@ export class Telemetry {
                         if (report.kind !== "video") break;
 
                         telemetry.jitter = report.jitter || 0;
+
+                        telemetry.framesDecoded = report.framesDecoded || 0;
+                        telemetry.totalDecodeTime = report.totalDecodeTime || 0;
+                        telemetry.framesDropped = report.framesDropped || 0;
 
                         if (
                             report.packetsLost !== undefined &&

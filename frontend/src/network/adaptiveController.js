@@ -37,6 +37,8 @@ export class AdaptiveController {
         this.lastSwitch = Date.now();
 
         this.profileChanged = false;
+        this.networkState = "STABLE";
+        this.lastReason = "Initial";
 
     }
 
@@ -54,33 +56,31 @@ export class AdaptiveController {
             return;
         }
 
+        let rtt = 0;
+        let fps = 0;
+        let bitrate = 0;
+        let loss = 0;
+        let jitter = 0;
+
+        for (const sample of this.history) {
+
+            rtt += sample.rtt || 0;
+            fps += sample.fps || 0;
+            bitrate += sample.availableBitrate || 0;
+            loss += sample.packetLoss || 0;
+            jitter += sample.jitter || 0;
+
+        }
+
+        const count = this.history.length;
+
         const avg = {
 
-            rtt:
-                this.history.reduce((s, x) => s + (x.rtt || 0), 0) /
-                this.history.length,
-
-            fps:
-                this.history.reduce((s, x) => s + (x.fps || 0), 0) /
-                this.history.length,
-
-            bitrate:
-                this.history.reduce(
-                    (s, x) => s + (x.availableBitrate || 0),
-                    0
-                ) / this.history.length,
-
-            loss:
-                this.history.reduce(
-                    (s, x) => s + (x.packetLoss || 0),
-                    0
-                ) / this.history.length,
-
-            jitter:
-                this.history.reduce(
-                    (s, x) => s + (x.jitter || 0),
-                    0
-                ) / this.history.length
+            rtt: rtt / count,
+            fps: fps / count,
+            bitrate: bitrate / count,
+            loss: loss / count,
+            jitter: jitter / count
 
         };
 
@@ -100,6 +100,17 @@ export class AdaptiveController {
 
         ) {
 
+            if (avg.rtt > 0.60)
+                this.lastReason = "High RTT";
+
+            else if (avg.loss > 0.08)
+                this.lastReason = "Packet Loss";
+
+            else
+                this.lastReason = "Low FPS";
+
+            this.networkState = "CONGESTED";
+
             this.decrease();
 
             return;
@@ -116,6 +127,8 @@ export class AdaptiveController {
             avg.bitrate > 1800000
 
         ) {
+            this.lastReason = "Recovered";
+            this.networkState = "RECOVERING";
 
             this.increase();
 
@@ -177,4 +190,15 @@ export class AdaptiveController {
 
     }
 
+    getNetworkState() {
+
+    return this.networkState;
+
+    }
+
+    getLastReason() {
+
+    return this.lastReason;
+
+}
 }

@@ -13,6 +13,7 @@ export class NetworkEngine {
         this.encoderController = new EncoderController();
 
         this.interval = null;
+        this.currentProfile = null;
 
     }
 
@@ -26,7 +27,10 @@ export class NetworkEngine {
 
             const stats = this.telemetry.getStats();
 
-            if (!stats || Object.keys(stats).length === 0) {
+            if (
+                !stats ||
+                stats.timestamp === undefined
+            ) {
                 return;
             }
 
@@ -37,12 +41,22 @@ export class NetworkEngine {
             }
 
             const profile =
-                this.adaptiveController.getCurrentProfile();
+            this.adaptiveController.getCurrentProfile();
+
+            if (this.currentProfile !== profile.name) {
+
+            console.log(
+                `[NetworkEngine] ${this.currentProfile ?? "NONE"} → ${profile.name}`
+            );
+
+            this.currentProfile = profile.name;
 
             await this.encoderController.applyProfile(
                 this.peerConnection,
                 profile
-            );
+        );
+
+}
 
         }, 1000);
 

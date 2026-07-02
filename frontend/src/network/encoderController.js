@@ -26,9 +26,7 @@ export class EncoderController {
 
         const params = sender.getParameters();
 
-        if (!params.encodings || params.encodings.length === 0) {
-            params.encodings = [{}];
-        }
+        params.encodings ??= [{}];
 
         params.degradationPreference = "maintain-resolution";
 
