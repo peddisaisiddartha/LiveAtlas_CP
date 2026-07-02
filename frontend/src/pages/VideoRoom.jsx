@@ -9,7 +9,6 @@ import {
 } from "../vr/immersiveVR";
 import { askAI } from '../ai/aiService';
 import { supabase } from '../lib/supabase';
-import { Telemetry } from "../network/telemetry";
 import { NetworkEngine } from "../network/networkEngine";
 
 /* ─────────────────────────────────────────────────────────
@@ -24,10 +23,7 @@ const Q = {
   FRAMERATE_MIN: 30,
   FRAMERATE_IDEAL: 30,
 
-  // Bitrates (bits/sec)
-  BITRATE_GOOD:  3_300_000,   // 3.3 Mbps  — crystal clear 1080p
-  BITRATE_OK:    2_500_000,   // 2.5 Mbps — solid 720p
-  BITRATE_POOR:  1_200_000,   // 1.2 Mbps — fallback
+  
 
   // Audio
   AUDIO_SAMPLE_RATE: 48000,
@@ -74,31 +70,7 @@ function preferHighQualityCodecs(sdp, kind) {
   return lines.join('\r\n');
 }
 
-/* ─────────────────────────────────────────────────────────
-   APPLY MAX BITRATE FROM THE START
-   Most implementations only set bitrate on state change.
-   We call this immediately after addTrack so quality is
-   high from the very first frame.
-───────────────────────────────────────────────────────── */
-async function applyBitrate(peerConn, bitrate) {
-  const sender = peerConn.getSenders().find(s => s.track?.kind === 'video');
-  if (!sender) return;
-  try {
-    const params = sender.getParameters();
-    if (!params.encodings || params.encodings.length === 0) {
-      params.encodings = [{}];
-    }
-    params.encodings[0].maxBitrate          = bitrate;
-    params.encodings[0].maxFramerate        = Q.FRAMERATE_IDEAL;
-    params.encodings[0].networkPriority     = 'high';
-    params.encodings[0].priority            = 'high';
-    params.degradationPreference            = 'maintain-framerate';
-    await sender.setParameters(params);
-    console.log(`[Quality] Bitrate set → ${(bitrate/1_000_000).toFixed(1)} Mbps`);
-  } catch (e) {
-    console.warn('[Quality] setParameters failed (normal before connected):', e.message);
-  }
-}
+
 
 /* ═══════════════════════════════════════════════════════
    MAIN COMPONENT — ALL ORIGINAL LOGIC PRESERVED
@@ -132,7 +104,6 @@ const VideoRoom = () => {
     const vrContainerRef = useRef(null);
     const ws             = useRef(null);
     const peerConnection = useRef(null);
-    const telemetryRef = useRef(null);
     const networkEngineRef = useRef(null);
 
     /* ── ORIGINAL INTENT FETCH + REALTIME (unchanged) ── */
@@ -428,55 +399,7 @@ const VideoRoom = () => {
         /* ORIGINAL ICE state handler — quality thresholds upgraded */
         peerConnection.current.oniceconnectionstatechange = async () => {
             const state = peerConnection.current.iceConnectionState;
-            const stats = await peerConnection.current.getStats();
-
-            stats.forEach(report => {
-
-            if (
-                report.type === "candidate-pair" &&
-                report.state === "succeeded"
-            ) {
-
-                console.log(
-                    "Current Candidate Pair:",
-                    report.localCandidateId,
-                    report.remoteCandidateId
-                );
-            }
-            });
-            console.log("ICE STATE:", state);
-
-            const statsReport = await peerConnection.current.getStats();
-
-    statsReport.forEach(report => {
-
-        if (report.type === "candidate-pair" && report.state === "succeeded") {
-
-            console.log("━━━━━━━━━━━━━━━━━━━━━━");
-
-            console.log("RTT:", report.currentRoundTripTime);
-
-            console.log("Available Bitrate:", report.availableOutgoingBitrate);
-
-            console.log("Bytes Sent:", report.bytesSent);
-
-            console.log("Bytes Received:", report.bytesReceived);
-
-            console.log("Packets Sent:", report.packetsSent);
-
-            console.log("Packets Received:", report.packetsReceived);
-
-            console.log("Packets Lost:", report.packetsLost);
-
-            console.log("Requests Received:", report.requestsReceived);
-
-            console.log("Responses Received:", report.responsesReceived);
-
-            console.log("━━━━━━━━━━━━━━━━━━━━━━");
-
-        }
-
-});
+            
 
             if (state === "disconnected" || state === "failed") {
                 setConnectionQuality("poor");
@@ -489,42 +412,26 @@ const VideoRoom = () => {
             }
             if (state === "closed") console.log("ICE connection closed");
 
-            if (state === "connected" || state === "completed") {
-                setConnectionQuality("good");
-                /* [QUALITY] Apply max bitrate the moment we're connected */
-                await applyBitrate(peerConnection.current, Q.BITRATE_GOOD);
-            }
 
-            const sender = peerConnection.current.getSenders().find(s => s.track?.kind === "video");
-            if (!sender) return;
-            const params = sender.getParameters();
-            params.degradationPreference = "maintain-resolution";
-            if (!params.encodings) params.encodings = [{}];
-
-            if (state === "connected" || state === "completed") {
-                setConnectionQuality("good");
-            } else {
-                setConnectionQuality("poor");
-            }
 
           if (state === "disconnected" || state === "failed") {
 
-    console.warn("Waiting before ICE restart...");
+            console.warn("Waiting before ICE restart...");
 
-    setTimeout(() => {
+            setTimeout(() => {
 
-        if (
-            peerConnection.current &&
-            peerConnection.current.iceConnectionState !== "connected" &&
-            peerConnection.current.restartIce
-        ) {
-            console.log("Restarting ICE...");
-            peerConnection.current.restartIce();
-        }
+                if (
+                    peerConnection.current &&
+                    peerConnection.current.iceConnectionState !== "connected" &&
+                    peerConnection.current.restartIce
+                ) {
+                    console.log("Restarting ICE...");
+                    peerConnection.current.restartIce();
+                }
 
-    }, 3000);
+            }, 3000);
 
-}
+            }
             // sender.setParameters(params);
         };
 

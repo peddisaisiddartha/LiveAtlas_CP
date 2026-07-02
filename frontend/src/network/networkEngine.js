@@ -20,6 +20,8 @@ export class NetworkEngine {
 
         this.telemetry.start();
 
+        if (this.interval) return;
+
         this.interval = setInterval(async () => {
 
             const stats = this.telemetry.getStats();
@@ -30,7 +32,12 @@ export class NetworkEngine {
 
             this.adaptiveController.update(stats);
 
-            const profile = this.adaptiveController.getCurrentProfile();
+            if (!this.adaptiveController.hasProfileChanged()) {
+                return;
+            }
+
+            const profile =
+                this.adaptiveController.getCurrentProfile();
 
             await this.encoderController.applyProfile(
                 this.peerConnection,
@@ -46,9 +53,13 @@ export class NetworkEngine {
         this.telemetry.stop();
 
         if (this.interval) {
+
             clearInterval(this.interval);
             this.interval = null;
+
         }
+
+        this.encoderController.reset();
 
     }
 

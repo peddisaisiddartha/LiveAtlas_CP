@@ -1,9 +1,11 @@
 export class Telemetry {
 
     constructor(peerConnection) {
+
         this.peerConnection = peerConnection;
         this.interval = null;
         this.latestStats = {};
+
     }
 
     start() {
@@ -14,61 +16,119 @@ export class Telemetry {
 
             if (!this.peerConnection) return;
 
-            let stats;
+            let reports;
 
             try {
-                stats = await this.peerConnection.getStats();
+
+                reports = await this.peerConnection.getStats();
+
             } catch {
+
                 return;
+
             }
 
-            const telemetry = {};
+            const telemetry = {
 
-            stats.forEach(report => {
+                timestamp: Date.now(),
 
-                if (
-                    report.type === "outbound-rtp" &&
-                    report.kind === "video"
-                ) {
+                // Video
+                frameWidth: 0,
+                frameHeight: 0,
+                fps: 0,
 
-                    telemetry.frameWidth = report.frameWidth;
-                    telemetry.frameHeight = report.frameHeight;
-                    telemetry.fps = report.framesPerSecond;
-                    telemetry.framesSent = report.framesSent;
-                    telemetry.bytesSent = report.bytesSent;
-                    telemetry.qualityLimitation = report.qualityLimitationReason;
+                // Quality
+                qualityLimitation: "none",
 
-                }
+                // Network
+                rtt: 0,
+                jitter: 0,
+                packetLoss: 0,
+                availableBitrate: 0,
 
-                if (
-                    report.type === "candidate-pair" &&
-                    report.state === "succeeded"
-                ) {
+                // Transport
+                localCandidateType: "",
+                remoteCandidateType: "",
+                localProtocol: "",
+                remoteProtocol: ""
 
-                    telemetry.rtt = report.currentRoundTripTime;
-                    telemetry.availableBitrate = report.availableOutgoingBitrate;
-                    telemetry.localCandidateId = report.localCandidateId;
-                    telemetry.remoteCandidateId = report.remoteCandidateId;
+            };
 
-                }
+            reports.forEach(report => {
 
-                if (report.type === "local-candidate") {
+                switch (report.type) {
 
-                    telemetry.localCandidateType = report.candidateType;
-                    telemetry.localProtocol = report.protocol;
+                    case "outbound-rtp":
 
-                }
+                        if (report.kind !== "video") break;
 
-                if (report.type === "remote-candidate") {
+                        telemetry.frameWidth = report.frameWidth || telemetry.frameWidth;
+                        telemetry.frameHeight = report.frameHeight || telemetry.frameHeight;
+                        telemetry.fps = report.framesPerSecond || telemetry.fps;
+                        telemetry.qualityLimitation =
+                            report.qualityLimitationReason || "none";
 
-                    telemetry.remoteCandidateType = report.candidateType;
-                    telemetry.remoteProtocol = report.protocol;
+                        break;
+
+                    case "inbound-rtp":
+
+                        if (report.kind !== "video") break;
+
+                        telemetry.jitter = report.jitter || 0;
+
+                        if (
+                            report.packetsLost !== undefined &&
+                            report.packetsReceived !== undefined
+                        ) {
+
+                            const total =
+                                report.packetsReceived +
+                                report.packetsLost;
+
+                            telemetry.packetLoss =
+                                total > 0
+                                    ? report.packetsLost / total
+                                    : 0;
+
+                        }
+
+                        break;
+
+                    case "candidate-pair":
+
+                        if (report.state !== "succeeded") break;
+
+                        telemetry.rtt =
+                            report.currentRoundTripTime || 0;
+
+                        telemetry.availableBitrate =
+                            report.availableOutgoingBitrate || 0;
+
+                        break;
+
+                    case "local-candidate":
+
+                        telemetry.localCandidateType =
+                            report.candidateType || "";
+
+                        telemetry.localProtocol =
+                            report.protocol || "";
+
+                        break;
+
+                    case "remote-candidate":
+
+                        telemetry.remoteCandidateType =
+                            report.candidateType || "";
+
+                        telemetry.remoteProtocol =
+                            report.protocol || "";
+
+                        break;
 
                 }
 
             });
-
-            console.log(telemetry);
 
             this.latestStats = telemetry;
 
@@ -79,14 +139,18 @@ export class Telemetry {
     stop() {
 
         if (this.interval) {
+
             clearInterval(this.interval);
             this.interval = null;
+
         }
 
     }
 
     getStats() {
+
         return this.latestStats;
+
     }
 
 }

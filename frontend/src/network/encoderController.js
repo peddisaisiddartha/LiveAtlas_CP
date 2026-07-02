@@ -1,18 +1,32 @@
 export class EncoderController {
 
+    constructor() {
+
+        this.lastProfile = null;
+
+    }
+
     async applyProfile(peerConnection, profile) {
 
-        if (!peerConnection) return;
+        if (!peerConnection || !profile) return;
+
+        // Prevent unnecessary encoder updates
+        if (
+            this.lastProfile &&
+            this.lastProfile.name === profile.name
+        ) {
+            return;
+        }
 
         const sender = peerConnection
             .getSenders()
-            .find(sender => sender.track?.kind === "video");
+            .find(s => s.track?.kind === "video");
 
         if (!sender) return;
 
         const params = sender.getParameters();
 
-        if (!params.encodings) {
+        if (!params.encodings || params.encodings.length === 0) {
             params.encodings = [{}];
         }
 
@@ -21,14 +35,33 @@ export class EncoderController {
         params.encodings[0].maxBitrate = profile.bitrate;
         params.encodings[0].maxFramerate = profile.fps;
         params.encodings[0].scaleResolutionDownBy = 1.0;
-        params.encodings[0].networkPriority = "high";
         params.encodings[0].priority = "high";
+        params.encodings[0].networkPriority = "high";
 
         try {
+
             await sender.setParameters(params);
+
+            this.lastProfile = profile;
+
+            console.log(
+                `[Encoder] Switched to ${profile.name} (${profile.width}x${profile.height} @ ${profile.fps} FPS, ${Math.round(profile.bitrate / 1000)} kbps)`
+            );
+
         } catch (err) {
-            console.error("EncoderController:", err);
+
+            console.error(
+                "[Encoder] Failed to apply profile:",
+                err
+            );
+
         }
+
+    }
+
+    reset() {
+
+        this.lastProfile = null;
 
     }
 

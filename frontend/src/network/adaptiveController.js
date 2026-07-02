@@ -2,93 +2,178 @@ export class AdaptiveController {
 
     constructor() {
 
-        this.currentLevel = 3;
-
-        this.levels = [
-    {
-        name: "LOW",
-        width: 640,
-        height: 360,
-        fps: 20,
-        bitrate: 900000
-    },
-    {
-        name: "MEDIUM",
-        width: 1280,
-        height: 720,
-        fps: 24,
-        bitrate: 2200000
-    },
-    {
-        name: "HIGH",
-        width: 1920,
-        height: 1080,
-        fps: 30,
-        bitrate: 4500000
-    }
-];
-
         this.history = [];
+
+        this.currentProfile = "MEDIUM";
+
+        this.profiles = {
+
+            LOW: {
+                name: "LOW",
+                width: 640,
+                height: 360,
+                fps: 20,
+                bitrate: 800000
+            },
+
+            MEDIUM: {
+                name: "MEDIUM",
+                width: 960,
+                height: 540,
+                fps: 24,
+                bitrate: 1600000
+            },
+
+            HIGH: {
+                name: "HIGH",
+                width: 1280,
+                height: 720,
+                fps: 30,
+                bitrate: 3200000
+            }
+
+        };
+
+        this.lastSwitch = Date.now();
+
+        this.profileChanged = false;
 
     }
 
     update(stats) {
 
-    this.history.push(stats);
+        this.profileChanged = false;
 
-    if (this.history.length > 10) {
-        this.history.shift();
+        this.history.push(stats);
+
+        if (this.history.length > 10) {
+            this.history.shift();
+        }
+
+        if (this.history.length < 10) {
+            return;
+        }
+
+        const avg = {
+
+            rtt:
+                this.history.reduce((s, x) => s + (x.rtt || 0), 0) /
+                this.history.length,
+
+            fps:
+                this.history.reduce((s, x) => s + (x.fps || 0), 0) /
+                this.history.length,
+
+            bitrate:
+                this.history.reduce(
+                    (s, x) => s + (x.availableBitrate || 0),
+                    0
+                ) / this.history.length,
+
+            loss:
+                this.history.reduce(
+                    (s, x) => s + (x.packetLoss || 0),
+                    0
+                ) / this.history.length,
+
+            jitter:
+                this.history.reduce(
+                    (s, x) => s + (x.jitter || 0),
+                    0
+                ) / this.history.length
+
+        };
+
+        const now = Date.now();
+
+        if (now - this.lastSwitch < 15000) {
+            return;
+        }
+
+        // ---------- DOWNGRADE ----------
+
+        if (
+
+            avg.rtt > 0.45 ||
+            avg.loss > 0.05 ||
+            avg.fps < 18
+
+        ) {
+
+            this.decrease();
+
+            return;
+
+        }
+
+        // ---------- UPGRADE ----------
+
+        if (
+
+            avg.rtt < 0.18 &&
+            avg.loss < 0.02 &&
+            avg.fps >= 24 &&
+            avg.bitrate > 2500000
+
+        ) {
+
+            this.increase();
+
+        }
+
     }
 
-    if (this.history.length < 10) return;
+    increase() {
 
-    const avgRTT =
-        this.history.reduce((s, x) => s + (x.rtt || 0), 0) /
-        this.history.length;
+        if (this.currentProfile === "LOW") {
 
-    const avgFPS =
-        this.history.reduce((s, x) => s + (x.fps || 0), 0) /
-        this.history.length;
+            this.currentProfile = "MEDIUM";
 
-    const avgBitrate =
-        this.history.reduce((s, x) => s + (x.availableBitrate || 0), 0) /
-        this.history.length;
+        } else if (this.currentProfile === "MEDIUM") {
 
-    if (avgRTT > 0.45 || avgFPS < 15) {
+            this.currentProfile = "HIGH";
 
-        this.decreaseQuality();
+        } else {
 
-    } else if (
+            return;
 
-        avgRTT < 0.15 &&
-        avgFPS >= 20 &&
-        avgBitrate > 1200000
+        }
 
-    ) {
-
-        this.increaseQuality();
+        this.profileChanged = true;
+        this.lastSwitch = Date.now();
 
     }
 
-}
+    decrease() {
+
+        if (this.currentProfile === "HIGH") {
+
+            this.currentProfile = "MEDIUM";
+
+        } else if (this.currentProfile === "MEDIUM") {
+
+            this.currentProfile = "LOW";
+
+        } else {
+
+            return;
+
+        }
+
+        this.profileChanged = true;
+        this.lastSwitch = Date.now();
+
+    }
+
+    hasProfileChanged() {
+
+        return this.profileChanged;
+
+    }
 
     getCurrentProfile() {
-        return this.levels[this.currentLevel - 1];
-    }
 
-    increaseQuality() {
-
-        if (this.currentLevel < 3) {
-            this.currentLevel++;
-        }
-
-    }
-
-    decreaseQuality() {
-
-        if (this.currentLevel > 1) {
-            this.currentLevel--;
-        }
+        return this.profiles[this.currentProfile];
 
     }
 
