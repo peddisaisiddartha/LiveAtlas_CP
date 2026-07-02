@@ -318,12 +318,18 @@ const VideoRoom = () => {
             video: {
                 width:     { min: Q.VIDEO_W_MIN,  ideal: Q.VIDEO_W_IDEAL },
                 height:    { min: Q.VIDEO_H_MIN,  ideal: Q.VIDEO_H_IDEAL },
-                frameRate: { min: Q.FRAMERATE_MIN, ideal: Q.FRAMERATE_IDEAL },
+                frameRate: {
+                        ideal: 30,
+                        max: 30
+                    },
                 facingMode: cameraFacing,
                 /* [QUALITY] These hints tell Chrome/Firefox to use hardware encoder */
                 advanced: [
-                    { width: 1920, height: 1080 },
-                    { width: 1280, height: 720  },
+                    {
+                        width: 1280,
+                        height: 720,
+                        frameRate: 30
+                    }
                 ]
             },
             audio: {

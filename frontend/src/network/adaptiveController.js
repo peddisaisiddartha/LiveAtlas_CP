@@ -29,7 +29,7 @@ export class AdaptiveController {
                 width: 1280,
                 height: 720,
                 fps: 30,
-                bitrate: 3200000
+                bitrate: 3800000
             }
 
         };
@@ -92,11 +92,11 @@ export class AdaptiveController {
 
         // ---------- DOWNGRADE ----------
 
-        if (
+       if (
 
-            avg.rtt > 0.45 ||
-            avg.loss > 0.05 ||
-            avg.fps < 18
+            avg.rtt > 0.60 ||
+            avg.loss > 0.08 ||
+            avg.fps < 16
 
         ) {
 
@@ -104,16 +104,16 @@ export class AdaptiveController {
 
             return;
 
-        }
+            }
 
         // ---------- UPGRADE ----------
 
         if (
 
-            avg.rtt < 0.18 &&
-            avg.loss < 0.02 &&
-            avg.fps >= 24 &&
-            avg.bitrate > 2500000
+            avg.rtt < 0.30 &&
+            avg.loss < 0.03 &&
+            avg.fps >= 22 &&
+            avg.bitrate > 1800000
 
         ) {
 
