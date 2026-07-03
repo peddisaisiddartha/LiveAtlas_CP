@@ -15,13 +15,13 @@ import { NetworkEngine } from "../network/networkEngine";
    QUALITY CONSTANTS  — tweak here for different networks
 ───────────────────────────────────────────────────────── */
 const Q = {
-  // Video resolution — min forces browser to actually deliver it
-  VIDEO_W_MIN:  1280,
+  // Video resolution
   VIDEO_W_IDEAL: 1280,
-  VIDEO_H_MIN:  720,
+  VIDEO_W_MAX: 1280,
   VIDEO_H_IDEAL: 720,
-  FRAMERATE_MIN: 30,
+  VIDEO_H_MAX: 720,
   FRAMERATE_IDEAL: 30,
+  FRAMERATE_MAX: 30,
 
   
 
@@ -32,6 +32,18 @@ const Q = {
   // Reconnect
   RECONNECT_DELAY_MS: 800,   // was 2000ms — much faster reconnect
 };
+
+function getVideoConstraints(facingMode) {
+  return {
+    width: { ideal: Q.VIDEO_W_IDEAL, max: Q.VIDEO_W_MAX },
+    height: { ideal: Q.VIDEO_H_IDEAL, max: Q.VIDEO_H_MAX },
+    frameRate: {
+      ideal: Q.FRAMERATE_IDEAL,
+      max: Q.FRAMERATE_MAX
+    },
+    facingMode: { ideal: facingMode }
+  };
+}
 
 /* ─────────────────────────────────────────────────────────
    CODEC PRIORITY HELPER
@@ -105,6 +117,7 @@ const VideoRoom = () => {
     const ws             = useRef(null);
     const peerConnection = useRef(null);
     const networkEngineRef = useRef(null);
+    const iceRestartTimerRef = useRef(null);
 
     /* ── ORIGINAL INTENT FETCH + REALTIME (unchanged) ── */
     useEffect(() => {
@@ -172,12 +185,17 @@ const VideoRoom = () => {
         if (oldStream) oldStream.getVideoTracks().forEach(track => track.stop());
         try {
             const newStream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: { ideal: newFacing } },
+                video: getVideoConstraints(newFacing),
+                audio: false
             });
             const videoTrack = newStream.getVideoTracks()[0];
             const sender = peerConnection.current?.getSenders().find(s => s.track?.kind === "video");
             if (sender) sender.replaceTrack(videoTrack);
-            localVideoRef.current.srcObject = newStream;
+            const audioTracks = oldStream?.getAudioTracks() || [];
+            localVideoRef.current.srcObject = new MediaStream([
+                videoTrack,
+                ...audioTracks
+            ]);
         } catch (err) {
             console.error("Camera switch failed:", err);
         }
@@ -244,6 +262,10 @@ const VideoRoom = () => {
         document.addEventListener("visibilitychange", handleVisibility);
 
         return () => {
+            if (iceRestartTimerRef.current) {
+                clearTimeout(iceRestartTimerRef.current);
+                iceRestartTimerRef.current = null;
+            }
             if (ws.current) { ws.current.onclose = null; ws.current.close(); ws.current = null; }
             if (localVideoRef.current?.srcObject) {
                 localVideoRef.current.srcObject.getTracks().forEach(t => t.stop());
@@ -312,26 +334,10 @@ const VideoRoom = () => {
     ══════════════════════════════════════════════════════ */
     const setupWebRTC = async () => {
 
-        /* [QUALITY] Added min constraints so browser is FORCED to deliver them.
-           Without min, "ideal" is just a suggestion the browser ignores.          */
+        /* [QUALITY] Capture targets 720p while allowing the browser to avoid
+           expensive unsupported modes on mobile cameras. */
         const stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-                width:     { min: Q.VIDEO_W_MIN,  ideal: Q.VIDEO_W_IDEAL },
-                height:    { min: Q.VIDEO_H_MIN,  ideal: Q.VIDEO_H_IDEAL },
-                frameRate: {
-                        ideal: 30,
-                        max: 30
-                    },
-                facingMode: cameraFacing,
-                /* [QUALITY] These hints tell Chrome/Firefox to use hardware encoder */
-                advanced: [
-                    {
-                        width: 1280,
-                        height: 720,
-                        frameRate: 30
-                    }
-                ]
-            },
+            video: getVideoConstraints(cameraFacing),
             audio: {
                 echoCancellation: true,
                 noiseSuppression: false,
@@ -406,6 +412,15 @@ const VideoRoom = () => {
         peerConnection.current.oniceconnectionstatechange = async () => {
             const state = peerConnection.current.iceConnectionState;
             
+            if (state === "connected" || state === "completed") {
+                setConnectionQuality("good");
+
+                if (iceRestartTimerRef.current) {
+                    clearTimeout(iceRestartTimerRef.current);
+                    iceRestartTimerRef.current = null;
+                }
+            }
+
 
             if (state === "disconnected" || state === "failed") {
                 setConnectionQuality("poor");
@@ -424,7 +439,13 @@ const VideoRoom = () => {
 
             console.warn("Waiting before ICE restart...");
 
-            setTimeout(() => {
+            if (iceRestartTimerRef.current) {
+                return;
+            }
+
+            iceRestartTimerRef.current = setTimeout(() => {
+
+                iceRestartTimerRef.current = null;
 
                 if (
                     peerConnection.current &&

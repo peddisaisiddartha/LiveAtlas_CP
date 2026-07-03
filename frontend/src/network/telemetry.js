@@ -5,6 +5,8 @@ export class Telemetry {
         this.peerConnection = peerConnection;
         this.interval = null;
         this.latestStats = {};
+        this.previousOutboundVideo = null;
+        this.previousInboundVideo = null;
 
     }
 
@@ -65,6 +67,8 @@ export class Telemetry {
 
             };
 
+            let activeCandidatePair = null;
+
             reports.forEach(report => {
 
                 switch (report.type) {
@@ -75,11 +79,47 @@ export class Telemetry {
 
                         telemetry.frameWidth = report.frameWidth || telemetry.frameWidth;
                         telemetry.frameHeight = report.frameHeight || telemetry.frameHeight;
-                        telemetry.fps = report.framesPerSecond || telemetry.fps;
                         telemetry.framesEncoded = report.framesEncoded || 0;
                         telemetry.totalEncodeTime = report.totalEncodeTime || 0;
                         telemetry.qualityLimitation =
                             report.qualityLimitationReason || "none";
+
+                        if (report.framesPerSecond !== undefined) {
+
+                            telemetry.fps = report.framesPerSecond;
+
+                        } else if (
+                            this.previousOutboundVideo &&
+                            report.framesEncoded !== undefined &&
+                            report.timestamp !== undefined
+                        ) {
+
+                            const frameDelta =
+                                report.framesEncoded -
+                                this.previousOutboundVideo.framesEncoded;
+                            const timeDelta =
+                                (report.timestamp -
+                                    this.previousOutboundVideo.timestamp) /
+                                1000;
+
+                            telemetry.fps =
+                                timeDelta > 0
+                                    ? Math.max(0, frameDelta / timeDelta)
+                                    : telemetry.fps;
+
+                        }
+
+                        if (
+                            report.framesEncoded !== undefined &&
+                            report.timestamp !== undefined
+                        ) {
+
+                            this.previousOutboundVideo = {
+                                framesEncoded: report.framesEncoded,
+                                timestamp: report.timestamp
+                            };
+
+                        }
 
                         break;
 
@@ -98,14 +138,34 @@ export class Telemetry {
                             report.packetsReceived !== undefined
                         ) {
 
-                            const total =
-                                report.packetsReceived +
-                                report.packetsLost;
+                            let packetsLost = report.packetsLost;
+                            let packetsReceived = report.packetsReceived;
+
+                            if (this.previousInboundVideo) {
+
+                                packetsLost =
+                                    report.packetsLost -
+                                    this.previousInboundVideo.packetsLost;
+                                packetsReceived =
+                                    report.packetsReceived -
+                                    this.previousInboundVideo.packetsReceived;
+
+                            }
+
+                            packetsLost = Math.max(0, packetsLost);
+                            packetsReceived = Math.max(0, packetsReceived);
+
+                            const total = packetsReceived + packetsLost;
 
                             telemetry.packetLoss =
                                 total > 0
-                                    ? report.packetsLost / total
+                                    ? packetsLost / total
                                     : 0;
+
+                            this.previousInboundVideo = {
+                                packetsLost: report.packetsLost,
+                                packetsReceived: report.packetsReceived
+                            };
 
                         }
 
@@ -115,11 +175,15 @@ export class Telemetry {
 
                         if (report.state !== "succeeded") break;
 
-                        telemetry.rtt =
-                            report.currentRoundTripTime || 0;
+                        if (
+                            report.selected ||
+                            report.nominated ||
+                            !activeCandidatePair
+                        ) {
 
-                        telemetry.availableBitrate =
-                            report.availableOutgoingBitrate || 0;
+                            activeCandidatePair = report;
+
+                        }
 
                         break;
 
@@ -146,6 +210,16 @@ export class Telemetry {
                 }
 
             });
+
+            if (activeCandidatePair) {
+
+                telemetry.rtt =
+                    activeCandidatePair.currentRoundTripTime || 0;
+
+                telemetry.availableBitrate =
+                    activeCandidatePair.availableOutgoingBitrate || 0;
+
+            }
 
             this.latestStats = telemetry;
 
