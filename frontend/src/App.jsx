@@ -1,0 +1,95 @@
+import React, { useState, useEffect } from 'react';
+import './index.css';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import VideoRoom from './pages/VideoRoom'; // Your existing video room
+import Login from './pages/Login.jsx';         // We will create this
+import GuideDashboard from './pages/GuideDashboard'; // We will create this
+import UserDashboard from './pages/UserDashboard';   // We will create this
+import TransitionOverlay from "./Components/TransitionOverlay";
+import "./Components/TransitionOverlay.css";
+import Loader from './Components/Loader';
+
+
+function App() {
+  // Mock login state for now (we will connect to backend later)
+  const [userRole, setUserRole] = useState(null); // 'guide' or 'user' or null
+
+  const [transitionActive, setTransitionActive] = useState(false);
+
+  const [transitionMessage, setTransitionMessage] =
+  useState("");
+
+  
+  const [loading, setLoading] = useState(true);
+
+  const startTransition = (message) => {
+
+
+
+  setTransitionMessage(message);
+
+  setTransitionActive(true);
+
+  setTimeout(() => {
+
+    setTransitionActive(false); 
+
+  }, 2600);
+};
+  
+  React.useEffect(() => {
+
+  const timer = setTimeout(() => {
+
+    setLoading(false);
+
+  }, 1800);
+
+  return () => clearTimeout(timer);
+
+}, []);
+
+if (loading) {
+
+  return <Loader />;
+}
+
+
+  return (
+
+    <BrowserRouter>
+      <TransitionOverlay
+        active={transitionActive}
+        message={transitionMessage}
+      />
+
+      <Routes>
+        <Route
+          path="/"
+          element={
+            <Login
+              setUserRole={setUserRole}
+              startTransition={startTransition}
+            />
+          }
+        />
+
+        {/* Dashboards (Protected) */}
+        <Route
+          path="/guide-dashboard"
+          element={userRole === 'guide' ? <GuideDashboard /> : <Navigate to="/" />}
+        />
+        <Route
+          path="/user-dashboard"
+          element={userRole === 'user' ? <UserDashboard /> : <Navigate to="/" />}
+        />
+
+        {/* Video Room */}
+        <Route path="/room/:roomID" element={<VideoRoom />} />
+        <Route path="*" element={<Navigate to="/" />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+export default App;

@@ -1,0 +1,507 @@
+/* ============================================================
+   RESET
+============================================================ */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+
+  width: 100%;
+  min-height: 100%;
+
+  background:
+    radial-gradient(
+      circle at center,
+      #08111f 0%,
+      #040816 50%,
+      #000000 100%
+    );
+
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
+}
+
+/* ============================================================
+   MAIN WORLD
+============================================================ */
+
+.login-world {
+
+  position: relative;
+
+  width: 100vw;
+  height: 100vh;
+
+  overflow: hidden;
+
+  background:
+    radial-gradient(
+      circle at center,
+      #08111f 0%,
+      #040816 50%,
+      #000000 100%
+    );
+}
+
+/* ============================================================
+   THREE WORLD
+============================================================ */
+
+.three-world {
+
+  position: absolute;
+  inset: 0;
+
+  width: 100%;
+  height: 100%;
+
+  z-index: 1;
+}
+
+/* ============================================================
+   AMBIENT LIGHTS
+============================================================ */
+
+.ambient {
+
+  position: absolute;
+
+  width: 700px;
+  height: 700px;
+
+  border-radius: 50%;
+
+  filter: blur(120px);
+
+  pointer-events: none;
+
+  z-index: 2;
+}
+
+.ambient-1 {
+
+  top: -250px;
+  left: -200px;
+
+  background:
+    rgba(0, 180, 255, 0.12);
+
+  animation:
+    ambientFloat 12s ease-in-out infinite;
+}
+
+.ambient-2 {
+
+  bottom: -250px;
+  right: -200px;
+
+  background:
+    rgba(140, 0, 255, 0.12);
+
+  animation:
+    ambientFloatReverse 14s ease-in-out infinite;
+}
+
+/* ============================================================
+   LEFT HERO
+============================================================ */
+
+.hero-left {
+
+  position: absolute;
+
+  left: 7%;
+  top: 50%;
+
+  transform:
+    translateY(-50%);
+
+  z-index: 20;
+
+  width: 520px;
+
+  animation:
+    heroReveal 1.6s cubic-bezier(0.16,1,0.3,1);
+}
+
+.topline {
+
+  margin-bottom: 24px;
+
+  letter-spacing: 0.35em;
+
+  text-transform: uppercase;
+
+  font-size: 0.72rem;
+
+  color:
+    rgba(255,255,255,0.45);
+}
+
+.hero-title {
+
+  font-size:
+    clamp(4rem, 8vw, 7rem);
+
+  line-height: 0.9;
+
+  letter-spacing: -0.06em;
+
+  font-weight: 700;
+
+  color: white;
+
+  margin-bottom: 28px;
+
+  text-shadow:
+    0 0 35px rgba(0,180,255,0.12);
+}
+
+.hero-title span {
+
+  display: block;
+
+  background:
+    linear-gradient(
+      90deg,
+      #6dd5fa,
+      #ffffff,
+      #9d6bff
+    );
+
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.hero-sub {
+
+  max-width: 420px;
+
+  line-height: 1.9;
+
+  color:
+    rgba(255,255,255,0.68);
+
+  font-size:
+    clamp(1rem, 2vw, 1.08rem);
+}
+
+/* ============================================================
+   RIGHT CONTROLS
+============================================================ */
+
+.hero-right {
+
+  position: absolute;
+
+  right: 8%;
+  top: 50%;
+
+  transform:
+    translateY(-50%);
+
+  z-index: 20;
+
+  display: flex;
+  flex-direction: column;
+
+  gap: 40px;
+}
+
+/* ============================================================
+   PORTAL NODE
+============================================================ */
+
+.portal-node {
+
+  position: relative;
+
+  width: 190px;
+  height: 190px;
+
+  border-radius: 50%;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  cursor: pointer;
+
+  overflow: hidden;
+
+  backdrop-filter:
+    blur(30px);
+
+  -webkit-backdrop-filter:
+    blur(30px);
+
+  border:
+    1px solid rgba(255,255,255,0.08);
+
+  background:
+    rgba(255,255,255,0.03);
+
+  box-shadow:
+    0 10px 50px rgba(0,0,0,0.35);
+
+  transition:
+    transform 0.5s cubic-bezier(0.16,1,0.3,1),
+    box-shadow 0.5s cubic-bezier(0.16,1,0.3,1),
+    border-color 0.5s ease;
+
+  animation:
+    floatingNode 7s ease-in-out infinite;
+}
+
+/* Glow Layer */
+.node-glow {
+
+  position: absolute;
+
+  inset: 0;
+
+  border-radius: 50%;
+
+  opacity: 0;
+
+  transition:
+    opacity 0.5s ease;
+}
+
+.tourist-node .node-glow {
+
+  background:
+    radial-gradient(
+      circle,
+      rgba(0,180,255,0.35),
+      transparent 70%
+    );
+}
+
+.guide-node .node-glow {
+
+  background:
+    radial-gradient(
+      circle,
+      rgba(155,80,255,0.35),
+      transparent 70%
+    );
+}
+
+/* Hover */
+.portal-node:hover {
+
+  transform:
+    scale(1.08)
+    translateY(-8px);
+
+  border-color:
+    rgba(255,255,255,0.15);
+}
+
+.portal-node:hover .node-glow {
+  opacity: 1;
+}
+
+/* Labels */
+.node-label {
+
+  position: relative;
+
+  z-index: 5;
+
+  color: white;
+
+  letter-spacing: 0.22em;
+
+  font-size: 0.85rem;
+
+  font-weight: 700;
+}
+
+/* ============================================================
+   BOTTOM SYSTEM TEXT
+============================================================ */
+
+.bottom-system {
+
+  position: absolute;
+
+  bottom: 34px;
+  left: 50%;
+
+  transform:
+    translateX(-50%);
+
+  z-index: 20;
+
+  letter-spacing: 0.28em;
+
+  text-transform: uppercase;
+
+  font-size: 0.72rem;
+
+  color:
+    rgba(255,255,255,0.35);
+}
+
+/* ============================================================
+   ANIMATIONS
+============================================================ */
+
+@keyframes heroReveal {
+
+  from {
+
+    opacity: 0;
+
+    transform:
+      translateY(-50%)
+      translateX(-50px);
+  }
+
+  to {
+
+    opacity: 1;
+
+    transform:
+      translateY(-50%)
+      translateX(0px);
+  }
+}
+
+@keyframes floatingNode {
+
+  0%, 100% {
+
+    transform:
+      translateY(0px);
+  }
+
+  50% {
+
+    transform:
+      translateY(-10px);
+  }
+}
+
+@keyframes ambientFloat {
+
+  0%, 100% {
+
+    transform:
+      translateY(0px)
+      scale(1);
+  }
+
+  50% {
+
+    transform:
+      translateY(-40px)
+      scale(1.08);
+  }
+}
+
+@keyframes ambientFloatReverse {
+
+  0%, 100% {
+
+    transform:
+      translateY(0px)
+      scale(1);
+  }
+
+  50% {
+
+    transform:
+      translateY(40px)
+      scale(1.12);
+  }
+}
+
+/* ============================================================
+   RESPONSIVE
+============================================================ */
+
+@media (max-width: 1100px) {
+
+  .hero-left {
+
+    left: 50%;
+    top: 20%;
+
+    width: 90%;
+
+    text-align: center;
+
+    transform:
+      translateX(-50%);
+  }
+
+  .hero-sub {
+    margin: 0 auto;
+  }
+
+  .hero-right {
+
+    right: 50%;
+    top: 68%;
+
+    transform:
+      translateX(50%);
+
+    flex-direction: row;
+
+    gap: 24px;
+  }
+
+  .portal-node {
+
+    width: 150px;
+    height: 150px;
+  }
+}
+
+@media (max-width: 768px) {
+
+  .hero-title {
+
+    font-size:
+      clamp(3rem, 12vw, 5rem);
+  }
+
+  .hero-right {
+
+    top: 72%;
+  }
+
+  .portal-node {
+
+    width: 130px;
+    height: 130px;
+  }
+
+  .node-label {
+
+    font-size: 0.72rem;
+  }
+
+  .bottom-system {
+
+    width: 90%;
+
+    text-align: center;
+
+    line-height: 1.7;
+  }
+}
