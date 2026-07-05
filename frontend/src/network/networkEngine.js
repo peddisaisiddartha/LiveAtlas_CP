@@ -28,8 +28,18 @@ export class NetworkEngine {
         this.connectionGuardian = connectionGuardian;
         this.resourceMonitor = resourceMonitor;
 
+        /*
+        * Enable support systems.
+        */
+        this.featureToggleManager.enable("deviceCapabilityManager");
+        this.featureToggleManager.enable("sessionPreparationManager");
+        this.featureToggleManager.enable("connectionGuardian");
+        this.featureToggleManager.enable("resourceMonitor");
+
         this.interval = null;
         this.currentProfile = null;
+
+        this.connectionListenersRegistered = false;
 
     }
 
@@ -39,18 +49,59 @@ export class NetworkEngine {
 
         /*
         * Initialize support systems.
-        * Read-only initialization only.
         */
-        this.deviceCapabilityManager.getProfile();
-        this.sessionPreparationManager.prepare();
-        this.resourceMonitor.getSnapshot();
 
-        this.connectionGuardian.update({
-            connectionState: this.peerConnection.connectionState,
-            iceConnectionState: this.peerConnection.iceConnectionState,
-            iceGatheringState: this.peerConnection.iceGatheringState,
-            signalingState: this.peerConnection.signalingState,
+        if (this.featureToggleManager.isEnabled("deviceCapabilityManager")) {
+            this.deviceCapabilityManager.refresh();
+        }
+
+        if (this.featureToggleManager.isEnabled("sessionPreparationManager")) {
+            this.sessionPreparationManager.prepare();
+        }
+
+        if (this.featureToggleManager.isEnabled("resourceMonitor")) {
+            this.resourceMonitor.refresh();
+        }
+
+        if (this.featureToggleManager.isEnabled("connectionGuardian")) {
+
+    this.connectionGuardian.update({
+        connectionState: this.peerConnection.connectionState,
+        iceConnectionState: this.peerConnection.iceConnectionState,
+        iceGatheringState: this.peerConnection.iceGatheringState,
+        signalingState: this.peerConnection.signalingState,
+    });
+
+    if (!this.connectionListenersRegistered) {
+
+        this.peerConnection.addEventListener("connectionstatechange", () => {
+            this.connectionGuardian.update({
+                connectionState: this.peerConnection.connectionState,
+            });
         });
+
+        this.peerConnection.addEventListener("iceconnectionstatechange", () => {
+            this.connectionGuardian.update({
+                iceConnectionState: this.peerConnection.iceConnectionState,
+            });
+        });
+
+        this.peerConnection.addEventListener("icegatheringstatechange", () => {
+            this.connectionGuardian.update({
+                iceGatheringState: this.peerConnection.iceGatheringState,
+            });
+        });
+
+        this.peerConnection.addEventListener("signalingstatechange", () => {
+            this.connectionGuardian.update({
+                signalingState: this.peerConnection.signalingState,
+            });
+        });
+
+        this.connectionListenersRegistered = true;
+    }
+
+}
 
         if (this.interval) return;
 
@@ -59,17 +110,14 @@ export class NetworkEngine {
             const stats = this.telemetry.getStats();
 
             /*
-            * Refresh passive support systems.
-            * No influence on encoder or adaptive logic.
-            */
-            this.resourceMonitor.refresh();
+             * Refresh runtime support systems.
+             */
+            if (this.featureToggleManager.isEnabled("resourceMonitor")) {
+                this.resourceMonitor.refresh();
+            }
 
-            this.connectionGuardian.update({
-                connectionState: this.peerConnection.connectionState,
-                iceConnectionState: this.peerConnection.iceConnectionState,
-                iceGatheringState: this.peerConnection.iceGatheringState,
-                signalingState: this.peerConnection.signalingState,
-            });
+            // ConnectionGuardian is now event-driven.
+            // No polling required here.
 
             if (
                 !stats ||
@@ -108,17 +156,25 @@ export class NetworkEngine {
 
     stop() {
 
-        this.telemetry.stop();
+    this.telemetry.stop();
 
-        if (this.interval) {
+    if (this.interval) {
 
-            clearInterval(this.interval);
-            this.interval = null;
-
-        }
-
-        this.encoderController.reset();
+        clearInterval(this.interval);
+        this.interval = null;
 
     }
+
+    if (this.featureToggleManager.isEnabled("connectionGuardian")) {
+        this.connectionGuardian.reset();
+    }
+
+    if (this.featureToggleManager.isEnabled("resourceMonitor")) {
+        this.resourceMonitor.destroy();
+    }
+
+    this.encoderController.reset();
+
+}
 
 }

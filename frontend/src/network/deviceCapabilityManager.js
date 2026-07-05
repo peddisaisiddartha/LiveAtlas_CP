@@ -40,13 +40,34 @@ class DeviceCapabilityManager {
                 "ontouchstart" in window ||
                 navigator.maxTouchPoints > 0,
 
-            timezone:
+                        timezone:
                 Intl.DateTimeFormat().resolvedOptions().timeZone,
+
+            browser: this.detectBrowser(),
+
+            media: {
+                mediaDevices: !!navigator.mediaDevices,
+                getUserMedia:
+                    !!navigator.mediaDevices?.getUserMedia,
+                enumerateDevices:
+                    !!navigator.mediaDevices?.enumerateDevices,
+            },
 
             detectedAt: Date.now(),
         };
 
         return this.profile;
+    }
+
+        detectBrowser() {
+        const ua = navigator.userAgent;
+
+        if (ua.includes("Edg")) return "Edge";
+        if (ua.includes("Chrome")) return "Chrome";
+        if (ua.includes("Firefox")) return "Firefox";
+        if (ua.includes("Safari") && !ua.includes("Chrome")) return "Safari";
+
+        return "Unknown";
     }
 
     getProfile() {
@@ -57,8 +78,35 @@ class DeviceCapabilityManager {
         return this.profile;
     }
 
-    refresh() {
+        refresh() {
         return this.detect();
+    }
+
+    isMobile() {
+        return /Android|iPhone|iPad|iPod|Mobile/i.test(
+            navigator.userAgent
+        );
+    }
+
+    isDesktop() {
+        return !this.isMobile();
+    }
+
+    supportsTouch() {
+        return this.profile?.touchSupport ?? false;
+    }
+
+    getBrowser() {
+        return this.profile?.browser ?? "Unknown";
+    }
+
+    getHardwareProfile() {
+        return {
+            cpu: this.profile?.hardwareConcurrency,
+            memory: this.profile?.deviceMemory,
+            browser: this.profile?.browser,
+            mobile: this.isMobile(),
+        };
     }
 }
 

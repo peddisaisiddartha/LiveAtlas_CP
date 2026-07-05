@@ -24,6 +24,10 @@ class ConnectionGuardian {
             iceConnectionState: "new",
             iceGatheringState: "new",
             signalingState: "stable",
+            previousConnectionState: null,
+            previousIceConnectionState: null,
+            connectionDuration: 0,
+            connectedSince: null,
             lastUpdated: null,
         };
     }
@@ -37,11 +41,49 @@ class ConnectionGuardian {
      *   iceConnectionState: pc.iceConnectionState
      * });
      */
-    update(partialState = {}) {
+        update(partialState = {}) {
+
+        const now = Date.now();
+
+        if (
+            this.state.connectionState !== partialState.connectionState &&
+            partialState.connectionState !== undefined
+        ) {
+            this.state.previousConnectionState =
+                this.state.connectionState;
+        }
+
+        if (
+            this.state.iceConnectionState !== partialState.iceConnectionState &&
+            partialState.iceConnectionState !== undefined
+        ) {
+            this.state.previousIceConnectionState =
+                this.state.iceConnectionState;
+        }
+
+        if (
+            partialState.connectionState === "connected" &&
+            !this.state.connectedSince
+        ) {
+            this.state.connectedSince = now;
+        }
+
+        if (
+            partialState.connectionState !== "connected"
+        ) {
+            this.state.connectedSince = null;
+            this.state.connectionDuration = 0;
+        }
+
+        if (this.state.connectedSince) {
+            this.state.connectionDuration =
+                now - this.state.connectedSince;
+        }
+
         this.state = {
             ...this.state,
             ...partialState,
-            lastUpdated: Date.now(),
+            lastUpdated: now,
         };
     }
 
@@ -67,6 +109,18 @@ class ConnectionGuardian {
 
     isConnected() {
         return this.state.connectionState === "connected";
+    }
+
+        getConnectionDuration() {
+        return this.state.connectionDuration;
+    }
+
+    getPreviousConnectionState() {
+        return this.state.previousConnectionState;
+    }
+
+    getPreviousIceConnectionState() {
+        return this.state.previousIceConnectionState;
     }
 
     isDisconnected() {

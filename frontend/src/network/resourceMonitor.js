@@ -15,8 +15,19 @@
 
 class ResourceMonitor {
     constructor() {
-        this.snapshot = null;
-    }
+    this.snapshot = null;
+
+    this.handleVisibilityChange =
+        this.handleVisibilityChange.bind(this);
+
+    this.handleOnline =
+        this.handleOnline.bind(this);
+
+    this.handleOffline =
+        this.handleOffline.bind(this);
+
+    this.initialized = false;
+}
 
     collect() {
         const nav = navigator;
@@ -29,6 +40,14 @@ class ResourceMonitor {
 
             visibilityState: document.visibilityState,
             hidden: document.hidden,
+
+            pageFocused: document.hasFocus(),
+
+            connection: {
+                online: navigator.onLine,
+                userAgent: navigator.userAgent,
+                language: navigator.language,
+            },
 
             timestamp: Date.now(),
         };
@@ -45,15 +64,76 @@ class ResourceMonitor {
     }
 
     refresh() {
-        return this.collect();
+
+    if (!this.initialized) {
+
+        document.addEventListener(
+            "visibilitychange",
+            this.handleVisibilityChange
+        );
+
+        window.addEventListener(
+            "online",
+            this.handleOnline
+        );
+
+        window.addEventListener(
+            "offline",
+            this.handleOffline
+        );
+
+        this.initialized = true;
     }
+
+    return this.collect();
+}
+handleVisibilityChange() {
+    this.collect();
+}
+
+handleOnline() {
+    this.collect();
+}
+
+handleOffline() {
+    this.collect();
+}
+
+destroy() {
+    document.removeEventListener(
+        "visibilitychange",
+        this.handleVisibilityChange
+    );
+
+    window.removeEventListener(
+        "online",
+        this.handleOnline
+    );
+
+    window.removeEventListener(
+        "offline",
+        this.handleOffline
+    );
+}
 
     isPageVisible() {
         return !document.hidden;
     }
 
-    isOnline() {
+        isOnline() {
         return navigator.onLine;
+    }
+
+    isPageFocused() {
+        return document.hasFocus();
+    }
+
+    getVisibilityState() {
+        return document.visibilityState;
+    }
+
+    getConnectionInfo() {
+        return this.snapshot?.connection ?? {};
     }
 }
 
