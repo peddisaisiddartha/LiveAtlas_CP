@@ -7,34 +7,20 @@ export default function CommunicationStatus({
     latency = "--",
     video = "SD",
 }) {
-
     if (!visible) return null;
 
     return (
         <div className="communication-status">
+            <span>
+                <span className={connected ? "dot connected" : "dot"} />
+                {connected ? "Connected" : "Connecting"}
+            </span>
 
-            <div className="status-row">
-                <span>🟢</span>
-                <span>
-                    {connected ? "Connected" : "Connecting..."}
-                </span>
-            </div>
+            <span>📶 {quality}</span>
 
-            <div className="status-row">
-                <span>📶</span>
-                <span>{quality}</span>
-            </div>
+            <span>🎥 {video}</span>
 
-            <div className="status-row">
-                <span>🎥</span>
-                <span>{video}</span>
-            </div>
-
-            <div className="status-row">
-                <span>🌐</span>
-                <span>{latency} ms</span>
-            </div>
-
+            <span>🌐 {latency} ms</span>
         </div>
     );
 }
