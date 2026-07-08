@@ -53,8 +53,42 @@ class FeatureToggleManager {
         }
     }
 
-    getAll() {
+        getAll() {
         return { ...this.features };
+    }
+
+    enableAll() {
+        Object.keys(this.features).forEach((feature) => {
+            this.features[feature] = true;
+        });
+    }
+
+    disableAll() {
+        Object.keys(this.features).forEach((feature) => {
+            this.features[feature] = false;
+        });
+    }
+
+    toggle(featureName) {
+        if (featureName in this.features) {
+            this.features[featureName] = !this.features[featureName];
+        }
+    }
+
+    exists(featureName) {
+        return featureName in this.features;
+    }
+
+    getEnabledFeatures() {
+        return Object.keys(this.features).filter(
+            (feature) => this.features[feature]
+        );
+    }
+
+    getDisabledFeatures() {
+        return Object.keys(this.features).filter(
+            (feature) => !this.features[feature]
+        );
     }
 }
 

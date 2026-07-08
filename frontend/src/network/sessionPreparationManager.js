@@ -33,6 +33,10 @@ class SessionPreparationManager {
                 mediaDevicesSupported: !!navigator.mediaDevices,
                 getUserMediaSupported:
                     !!navigator.mediaDevices?.getUserMedia,
+                enumerateDevicesSupported:
+                    !!navigator.mediaDevices?.enumerateDevices,
+                browserSupported:
+                    profile.browser !== "Unknown",
             },
 
             deviceProfile: profile,
@@ -58,8 +62,26 @@ class SessionPreparationManager {
         return this.prepare();
     }
 
-    isReady() {
+        isReady() {
         return this.getStatus().ready;
+    }
+
+    getChecks() {
+        return { ...this.getStatus().checks };
+    }
+
+    hasMediaSupport() {
+        const checks = this.getStatus().checks;
+
+        return (
+            checks.mediaDevicesSupported &&
+            checks.getUserMediaSupported &&
+            checks.enumerateDevicesSupported
+        );
+    }
+
+    isSecure() {
+        return this.getStatus().checks.secureContext;
     }
 }
 
