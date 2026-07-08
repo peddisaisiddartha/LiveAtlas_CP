@@ -1,0 +1,37 @@
+.communication-status {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    min-width: 170px;
+
+    padding: 12px 14px;
+
+    border-radius: 12px;
+
+    background: rgba(15, 23, 42, 0.75);
+    backdrop-filter: blur(10px);
+
+    color: white;
+
+    font-size: 14px;
+    font-weight: 500;
+
+    z-index: 999;
+}
+
+.status-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    gap: 12px;
+}
+
+.status-row span:first-child {
+    font-size: 16px;
+}

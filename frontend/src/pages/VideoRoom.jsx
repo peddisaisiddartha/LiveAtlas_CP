@@ -10,6 +10,7 @@ import {
 import { askAI } from '../ai/aiService';
 import { supabase } from '../lib/supabase';
 import { NetworkEngine } from "../network/networkEngine";
+import CommunicationStatus from "../Components/CommunicationStatus";
 
 /* ─────────────────────────────────────────────────────────
    QUALITY CONSTANTS  — tweak here for different networks
@@ -95,6 +96,12 @@ const VideoRoom = () => {
     const [isAudioOn, setIsAudioOn] = useState(true);
     const [isVideoOn, setIsVideoOn] = useState(true);
     const [isFullScreen, setIsFullScreen] = useState(false);
+    const [communicationStatus, setCommunicationStatus] = useState({
+        connected: false,
+        quality: "Basic",
+        latency: "--",
+        video: "SD",
+    });
     const [isVRMode, setIsVRMode] = useState(false);
     const [isImmersiveVR, setIsImmersiveVR] = useState(false);
     const [cameraFacing, setCameraFacing] = useState("environment");
@@ -118,6 +125,7 @@ const VideoRoom = () => {
     const peerConnection = useRef(null);
     const networkEngineRef = useRef(null);
     const iceRestartTimerRef = useRef(null);
+    const communicationStatusTimerRef = useRef(null);
 
     /* ── ORIGINAL INTENT FETCH + REALTIME (unchanged) ── */
     useEffect(() => {
@@ -274,6 +282,11 @@ const VideoRoom = () => {
                 networkEngineRef.current.stop();
             }
 
+            if (communicationStatusTimerRef.current) {
+                clearInterval(communicationStatusTimerRef.current);
+                communicationStatusTimerRef.current = null;
+            }
+
             if (peerConnection.current) {
                 peerConnection.current.close();
             }
@@ -404,7 +417,41 @@ const VideoRoom = () => {
 });
 
         networkEngineRef.current = new NetworkEngine(peerConnection.current);
+
         networkEngineRef.current.start();
+
+        communicationStatusTimerRef.current = setInterval(() => {
+
+            const guardian =
+                networkEngineRef.current.connectionGuardian;
+
+            const telemetry =
+                networkEngineRef.current.telemetry.getStats();
+
+            setCommunicationStatus({
+
+                connected: guardian.isConnected(),
+
+                quality:
+                    networkEngineRef.current.currentProfile === "HIGH"
+                    ? "Excellent"
+                    : networkEngineRef.current.currentProfile === "MEDIUM"
+                    ? "Good"
+                    : "Basic",
+
+                latency:
+                    telemetry?.currentRoundTripTime
+                        ? Math.round(telemetry.currentRoundTripTime * 1000)
+                        : "--",
+
+                video:
+                    networkEngineRef.current.currentProfile === "HIGH"
+                        ? "HD"
+                        : "SD",
+
+            });
+
+        }, 1000);
 
         window.liveAtlasNetwork = networkEngineRef.current;
 
@@ -631,6 +678,14 @@ const VideoRoom = () => {
             )}
 
             {isReconnecting && <div className="reconnect-banner">Reconnecting...</div>}
+
+                <CommunicationStatus
+                    visible={!isFullScreen && !isVRMode && !isImmersiveVR}
+                    connected={communicationStatus.connected}
+                    quality={communicationStatus.quality}
+                    latency={communicationStatus.latency}
+                    video={communicationStatus.video}
+                />
 
             {!isFullScreen && (
                 <div className="room-header">
