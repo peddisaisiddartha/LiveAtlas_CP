@@ -16,6 +16,7 @@
 class DeviceCapabilityManager {
     constructor() {
         this.profile = null;
+        this.lastDetection = null;
     }
 
     detect() {
@@ -40,7 +41,7 @@ class DeviceCapabilityManager {
                 "ontouchstart" in window ||
                 navigator.maxTouchPoints > 0,
 
-                        timezone:
+            timezone:
                 Intl.DateTimeFormat().resolvedOptions().timeZone,
 
             browser: this.detectBrowser(),
@@ -56,10 +57,12 @@ class DeviceCapabilityManager {
             detectedAt: Date.now(),
         };
 
+        this.lastDetection = this.profile.detectedAt;
+
         return this.profile;
     }
 
-        detectBrowser() {
+    detectBrowser() {
         const ua = navigator.userAgent;
 
         if (ua.includes("Edg")) return "Edge";
@@ -78,7 +81,7 @@ class DeviceCapabilityManager {
         return this.profile;
     }
 
-        refresh() {
+    refresh() {
         return this.detect();
     }
 
@@ -107,6 +110,10 @@ class DeviceCapabilityManager {
             browser: this.profile?.browser,
             mobile: this.isMobile(),
         };
+    }
+
+    getLastDetectionTime() {
+        return this.lastDetection;
     }
 }
 

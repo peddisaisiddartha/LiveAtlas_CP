@@ -44,8 +44,8 @@ class SessionPreparationManager {
             preparedAt: Date.now(),
         };
 
-        // Determine overall readiness
-        this.status.ready = Object.values(this.status.checks).every(Boolean);
+        this.status.ready =
+            Object.values(this.status.checks).every(Boolean);
 
         return this.status;
     }
@@ -62,7 +62,7 @@ class SessionPreparationManager {
         return this.prepare();
     }
 
-        isReady() {
+    isReady() {
         return this.getStatus().ready;
     }
 
@@ -82,6 +82,10 @@ class SessionPreparationManager {
 
     isSecure() {
         return this.getStatus().checks.secureContext;
+    }
+
+    getPreparationTime() {
+        return this.status?.preparedAt ?? null;
     }
 }
 

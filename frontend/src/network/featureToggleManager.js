@@ -16,11 +16,13 @@
 class FeatureToggleManager {
     constructor() {
         this.features = {
-            // Future support systems
+            // Current support systems
             deviceCapabilityManager: false,
             sessionPreparationManager: false,
             connectionGuardian: false,
             resourceMonitor: false,
+
+            // Future support systems
             motionAnalyzer: false,
             networkHistorian: false,
             recoveryAssistant: false,
@@ -35,26 +37,33 @@ class FeatureToggleManager {
         return this.features[featureName] === true;
     }
 
+    exists(featureName) {
+        return featureName in this.features;
+    }
+
     enable(featureName) {
-        if (featureName in this.features) {
+        if (this.exists(featureName)) {
             this.features[featureName] = true;
         }
     }
 
     disable(featureName) {
-        if (featureName in this.features) {
+        if (this.exists(featureName)) {
             this.features[featureName] = false;
         }
     }
 
-    set(featureName, enabled) {
-        if (featureName in this.features) {
-            this.features[featureName] = Boolean(enabled);
+    toggle(featureName) {
+        if (this.exists(featureName)) {
+            this.features[featureName] =
+                !this.features[featureName];
         }
     }
 
-        getAll() {
-        return { ...this.features };
+    set(featureName, enabled) {
+        if (this.exists(featureName)) {
+            this.features[featureName] = Boolean(enabled);
+        }
     }
 
     enableAll() {
@@ -69,14 +78,8 @@ class FeatureToggleManager {
         });
     }
 
-    toggle(featureName) {
-        if (featureName in this.features) {
-            this.features[featureName] = !this.features[featureName];
-        }
-    }
-
-    exists(featureName) {
-        return featureName in this.features;
+    getAll() {
+        return { ...this.features };
     }
 
     getEnabledFeatures() {

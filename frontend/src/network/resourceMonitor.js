@@ -15,19 +15,19 @@
 
 class ResourceMonitor {
     constructor() {
-    this.snapshot = null;
+        this.snapshot = null;
 
-    this.handleVisibilityChange =
-        this.handleVisibilityChange.bind(this);
+        this.handleVisibilityChange =
+            this.handleVisibilityChange.bind(this);
 
-    this.handleOnline =
-        this.handleOnline.bind(this);
+        this.handleOnline =
+            this.handleOnline.bind(this);
 
-    this.handleOffline =
-        this.handleOffline.bind(this);
+        this.handleOffline =
+            this.handleOffline.bind(this);
 
-    this.initialized = false;
-}
+        this.initialized = false;
+    }
 
     collect() {
         const nav = navigator;
@@ -65,62 +65,70 @@ class ResourceMonitor {
 
     refresh() {
 
-    if (!this.initialized) {
+        if (!this.initialized) {
 
-        document.addEventListener(
+            document.addEventListener(
+                "visibilitychange",
+                this.handleVisibilityChange
+            );
+
+            window.addEventListener(
+                "online",
+                this.handleOnline
+            );
+
+            window.addEventListener(
+                "offline",
+                this.handleOffline
+            );
+
+            this.initialized = true;
+        }
+
+        return this.collect();
+    }
+
+    handleVisibilityChange() {
+        this.collect();
+    }
+
+    handleOnline() {
+        this.collect();
+    }
+
+    handleOffline() {
+        this.collect();
+    }
+
+    destroy() {
+
+        if (!this.initialized) {
+            return;
+        }
+
+        document.removeEventListener(
             "visibilitychange",
             this.handleVisibilityChange
         );
 
-        window.addEventListener(
+        window.removeEventListener(
             "online",
             this.handleOnline
         );
 
-        window.addEventListener(
+        window.removeEventListener(
             "offline",
             this.handleOffline
         );
 
-        this.initialized = true;
+        this.initialized = false;
     }
-
-    return this.collect();
-}
-handleVisibilityChange() {
-    this.collect();
-}
-
-handleOnline() {
-    this.collect();
-}
-
-handleOffline() {
-    this.collect();
-}
-
-destroy() {
-    document.removeEventListener(
-        "visibilitychange",
-        this.handleVisibilityChange
-    );
-
-    window.removeEventListener(
-        "online",
-        this.handleOnline
-    );
-
-    window.removeEventListener(
-        "offline",
-        this.handleOffline
-    );
-}
 
     isPageVisible() {
         return !document.hidden;
     }
 
-        isOnline() {
+    isOnline() {
         return navigator.onLine;
     }
 

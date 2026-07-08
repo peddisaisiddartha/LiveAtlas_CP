@@ -41,6 +41,8 @@ export class NetworkEngine {
 
         this.connectionListenersRegistered = false;
 
+        this.connectionHandlers = {};
+
     }
 
     start() {
@@ -74,29 +76,49 @@ export class NetworkEngine {
 
     if (!this.connectionListenersRegistered) {
 
-        this.peerConnection.addEventListener("connectionstatechange", () => {
-            this.connectionGuardian.update({
-                connectionState: this.peerConnection.connectionState,
-            });
-        });
+        this.connectionHandlers.connectionState = () => {
+    this.connectionGuardian.update({
+        connectionState: this.peerConnection.connectionState,
+    });
+};
 
-        this.peerConnection.addEventListener("iceconnectionstatechange", () => {
-            this.connectionGuardian.update({
-                iceConnectionState: this.peerConnection.iceConnectionState,
-            });
-        });
+this.connectionHandlers.iceConnectionState = () => {
+    this.connectionGuardian.update({
+        iceConnectionState: this.peerConnection.iceConnectionState,
+    });
+};
 
-        this.peerConnection.addEventListener("icegatheringstatechange", () => {
-            this.connectionGuardian.update({
-                iceGatheringState: this.peerConnection.iceGatheringState,
-            });
-        });
+this.connectionHandlers.iceGatheringState = () => {
+    this.connectionGuardian.update({
+        iceGatheringState: this.peerConnection.iceGatheringState,
+    });
+};
 
-        this.peerConnection.addEventListener("signalingstatechange", () => {
-            this.connectionGuardian.update({
-                signalingState: this.peerConnection.signalingState,
-            });
-        });
+this.connectionHandlers.signalingState = () => {
+    this.connectionGuardian.update({
+        signalingState: this.peerConnection.signalingState,
+    });
+};
+
+this.peerConnection.addEventListener(
+    "connectionstatechange",
+    this.connectionHandlers.connectionState
+);
+
+this.peerConnection.addEventListener(
+    "iceconnectionstatechange",
+    this.connectionHandlers.iceConnectionState
+);
+
+this.peerConnection.addEventListener(
+    "icegatheringstatechange",
+    this.connectionHandlers.iceGatheringState
+);
+
+this.peerConnection.addEventListener(
+    "signalingstatechange",
+    this.connectionHandlers.signalingState
+);
 
         this.connectionListenersRegistered = true;
     }
@@ -166,6 +188,33 @@ export class NetworkEngine {
     }
 
     if (this.featureToggleManager.isEnabled("connectionGuardian")) {
+
+        if (this.connectionListenersRegistered) {
+
+            this.peerConnection.removeEventListener(
+                    "connectionstatechange",
+                this.connectionHandlers.connectionState
+            );
+
+            this.peerConnection.removeEventListener(
+                "iceconnectionstatechange",
+                this.connectionHandlers.iceConnectionState
+            );
+
+            this.peerConnection.removeEventListener(
+                "icegatheringstatechange",
+                this.connectionHandlers.iceGatheringState
+            );
+
+            this.peerConnection.removeEventListener(
+                "signalingstatechange",
+                this.connectionHandlers.signalingState
+            );
+
+            this.connectionListenersRegistered = false;
+            this.connectionHandlers = {};
+        }
+
         this.connectionGuardian.reset();
     }
 

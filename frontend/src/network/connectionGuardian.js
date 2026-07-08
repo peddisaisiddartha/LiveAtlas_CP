@@ -24,10 +24,16 @@ class ConnectionGuardian {
             iceConnectionState: "new",
             iceGatheringState: "new",
             signalingState: "stable",
+
             previousConnectionState: null,
             previousIceConnectionState: null,
+
             connectionDuration: 0,
             connectedSince: null,
+
+            transitionCount: 0,
+            lastTransition: null,
+
             lastUpdated: null,
         };
     }
@@ -85,6 +91,16 @@ class ConnectionGuardian {
             ...partialState,
             lastUpdated: now,
         };
+
+        this.state.transitionCount++;
+
+        this.state.lastTransition = {
+            timestamp: now,
+            connectionState: this.state.connectionState,
+            iceConnectionState: this.state.iceConnectionState,
+            iceGatheringState: this.state.iceGatheringState,
+            signalingState: this.state.signalingState,
+        };
     }
 
     getState() {
@@ -121,6 +137,14 @@ class ConnectionGuardian {
 
     getPreviousIceConnectionState() {
         return this.state.previousIceConnectionState;
+    }
+
+    getTransitionCount() {
+        return this.state.transitionCount;
+    }
+
+    getLastTransition() {
+        return this.state.lastTransition;
     }
 
     isDisconnected() {
