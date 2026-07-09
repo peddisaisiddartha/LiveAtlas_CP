@@ -35,8 +35,15 @@ export class Telemetry {
                 timestamp: Date.now(),
 
                 // Video
+                captureWidth: 0,
+                captureHeight: 0,
+
                 frameWidth: 0,
                 frameHeight: 0,
+
+                receivedFrameWidth: 0,
+                receivedFrameHeight: 0,
+
                 fps: 0,
 
                 // Encoder
@@ -58,12 +65,16 @@ export class Telemetry {
                 jitter: 0,
                 packetLoss: 0,
                 availableBitrate: 0,
+                actualBitrate: 0,
 
                 // Transport
                 localCandidateType: "",
                 remoteCandidateType: "",
                 localProtocol: "",
-                remoteProtocol: ""
+                remoteProtocol: "",
+
+                // Browser estimation
+                availableOutgoingBitrate: 0,
 
             };
 
@@ -79,6 +90,11 @@ export class Telemetry {
 
                         telemetry.frameWidth = report.frameWidth || telemetry.frameWidth;
                         telemetry.frameHeight = report.frameHeight || telemetry.frameHeight;
+                        telemetry.captureWidth =
+                            report.frameWidth || telemetry.captureWidth;
+
+                        telemetry.captureHeight =
+                            report.frameHeight || telemetry.captureHeight;
                         telemetry.framesEncoded = report.framesEncoded || 0;
                         telemetry.totalEncodeTime = report.totalEncodeTime || 0;
                         telemetry.qualityLimitation =
@@ -110,13 +126,41 @@ export class Telemetry {
                         }
 
                         if (
+                            report.bytesSent !== undefined &&
+                            report.timestamp !== undefined
+                        ) {
+
+                            if (
+                                this.previousOutboundVideo &&
+                                this.previousOutboundVideo.bytesSent !== undefined
+                            ) {
+
+                                const bytesDelta =
+                                    report.bytesSent -
+                                    this.previousOutboundVideo.bytesSent;
+
+                                const timeDelta =
+                                    (report.timestamp -
+                                        this.previousOutboundVideo.timestamp) / 1000;
+
+                                if (timeDelta > 0) {
+                                    telemetry.actualBitrate =
+                                        Math.round((bytesDelta * 8) / timeDelta);
+                                }
+
+                            }
+
+                        }
+
+                        if (
                             report.framesEncoded !== undefined &&
                             report.timestamp !== undefined
                         ) {
 
                             this.previousOutboundVideo = {
                                 framesEncoded: report.framesEncoded,
-                                timestamp: report.timestamp
+                                bytesSent: report.bytesSent,
+                                 timestamp: report.timestamp
                             };
 
                         }
@@ -126,6 +170,12 @@ export class Telemetry {
                     case "inbound-rtp":
 
                         if (report.kind !== "video") break;
+
+                        telemetry.receivedFrameWidth =
+                            report.frameWidth || 0;
+
+                        telemetry.receivedFrameHeight =
+                            report.frameHeight || 0;
 
                         telemetry.jitter = report.jitter || 0;
 
@@ -218,6 +268,9 @@ export class Telemetry {
 
                 telemetry.availableBitrate =
                     activeCandidatePair.availableOutgoingBitrate || 0;
+
+                telemetry.actualBitrate =
+                    activeCandidatePair.actualOutgoingBitrate || 0;
 
             }
 

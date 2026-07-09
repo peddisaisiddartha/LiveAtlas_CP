@@ -101,6 +101,18 @@ const VideoRoom = () => {
         quality: "Basic",
         latency: "--",
         video: "SD",
+
+        actualBitrate: 0,
+        availableBitrate: 0,
+
+        captureWidth: 0,
+        captureHeight: 0,
+
+        encodedWidth: 0,
+        encodedHeight: 0,
+
+        receivedWidth: 0,
+        receivedHeight: 0,
     });
     const [isVRMode, setIsVRMode] = useState(false);
     const [isImmersiveVR, setIsImmersiveVR] = useState(false);
@@ -434,20 +446,44 @@ const VideoRoom = () => {
 
                 quality:
                     networkEngineRef.current.currentProfile === "HIGH"
-                    ? "Excellent"
-                    : networkEngineRef.current.currentProfile === "MEDIUM"
-                    ? "Good"
-                    : "Basic",
+                        ? "Excellent"
+                        : networkEngineRef.current.currentProfile === "MEDIUM"
+                        ? "Good"
+                        : "Basic",
 
-                latency:
-                    telemetry?.currentRoundTripTime
-                        ? Math.round(telemetry.currentRoundTripTime * 1000)
+                 latency:
+                    telemetry?.rtt
+                        ? Math.round(telemetry.rtt * 1000)
                         : "--",
 
                 video:
                     networkEngineRef.current.currentProfile === "HIGH"
                         ? "HD"
                         : "SD",
+
+                actualBitrate:
+                    telemetry?.actualBitrate || 0,
+
+                availableBitrate:
+                    telemetry?.availableBitrate || 0,
+
+                captureWidth:
+                    telemetry?.captureWidth || 0,
+
+                captureHeight:
+                    telemetry?.captureHeight || 0,
+
+                encodedWidth:
+                    telemetry?.frameWidth || 0,
+
+                encodedHeight:
+                    telemetry?.frameHeight || 0,
+
+                receivedWidth:
+                    telemetry?.receivedFrameWidth || 0,
+
+                receivedHeight:
+                    telemetry?.receivedFrameHeight || 0,
 
             });
 
@@ -681,10 +717,23 @@ const VideoRoom = () => {
 
                 <CommunicationStatus
                     visible={!isFullScreen && !isVRMode && !isImmersiveVR}
+
                     connected={communicationStatus.connected}
                     quality={communicationStatus.quality}
                     latency={communicationStatus.latency}
                     video={communicationStatus.video}
+
+                    actualBitrate={communicationStatus.actualBitrate}
+                    availableBitrate={communicationStatus.availableBitrate}
+
+                    captureWidth={communicationStatus.captureWidth}
+                    captureHeight={communicationStatus.captureHeight}
+
+                    encodedWidth={communicationStatus.encodedWidth}
+                    encodedHeight={communicationStatus.encodedHeight}
+
+                    receivedWidth={communicationStatus.receivedWidth}
+                    receivedHeight={communicationStatus.receivedHeight}
                 />
 
             {!isFullScreen && (
