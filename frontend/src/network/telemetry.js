@@ -88,13 +88,12 @@ export class Telemetry {
 
                         if (report.kind !== "video") break;
 
-                        telemetry.frameWidth = report.frameWidth || telemetry.frameWidth;
-                        telemetry.frameHeight = report.frameHeight || telemetry.frameHeight;
-                        telemetry.captureWidth =
-                            report.frameWidth || telemetry.captureWidth;
+                        telemetry.frameWidth =
+                            report.frameWidth || telemetry.frameWidth;
 
-                        telemetry.captureHeight =
-                            report.frameHeight || telemetry.captureHeight;
+                        telemetry.frameHeight =
+                            report.frameHeight || telemetry.frameHeight;
+
                         telemetry.framesEncoded = report.framesEncoded || 0;
                         telemetry.totalEncodeTime = report.totalEncodeTime || 0;
                         telemetry.qualityLimitation =
@@ -132,6 +131,7 @@ export class Telemetry {
 
                             if (
                                 this.previousOutboundVideo &&
+                                this.previousOutboundVideo.id === report.id &&
                                 this.previousOutboundVideo.bytesSent !== undefined
                             ) {
 
@@ -143,9 +143,11 @@ export class Telemetry {
                                     (report.timestamp -
                                         this.previousOutboundVideo.timestamp) / 1000;
 
-                                if (timeDelta > 0) {
+                                if (timeDelta > 0 && bytesDelta >= 0) {
+
                                     telemetry.actualBitrate =
                                         Math.round((bytesDelta * 8) / timeDelta);
+
                                 }
 
                             }
@@ -158,9 +160,10 @@ export class Telemetry {
                         ) {
 
                             this.previousOutboundVideo = {
+                                id: report.id,
                                 framesEncoded: report.framesEncoded,
                                 bytesSent: report.bytesSent,
-                                 timestamp: report.timestamp
+                                timestamp: report.timestamp
                             };
 
                         }
@@ -176,6 +179,14 @@ export class Telemetry {
 
                         telemetry.receivedFrameHeight =
                             report.frameHeight || 0;
+
+                        if (!telemetry.captureWidth && report.frameWidth) {
+                            telemetry.captureWidth = report.frameWidth;
+                        }
+
+                        if (!telemetry.captureHeight && report.frameHeight) {
+                            telemetry.captureHeight = report.frameHeight;
+                        }
 
                         telemetry.jitter = report.jitter || 0;
 
@@ -269,8 +280,6 @@ export class Telemetry {
                 telemetry.availableBitrate =
                     activeCandidatePair.availableOutgoingBitrate || 0;
 
-                telemetry.actualBitrate =
-                    activeCandidatePair.actualOutgoingBitrate || 0;
 
             }
 
