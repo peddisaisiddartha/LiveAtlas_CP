@@ -45,6 +45,12 @@ export class Telemetry {
                 receivedFrameWidth: 0,
                 receivedFrameHeight: 0,
 
+                captureFrameWidth: 0,
+                captureFrameHeight: 0,
+
+                encodedFrameWidth: 0,
+                encodedFrameHeight: 0,
+
                 fps: 0,
 
                 // Encoder
@@ -102,16 +108,23 @@ export class Telemetry {
 
                         
 
-                        telemetry.frameWidth =
-                            report.frameWidth || telemetry.frameWidth;
+                        telemetry.encodedFrameWidth =
+                            report.frameWidth || telemetry.encodedFrameWidth;
 
-                        telemetry.frameHeight =
-                            report.frameHeight || telemetry.frameHeight;
+                        telemetry.encodedFrameHeight =
+                            report.frameHeight || telemetry.encodedFrameHeight;
 
                         telemetry.framesEncoded = report.framesEncoded || 0;
                         telemetry.totalEncodeTime = report.totalEncodeTime || 0;
                         telemetry.qualityLimitation =
                             report.qualityLimitationReason || "none";
+
+                        if (report.frameWidth && report.frameHeight) {
+
+                            telemetry.captureFrameWidth = report.frameWidth;
+                            telemetry.captureFrameHeight = report.frameHeight;
+
+                        }
 
                         if (report.framesPerSecond !== undefined) {
 
@@ -193,6 +206,12 @@ export class Telemetry {
 
                         telemetry.receivedFrameHeight =
                             report.frameHeight || 0;
+
+                        telemetry.frameWidth =
+                            telemetry.receivedFrameWidth;
+
+                        telemetry.frameHeight =
+                            telemetry.receivedFrameHeight;
 
                         if (!telemetry.captureWidth && report.frameWidth) {
                             telemetry.captureWidth = report.frameWidth;

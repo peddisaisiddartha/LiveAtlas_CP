@@ -36,6 +36,9 @@ export class AdaptiveController {
 
         this.lastSwitch = Date.now();
 
+        this.goodSamples = 0;
+        this.badSamples = 0;
+
         this.profileChanged = false;
         this.networkState = "STABLE";
         this.lastReason = "Initial";
@@ -86,19 +89,36 @@ export class AdaptiveController {
 
         const now = Date.now();
 
-        if (now - this.lastSwitch < 15000) {
+
+        const downgrade =
+            avg.rtt > 0.60 ||
+            avg.loss > 0.08 ||
+            avg.fps < 16;
+
+        const upgrade =
+            avg.rtt < 0.30 &&
+            avg.loss < 0.03 &&
+            avg.fps >= 22 &&
+            avg.bitrate > 1800000;
+
+        if (downgrade) {
+            this.badSamples++;
+            this.goodSamples = 0;
+        } else if (upgrade) {
+            this.goodSamples++;
+            this.badSamples = 0;
+        } else {
+            this.goodSamples = 0;
+            this.badSamples = 0;
+        }
+
+        if (now - this.lastSwitch < 10000) {
             return;
         }
 
         // ---------- DOWNGRADE ----------
 
-       if (
-
-            avg.rtt > 0.60 ||
-            avg.loss > 0.08 ||
-            avg.fps < 16
-
-        ) {
+       if (this.badSamples >= 3) {
 
             if (avg.rtt > 0.60)
                 this.lastReason = "High RTT";
@@ -119,14 +139,7 @@ export class AdaptiveController {
 
         // ---------- UPGRADE ----------
 
-        if (
-
-            avg.rtt < 0.30 &&
-            avg.loss < 0.03 &&
-            avg.fps >= 22 &&
-            avg.bitrate > 1800000
-
-        ) {
+        if (this.goodSamples >= 3) {
             this.lastReason = "Recovered";
             this.networkState = "RECOVERING";
 

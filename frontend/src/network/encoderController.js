@@ -28,13 +28,29 @@ export class EncoderController {
 
         params.encodings ??= [{}];
 
-        params.degradationPreference = "maintain-resolution";
+        params.degradationPreference = "balanced";
 
         params.encodings[0].maxBitrate = profile.bitrate;
         params.encodings[0].maxFramerate = profile.fps;
-        params.encodings[0].scaleResolutionDownBy = 1.0;
-        params.encodings[0].priority = "high";
-        params.encodings[0].networkPriority = "high";
+
+        if (profile.name === "HIGH") {
+
+            params.encodings[0].scaleResolutionDownBy = 1.0;
+
+        } else if (profile.name === "MEDIUM") {
+
+            params.encodings[0].scaleResolutionDownBy = 1.25;
+
+        } else {
+
+            params.encodings[0].scaleResolutionDownBy = 2.0;
+
+        }
+        params.encodings[0].priority =
+            profile.name === "LOW" ? "medium" : "high";
+
+        params.encodings[0].networkPriority =
+            profile.name === "LOW" ? "medium" : "high";
 
         try {
 
