@@ -6,6 +6,7 @@ export class Telemetry {
         this.interval = null;
         this.latestStats = {};
         this.previousOutboundVideo = null;
+        this.outboundVideoReportId = null;
         this.previousInboundVideo = null;
 
     }
@@ -86,7 +87,20 @@ export class Telemetry {
 
                     case "outbound-rtp":
 
-                        if (report.kind !== "video") break;
+                    if (report.kind !== "video") break;
+
+                    if (
+                        this.outboundVideoReportId &&
+                        report.id !== this.outboundVideoReportId
+                    ) {
+                        break;
+                    }
+
+                    if (!this.outboundVideoReportId) {
+                        this.outboundVideoReportId = report.id;
+                    }
+
+                        
 
                         telemetry.frameWidth =
                             report.frameWidth || telemetry.frameWidth;
@@ -131,7 +145,7 @@ export class Telemetry {
 
                             if (
                                 this.previousOutboundVideo &&
-                                this.previousOutboundVideo.id === report.id &&
+                                this.outboundVideoReportId === report.id &&
                                 this.previousOutboundVideo.bytesSent !== undefined
                             ) {
 
@@ -160,7 +174,7 @@ export class Telemetry {
                         ) {
 
                             this.previousOutboundVideo = {
-                                id: report.id,
+                                id: this.outboundVideoReportId,
                                 framesEncoded: report.framesEncoded,
                                 bytesSent: report.bytesSent,
                                 timestamp: report.timestamp
@@ -290,6 +304,10 @@ export class Telemetry {
     }
 
     stop() {
+
+        this.outboundVideoReportId = null;
+        this.previousOutboundVideo = null;
+        this.previousInboundVideo = null;
 
         if (this.interval) {
 
