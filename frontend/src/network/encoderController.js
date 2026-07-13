@@ -26,20 +26,61 @@ export class EncoderController {
 
         const params = sender.getParameters();
 
+        const track = sender.track;
+
+        if (!track) {
+            return;
+        }
+
+        const settings = track.getSettings();
+
         params.encodings ??= [{}];
+
+        params.encodings[0].active = true;
+
+        params.encodings[0].maxBitrate = Math.max(
+            params.encodings[0].maxBitrate || 0,
+            profile.bitrate
+        );
+
+        // Keep the encoder from scaling below the camera capture
+        if (
+            settings.width &&
+            settings.width >= 1280 &&
+            profile.name === "HIGH"
+        ) {
+            params.encodings[0].scaleResolutionDownBy = 1.0;
+        }
 
         params.degradationPreference = "balanced";
 
         params.encodings[0].maxBitrate = profile.bitrate;
+
+        params.encodings[0].minBitrate =
+            profile.name === "HIGH"
+                ? 2500000
+                : profile.name === "MEDIUM"
+                ? 1000000
+                : 400000;
+
         params.encodings[0].maxFramerate = profile.fps;
+
+        params.encodings[0].maxFramerate =
+            profile.name === "HIGH"
+                ? 30
+                : profile.name === "MEDIUM"
+                ? 24
+                : 20;
+
+        
 
         if (profile.name === "HIGH") {
 
-            params.encodings[0].scaleResolutionDownBy = 1.0;
+        params.encodings[0].scaleResolutionDownBy = 1.0;
 
         } else if (profile.name === "MEDIUM") {
 
-            params.encodings[0].scaleResolutionDownBy = 1.25;
+            params.encodings[0].scaleResolutionDownBy = 1.5;
 
         } else {
 
@@ -53,6 +94,17 @@ export class EncoderController {
             profile.name === "LOW" ? "medium" : "high";
 
         try {
+
+            if (
+                profile.name === "HIGH" &&
+                settings.width &&
+                settings.width < 1280
+            ) {
+                console.warn(
+                "[Encoder] Camera is not providing 1280px width:",
+                settings
+                );
+            }
 
             await sender.setParameters(params);
 

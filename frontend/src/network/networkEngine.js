@@ -129,6 +129,12 @@ this.peerConnection.addEventListener(
 
         this.interval = setInterval(async () => {
 
+            if (
+                this.adaptiveController.history.length < 5
+            ) {
+                return;
+            }
+
             const stats = this.telemetry.getStats();
 
             /*
@@ -157,6 +163,13 @@ this.peerConnection.addEventListener(
             const profile =
             this.adaptiveController.getCurrentProfile();
 
+            if (
+                !profile ||
+                !profile.name
+            ) {
+                return;
+            }
+
             if (this.currentProfile !== profile.name) {
 
             console.log(
@@ -168,7 +181,16 @@ this.peerConnection.addEventListener(
             await this.encoderController.applyProfile(
                 this.peerConnection,
                 profile
-        );
+            );
+
+            const stats = this.telemetry.getStats();
+
+            console.log(
+                `[NetworkEngine] Profile=${profile.name} | ` +
+                `Actual=${Math.round((stats.actualBitrate || 0) / 1000)} kbps | ` +
+                `Available=${Math.round((stats.availableBitrate || 0) / 1000)} kbps | ` +
+                `RTT=${Math.round((stats.rtt || 0) * 1000)} ms`
+            );
 
 }
 
