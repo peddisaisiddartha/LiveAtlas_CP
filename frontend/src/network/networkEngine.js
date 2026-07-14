@@ -19,7 +19,7 @@ export class NetworkEngine {
 
         this.telemetry = new Telemetry(peerConnection);
         this.adaptiveController = new AdaptiveController({
-            initialProfile: options.initialProfile || "MEDIUM"
+            initialProfile: options.initialProfile || "HIGH"
         });
         this.encoderController = new EncoderController();
 
@@ -95,11 +95,11 @@ export class NetworkEngine {
 
     async applyStartupProfile() {
         const preferredProfileName =
-            this.deviceCapabilityManager.getPreferredStartupProfile?.() || "MEDIUM";
+            this.deviceCapabilityManager.getPreferredStartupProfile?.() || "HIGH";
 
         const profile =
             this.adaptiveController.profiles?.[preferredProfileName] ||
-            this.adaptiveController.profiles?.MEDIUM;
+            this.adaptiveController.profiles?.HIGH;
 
         if (!profile) {
             return;

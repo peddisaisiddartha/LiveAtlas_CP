@@ -2,22 +2,23 @@ export class AdaptiveController {
     constructor(options = {}) {
         this.history = [];
 
-        this.currentProfile = options.initialProfile || "MEDIUM";
+        this.currentProfile = options.initialProfile || "HIGH";
         this.profileChanged = false;
 
-        this.initialEvaluationComplete = false;
-        this.startupSamplesRequired = options.startupSamplesRequired || 4;
-
+        this.startedAt = Date.now();
         this.lastSwitch = Date.now();
-        this.lastReason = "Initial";
-        this.networkState = "STARTUP";
+
+        this.startupGracePeriodMs = options.startupGracePeriodMs || 25000;
+        this.minimumSwitchIntervalMs = options.minimumSwitchIntervalMs || 12000;
+        this.recoverySwitchIntervalMs = options.recoverySwitchIntervalMs || 5000;
 
         this.goodSamples = 0;
         this.badSamples = 0;
-        this.stableSamples = 0;
+        this.severeBadSamples = 0;
 
-        this.minimumSwitchIntervalMs = options.minimumSwitchIntervalMs || 8000;
-        this.recoverySwitchIntervalMs = options.recoverySwitchIntervalMs || 4500;
+        this.initialEvaluationComplete = false;
+        this.networkState = "STARTUP";
+        this.lastReason = "Initial";
 
         this.profiles = {
             LOW: {
@@ -50,12 +51,10 @@ export class AdaptiveController {
 
         this.lastDecision = {
             profile: this.currentProfile,
-            score: 0,
-            confidence: 0,
             health: "STARTUP",
             reason: "Initial",
-            shouldApplyEncoder: false,
-            resolutionStatus: "UNKNOWN"
+            score: 100,
+            shouldApplyEncoder: false
         };
     }
 
@@ -63,22 +62,25 @@ export class AdaptiveController {
         this.profileChanged = false;
 
         const sample = this.normalizeStats(stats);
-
         this.history.push(sample);
 
-        if (this.history.length > 12) {
+        if (this.history.length > 15) {
             this.history.shift();
         }
 
-        const average = this.getAverages();
-        const decision = this.evaluate(average, sample);
+        const avg = this.getAverages();
+        const decision = this.evaluate(avg, sample);
 
         this.lastDecision = decision;
         this.networkState = decision.health;
         this.lastReason = decision.reason;
 
-        if (!this.initialEvaluationComplete) {
-            this.handleStartupDecision(decision);
+        if (!this.initialEvaluationComplete && this.history.length >= 4) {
+            this.initialEvaluationComplete = true;
+        }
+
+        if (this.isInStartupGracePeriod()) {
+            this.handleStartupGracePeriod(decision);
             return;
         }
 
@@ -97,23 +99,19 @@ export class AdaptiveController {
             actualBitrate: this.number(stats.actualBitrate),
             availableBitrate: this.number(stats.availableBitrate),
 
-            captureWidth: this.number(stats.captureWidth || stats.cameraWidth),
-            captureHeight: this.number(stats.captureHeight || stats.cameraHeight),
+            captureWidth: this.number(stats.captureWidth),
+            captureHeight: this.number(stats.captureHeight),
 
-            encodedWidth: this.number(stats.encodedWidth || stats.frameWidth),
-            encodedHeight: this.number(stats.encodedHeight || stats.frameHeight),
+            encodedWidth: this.number(stats.encodedWidth || stats.encodedFrameWidth || stats.frameWidth),
+            encodedHeight: this.number(stats.encodedHeight || stats.encodedFrameHeight || stats.frameHeight),
 
-            receivedWidth: this.number(stats.receivedWidth),
-            receivedHeight: this.number(stats.receivedHeight),
-
-            framesEncoded: this.number(stats.framesEncoded),
-            framesDecoded: this.number(stats.framesDecoded),
-
-            encodeTime: this.number(stats.encodeTime),
-            decodeTime: this.number(stats.decodeTime),
+            receivedWidth: this.number(stats.receivedWidth || stats.receivedFrameWidth),
+            receivedHeight: this.number(stats.receivedHeight || stats.receivedFrameHeight),
 
             encoderLimitedByCpu: Boolean(stats.encoderLimitedByCpu),
             encoderLimitedByBandwidth: Boolean(stats.encoderLimitedByBandwidth),
+
+            qualityLimitation: stats.qualityLimitation || "none",
 
             connectionState: stats.connectionState || "unknown",
             iceConnectionState: stats.iceConnectionState || "unknown"
@@ -130,9 +128,6 @@ export class AdaptiveController {
             acc.fps += sample.fps;
             acc.actualBitrate += sample.actualBitrate;
             acc.availableBitrate += sample.availableBitrate;
-            acc.encodeTime += sample.encodeTime;
-            acc.decodeTime += sample.decodeTime;
-
             return acc;
         }, {
             rtt: 0,
@@ -140,9 +135,7 @@ export class AdaptiveController {
             jitter: 0,
             fps: 0,
             actualBitrate: 0,
-            availableBitrate: 0,
-            encodeTime: 0,
-            decodeTime: 0
+            availableBitrate: 0
         });
 
         return {
@@ -152,233 +145,128 @@ export class AdaptiveController {
             fps: total.fps / count,
             actualBitrate: total.actualBitrate / count,
             availableBitrate: total.availableBitrate / count,
-            encodeTime: total.encodeTime / count,
-            decodeTime: total.decodeTime / count,
             samples: count
         };
     }
 
     evaluate(avg, latest) {
-        const score = this.calculateQualityScore(avg, latest);
-        const confidence = this.calculateNetworkConfidence(avg, latest);
-        const stability = this.calculateStabilityIndex();
-        const resolutionStatus = this.getResolutionStatus(latest);
-        const browserState = this.getBrowserBehaviourState(avg, latest);
+        const score = this.calculateHealthScore(avg, latest);
 
-        const healthyForHd =
-            score >= 78 &&
-            confidence >= 70 &&
-            stability >= 65 &&
-            avg.rtt < 0.35 &&
-            avg.packetLoss < 0.035 &&
-            avg.jitter < 0.055 &&
-            avg.fps >= 22 &&
-            !latest.encoderLimitedByCpu &&
-            !latest.encoderLimitedByBandwidth;
+        const captureIsHd =
+            latest.captureWidth >= 1280 &&
+            latest.captureHeight >= 720;
 
-        const clearlyCongested =
-            score < 45 ||
-            avg.rtt > 0.85 ||
-            avg.packetLoss > 0.12 ||
-            avg.jitter > 0.14 ||
-            avg.fps < 14 ||
+        const encodedIsHd =
+            latest.encodedWidth >= 1280 &&
+            latest.encodedHeight >= 720;
+
+        const browserLimited =
+            latest.encoderLimitedByCpu ||
+            latest.encoderLimitedByBandwidth ||
+            latest.qualityLimitation === "cpu" ||
+            latest.qualityLimitation === "bandwidth";
+
+        const severeCongestion =
+            avg.packetLoss >= 0.14 ||
+            avg.rtt >= 1.1 ||
+            avg.jitter >= 0.18 ||
             latest.encoderLimitedByBandwidth;
 
-        const mildlyDegraded =
-            !clearlyCongested &&
+        const realCongestion =
+            avg.packetLoss >= 0.08 ||
+            avg.rtt >= 0.75 ||
+            avg.jitter >= 0.12 ||
             (
-                score < 62 ||
-                avg.rtt > 0.55 ||
-                avg.packetLoss > 0.065 ||
-                avg.jitter > 0.09 ||
-                avg.fps < 18
+                avg.actualBitrate > 0 &&
+                avg.actualBitrate < 600000 &&
+                avg.packetLoss > 0.04
             );
 
-        if (healthyForHd) {
-            return {
-                profile: "HIGH",
-                score,
-                confidence,
-                stability,
-                health: "HEALTHY",
-                reason: "Healthy HD conditions",
-                shouldApplyEncoder: this.currentProfile !== "HIGH",
-                resolutionStatus,
-                browserState
-            };
-        }
+        const healthy =
+            avg.rtt < 0.45 &&
+            avg.packetLoss < 0.04 &&
+            avg.jitter < 0.07 &&
+            !browserLimited &&
+            (
+                avg.actualBitrate >= 1200000 ||
+                avg.availableBitrate >= 1200000 ||
+                avg.availableBitrate === 0
+            );
 
-        if (clearlyCongested) {
+        if (severeCongestion) {
             return {
-                profile: this.currentProfile === "HIGH" ? "MEDIUM" : "LOW",
-                score,
-                confidence,
-                stability,
-                health: "CONGESTED",
+                profile: "LOW",
+                health: "SEVERE_CONGESTION",
                 reason: this.getCongestionReason(avg, latest),
-                shouldApplyEncoder: true,
-                resolutionStatus,
-                browserState
+                score,
+                captureIsHd,
+                encodedIsHd,
+                browserLimited,
+                shouldApplyEncoder: this.currentProfile !== "LOW"
             };
         }
 
-        if (mildlyDegraded) {
+        if (realCongestion) {
             return {
                 profile: this.currentProfile === "HIGH" ? "MEDIUM" : this.currentProfile,
-                score,
-                confidence,
-                stability,
-                health: "DEGRADED",
+                health: "CONGESTED",
                 reason: this.getCongestionReason(avg, latest),
-                shouldApplyEncoder: this.currentProfile === "HIGH",
-                resolutionStatus,
-                browserState
+                score,
+                captureIsHd,
+                encodedIsHd,
+                browserLimited,
+                shouldApplyEncoder: this.currentProfile === "HIGH"
+            };
+        }
+
+        if (healthy) {
+            return {
+                profile: "HIGH",
+                health: "HEALTHY",
+                reason: "Healthy conditions",
+                score,
+                captureIsHd,
+                encodedIsHd,
+                browserLimited,
+                shouldApplyEncoder: this.currentProfile !== "HIGH"
             };
         }
 
         return {
             profile: this.currentProfile,
-            score,
-            confidence,
-            stability,
             health: "STABLE",
-            reason: "Stable conditions",
-            shouldApplyEncoder: false,
-            resolutionStatus,
-            browserState
+            reason: "Observing",
+            score,
+            captureIsHd,
+            encodedIsHd,
+            browserLimited,
+            shouldApplyEncoder: false
         };
     }
 
-    calculateQualityScore(avg, latest) {
-        let score = 100;
-
-        score -= this.clamp(avg.rtt * 55, 0, 35);
-        score -= this.clamp(avg.packetLoss * 260, 0, 35);
-        score -= this.clamp(avg.jitter * 150, 0, 20);
-
-        if (avg.fps > 0 && avg.fps < 24) {
-            score -= this.clamp((24 - avg.fps) * 2.5, 0, 25);
-        }
-
-        if (avg.actualBitrate > 0 && avg.actualBitrate < 900000) {
-            score -= 18;
-        }
-
-        if (latest.encoderLimitedByCpu) {
-            score -= 18;
-        }
-
-        if (latest.encoderLimitedByBandwidth) {
-            score -= 22;
-        }
-
-        return Math.round(this.clamp(score, 0, 100));
-    }
-
-    calculateNetworkConfidence(avg, latest) {
-        let confidence = 50;
-
-        if (avg.rtt > 0 && avg.rtt < 0.3) confidence += 15;
-        if (avg.packetLoss < 0.03) confidence += 15;
-        if (avg.jitter < 0.05) confidence += 10;
-        if (avg.fps >= 22) confidence += 10;
-
-        if (avg.actualBitrate >= 2500000) confidence += 10;
-        if (avg.availableBitrate >= 1800000) confidence += 5;
-
-        if (latest.connectionState === "connected") confidence += 5;
-        if (latest.iceConnectionState === "connected" || latest.iceConnectionState === "completed") confidence += 5;
-
-        if (latest.encoderLimitedByBandwidth) confidence -= 20;
-        if (latest.encoderLimitedByCpu) confidence -= 15;
-
-        return Math.round(this.clamp(confidence, 0, 100));
-    }
-
-    calculateStabilityIndex() {
-        if (this.history.length < 4) {
-            return 50;
-        }
-
-        const rtts = this.history.map((sample) => sample.rtt);
-        const losses = this.history.map((sample) => sample.packetLoss);
-        const fpsValues = this.history.map((sample) => sample.fps).filter((fps) => fps > 0);
-
-        const rttVariance = this.getVariance(rtts);
-        const lossVariance = this.getVariance(losses);
-        const fpsVariance = fpsValues.length > 1 ? this.getVariance(fpsValues) : 0;
-
-        let stability = 100;
-
-        stability -= this.clamp(rttVariance * 180, 0, 35);
-        stability -= this.clamp(lossVariance * 900, 0, 35);
-        stability -= this.clamp(fpsVariance * 1.5, 0, 30);
-
-        return Math.round(this.clamp(stability, 0, 100));
-    }
-
-    getResolutionStatus(sample) {
-        const capture = this.formatResolution(sample.captureWidth, sample.captureHeight);
-        const encoded = this.formatResolution(sample.encodedWidth, sample.encodedHeight);
-        const received = this.formatResolution(sample.receivedWidth, sample.receivedHeight);
-
-        if (!capture && !encoded && !received) {
-            return "UNKNOWN";
-        }
-
-        if (capture && encoded && capture !== encoded) {
-            return `CAPTURE_TO_ENCODER_REDUCED:${capture}->${encoded}`;
-        }
-
-        if (encoded && received && encoded !== received) {
-            return `ENCODER_TO_RECEIVER_CHANGED:${encoded}->${received}`;
-        }
-
-        return "CONSISTENT";
-    }
-
-    getBrowserBehaviourState(avg, latest) {
-        if (latest.encoderLimitedByCpu) {
-            return "BROWSER_CPU_LIMITED";
-        }
-
-        if (latest.encoderLimitedByBandwidth) {
-            return "BROWSER_BANDWIDTH_LIMITED";
-        }
-
+    handleStartupGracePeriod(decision) {
         if (
-            avg.availableBitrate > 0 &&
-            avg.actualBitrate > avg.availableBitrate * 1.8 &&
-            avg.rtt < 0.35 &&
-            avg.packetLoss < 0.04
+            decision.health === "SEVERE_CONGESTION" &&
+            decision.reason !== "Low FPS"
         ) {
-            return "BROWSER_ESTIMATE_CONSERVATIVE";
+            this.severeBadSamples += 1;
+        } else {
+            this.severeBadSamples = 0;
         }
 
-        return "BROWSER_NORMAL";
-    }
-
-    handleStartupDecision(decision) {
-        if (this.history.length < this.startupSamplesRequired) {
-            this.currentProfile = "MEDIUM";
-            this.lastDecision.profile = "MEDIUM";
-            this.lastReason = "Startup sampling";
+        if (this.severeBadSamples >= 4) {
+            this.applyDecision(decision);
             return;
         }
 
-        this.initialEvaluationComplete = true;
-
-        if (decision.health === "HEALTHY") {
-            this.setProfile("HIGH", "Startup selected HIGH");
+        if (this.currentProfile !== "HIGH") {
+            this.setProfile("HIGH", "Startup prefers HD");
             return;
         }
 
-        if (decision.health === "CONGESTED") {
-            this.setProfile("LOW", decision.reason);
-            return;
-        }
-
-        this.setProfile("MEDIUM", "Startup selected MEDIUM");
+        this.networkState = "WARMING_UP";
+        this.lastReason = "Startup grace period";
+        this.profileChanged = false;
     }
 
     applyDecision(decision) {
@@ -387,22 +275,25 @@ export class AdaptiveController {
         if (decision.health === "HEALTHY") {
             this.goodSamples += 1;
             this.badSamples = 0;
-            this.stableSamples += 1;
-        } else if (decision.health === "CONGESTED") {
+            this.severeBadSamples = 0;
+        } else if (
+            decision.health === "CONGESTED" ||
+            decision.health === "SEVERE_CONGESTION"
+        ) {
             this.badSamples += 1;
+
+            if (decision.health === "SEVERE_CONGESTION") {
+                this.severeBadSamples += 1;
+            }
+
             this.goodSamples = 0;
-            this.stableSamples = 0;
-        } else if (decision.health === "DEGRADED") {
-            this.badSamples += 1;
-            this.goodSamples = 0;
-            this.stableSamples = 0;
         } else {
-            this.stableSamples += 1;
             this.goodSamples = 0;
             this.badSamples = 0;
+            this.severeBadSamples = 0;
         }
 
-        const recoveryMode = this.currentProfile === "LOW" && decision.profile !== "LOW";
+        const recoveryMode = this.currentProfile !== "HIGH" && decision.profile === "HIGH";
         const switchInterval = recoveryMode
             ? this.recoverySwitchIntervalMs
             : this.minimumSwitchIntervalMs;
@@ -415,46 +306,59 @@ export class AdaptiveController {
             return;
         }
 
-        if (this.shouldDowngrade(decision)) {
-            this.setProfile(decision.profile, decision.reason);
+        if (decision.profile === "LOW") {
+            if (this.severeBadSamples >= 3) {
+                this.setProfile("LOW", decision.reason);
+            }
+
             return;
         }
 
-        if (this.shouldUpgrade(decision)) {
-            this.setProfile(decision.profile, decision.reason);
-        }
-    }
+        if (decision.profile === "MEDIUM") {
+            if (this.badSamples >= 4) {
+                this.setProfile("MEDIUM", decision.reason);
+            }
 
-    shouldDowngrade(decision) {
+            return;
+        }
+
         if (decision.profile === "HIGH") {
-            return false;
+            if (this.goodSamples >= 2) {
+                this.setProfile("HIGH", "Recovered to healthy HD conditions");
+            }
         }
-
-        if (decision.health === "CONGESTED") {
-            return this.badSamples >= 2;
-        }
-
-        if (decision.health === "DEGRADED" && this.currentProfile === "HIGH") {
-            return this.badSamples >= 3;
-        }
-
-        return false;
     }
 
-    shouldUpgrade(decision) {
-        if (decision.profile !== "HIGH" && decision.profile !== "MEDIUM") {
-            return false;
+    calculateHealthScore(avg, latest) {
+        let score = 100;
+
+        score -= this.clamp(avg.rtt * 45, 0, 35);
+        score -= this.clamp(avg.packetLoss * 220, 0, 40);
+        score -= this.clamp(avg.jitter * 130, 0, 25);
+
+        if (latest.encoderLimitedByCpu) score -= 20;
+        if (latest.encoderLimitedByBandwidth) score -= 25;
+
+        return Math.round(this.clamp(score, 0, 100));
+    }
+
+    getCongestionReason(avg, latest) {
+        if (latest.encoderLimitedByCpu || latest.qualityLimitation === "cpu") {
+            return "Browser CPU limited";
         }
 
-        if (decision.health !== "HEALTHY") {
-            return false;
+        if (latest.encoderLimitedByBandwidth || latest.qualityLimitation === "bandwidth") {
+            return "Browser bandwidth limited";
         }
 
-        if (this.currentProfile === "LOW") {
-            return this.goodSamples >= 2;
-        }
+        if (avg.packetLoss >= 0.14) return "Severe packet loss";
+        if (avg.rtt >= 1.1) return "Severe RTT";
+        if (avg.jitter >= 0.18) return "Severe jitter";
+        if (avg.packetLoss >= 0.08) return "Packet loss";
+        if (avg.rtt >= 0.75) return "High RTT";
+        if (avg.jitter >= 0.12) return "High jitter";
 
-        return this.goodSamples >= 3;
+        return "Network congestion";
     }
 
     setProfile(profileName, reason) {
@@ -475,6 +379,7 @@ export class AdaptiveController {
 
         this.goodSamples = 0;
         this.badSamples = 0;
+        this.severeBadSamples = 0;
     }
 
     increase() {
@@ -493,16 +398,8 @@ export class AdaptiveController {
         }
     }
 
-    getCongestionReason(avg, latest) {
-        if (latest.encoderLimitedByCpu) return "Encoder CPU limited";
-        if (latest.encoderLimitedByBandwidth) return "Encoder bandwidth limited";
-        if (avg.rtt > 0.85) return "High RTT";
-        if (avg.packetLoss > 0.12) return "High packet loss";
-        if (avg.jitter > 0.14) return "High jitter";
-        if (avg.fps > 0 && avg.fps < 14) return "Low FPS";
-        if (avg.actualBitrate > 0 && avg.actualBitrate < 700000) return "Low actual bitrate";
-
-        return "Network degradation";
+    isInStartupGracePeriod() {
+        return Date.now() - this.startedAt < this.startupGracePeriodMs;
     }
 
     hasProfileChanged() {
@@ -539,7 +436,11 @@ export class AdaptiveController {
             historySize: this.history.length,
             goodSamples: this.goodSamples,
             badSamples: this.badSamples,
-            stableSamples: this.stableSamples
+            severeBadSamples: this.severeBadSamples,
+            startupGraceRemainingMs: Math.max(
+                0,
+                this.startupGracePeriodMs - (Date.now() - this.startedAt)
+            )
         };
     }
 
@@ -550,28 +451,5 @@ export class AdaptiveController {
 
     clamp(value, min, max) {
         return Math.max(min, Math.min(max, value));
-    }
-
-    getVariance(values) {
-        const cleanValues = values.filter((value) => Number.isFinite(value));
-
-        if (cleanValues.length <= 1) {
-            return 0;
-        }
-
-        const mean = cleanValues.reduce((sum, value) => sum + value, 0) / cleanValues.length;
-
-        return cleanValues.reduce((sum, value) => {
-            const diff = value - mean;
-            return sum + diff * diff;
-        }, 0) / cleanValues.length;
-    }
-
-    formatResolution(width, height) {
-        if (!width || !height) {
-            return "";
-        }
-
-        return `${Math.round(width)}x${Math.round(height)}`;
     }
 }
