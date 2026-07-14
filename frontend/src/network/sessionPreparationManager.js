@@ -24,8 +24,8 @@ class SessionPreparationManager {
     prepare() {
         const profile = deviceCapabilityManager.getProfile();
         const checks = this.runChecks(profile);
-        const issues = this.getIssues(checks);
-        const warnings = this.getWarnings(checks, profile);
+        const issues = this.buildIssues(checks);
+        const warnings = this.buildWarnings(checks, profile);
 
         this.status = {
             ready: issues.length === 0,
@@ -64,13 +64,13 @@ class SessionPreparationManager {
         return ["Chrome", "Edge", "Firefox", "Safari", "Opera"].includes(browser);
     }
 
-    getIssues(checks) {
+    buildIssues(checks) {
         const issues = [];
 
         if (!checks.secureContext) {
             issues.push({
                 code: "INSECURE_CONTEXT",
-                message: "A secure context is required for reliable media and WebRTC APIs."
+                message: "A secure context is required for media and WebRTC APIs."
             });
         }
 
@@ -112,7 +112,7 @@ class SessionPreparationManager {
         return issues;
     }
 
-    getWarnings(checks, profile) {
+    buildWarnings(checks, profile) {
         const warnings = [];
 
         if (!checks.enumerateDevicesSupported) {
