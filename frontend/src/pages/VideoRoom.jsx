@@ -11,6 +11,7 @@ import { askAI } from '../ai/aiService';
 import { supabase } from '../lib/supabase';
 import { NetworkEngine } from "../network/networkEngine";
 import CommunicationStatus from "../Components/CommunicationStatus";
+import { BrowserCooperationEngine } from "../network/browserCooperationEngine";
 
 /* ─────────────────────────────────────────────────────────
    QUALITY CONSTANTS  — tweak here for different networks
@@ -138,6 +139,7 @@ const VideoRoom = () => {
     const networkEngineRef = useRef(null);
     const iceRestartTimerRef = useRef(null);
     const communicationStatusTimerRef = useRef(null);
+    const browserCooperationRef = useRef(null);
 
     /* ── ORIGINAL INTENT FETCH + REALTIME (unchanged) ── */
     useEffect(() => {
@@ -294,6 +296,11 @@ const VideoRoom = () => {
                 networkEngineRef.current.stop();
             }
 
+            if (browserCooperationRef.current) {
+                browserCooperationRef.current.reset();
+                browserCooperationRef.current = null;   
+            }
+
             if (communicationStatusTimerRef.current) {
                 clearInterval(communicationStatusTimerRef.current);
                 communicationStatusTimerRef.current = null;
@@ -380,6 +387,26 @@ const VideoRoom = () => {
         });
 
         if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+
+
+        browserCooperationRef.current = new BrowserCooperationEngine({
+            intent:
+                selectedIntent === "Talk"
+                ? "talk"
+                : selectedIntent === "Experience"
+                ? "experience"
+                : selectedIntent === "Learn"
+                ? "learn"
+                : "scenery"
+            });
+
+            const captureDiagnostics =
+                browserCooperationRef.current.applyToStream(
+                    stream,
+                    browserCooperationRef.current.intent
+                );
+
+            console.log("[BrowserCooperation] Capture:", captureDiagnostics);
 
         /* ORIGINAL mic level analyser (unchanged) */
         if (!window.AudioContext && !window.webkitAudioContext) {
@@ -488,7 +515,7 @@ const VideoRoom = () => {
 
         /* ORIGINAL track hints (unchanged) */
         stream.getTracks().forEach(track => {
-            if (track.kind === "video") track.contentHint = "motion";
+            if (track.kind === "video" && !track.contentHint) track.contentHint = "detail";
             if (track.kind === "audio") track.contentHint = "speech";
             const existingSender = peerConnection.current.getSenders().find(
                 s => s.track?.kind === track.kind
@@ -517,6 +544,18 @@ const VideoRoom = () => {
 
             const telemetry =
                 networkEngineRef.current.telemetry.getStats();
+
+            const browserCooperation =
+                browserCooperationRef.current?.update(telemetry);
+
+            if (
+                browserCooperation?.recommendation?.action === "GENTLE_REAPPLY_HIGH_PROFILE"
+            ) {
+                console.log(
+                    "[BrowserCooperation]",
+                    browserCooperation.recommendation.reason
+                );
+            }
 
             const profileName =
                 diagnostics.currentProfile ||
