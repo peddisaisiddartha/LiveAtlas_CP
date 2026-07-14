@@ -1,346 +1,641 @@
 export class Telemetry {
-
-    constructor(peerConnection) {
-
+    constructor(peerConnection, options = {}) {
         this.peerConnection = peerConnection;
         this.interval = null;
         this.latestStats = {};
-        this.previousOutboundVideo = null;
-        this.outboundVideoReportId = null;
-        this.previousInboundVideo = null;
+        this.previous = new Map();
 
+        this.intervalMs = options.intervalMs || 1000;
+        this.outboundVideoReportId = null;
+        this.inboundVideoReportId = null;
     }
 
     start() {
+        if (this.interval) {
+            return;
+        }
 
-        if (this.interval) return;
+        this.collect();
 
-        this.interval = setInterval(async () => {
+        this.interval = setInterval(() => {
+            this.collect();
+        }, this.intervalMs);
+    }
 
-            if (!this.peerConnection) return;
+    async collect() {
+        if (!this.peerConnection || typeof this.peerConnection.getStats !== "function") {
+            return null;
+        }
 
-            let reports;
+        let reports;
 
-            try {
-
-                reports = await this.peerConnection.getStats();
-
-            } catch {
-
-                return;
-
-            }
-
-            const telemetry = {
-
+        try {
+            reports = await this.peerConnection.getStats();
+        } catch (error) {
+            this.latestStats = {
+                ...this.latestStats,
                 timestamp: Date.now(),
+                error: error?.message || "getStats failed"
+            };
 
-                // Video
-                captureWidth: 0,
-                captureHeight: 0,
+            return this.latestStats;
+        }
 
-                frameWidth: 0,
-                frameHeight: 0,
+        const parsed = this.parseReports(reports);
 
-                receivedFrameWidth: 0,
-                receivedFrameHeight: 0,
+        this.latestStats = parsed;
 
-                captureFrameWidth: 0,
-                captureFrameHeight: 0,
+        return parsed;
+    }
 
-                encodedFrameWidth: 0,
-                encodedFrameHeight: 0,
+    parseReports(reports) {
+        const telemetry = this.createEmptyTelemetry();
 
+        const candidates = {
+            activePair: null,
+            local: new Map(),
+            remote: new Map()
+        };
+
+        reports.forEach((report) => {
+            switch (report.type) {
+                case "media-source":
+                    this.parseMediaSource(report, telemetry);
+                    break;
+
+                case "track":
+                    this.parseTrack(report, telemetry);
+                    break;
+
+                case "outbound-rtp":
+                    this.parseOutboundRtp(report, telemetry);
+                    break;
+
+                case "inbound-rtp":
+                    this.parseInboundRtp(report, telemetry);
+                    break;
+
+                case "remote-inbound-rtp":
+                    this.parseRemoteInboundRtp(report, telemetry);
+                    break;
+
+                case "candidate-pair":
+                    this.parseCandidatePair(report, candidates);
+                    break;
+
+                case "local-candidate":
+                    candidates.local.set(report.id, report);
+                    break;
+
+                case "remote-candidate":
+                    candidates.remote.set(report.id, report);
+                    break;
+
+                default:
+                    break;
+            }
+        });
+
+        this.applyCandidatePair(candidates, telemetry);
+        this.finalizeTelemetry(telemetry);
+
+        return telemetry;
+    }
+
+    createEmptyTelemetry() {
+        return {
+            timestamp: Date.now(),
+
+            capture: {
+                width: 0,
+                height: 0,
                 fps: 0,
+                frames: 0
+            },
 
-                // Encoder
+            encoding: {
+                width: 0,
+                height: 0,
+                fps: 0,
                 framesEncoded: 0,
                 totalEncodeTime: 0,
-
-                // Decoder
-                framesDecoded: 0,
-                totalDecodeTime: 0,
-
-                // Rendering
-                framesDropped: 0,
-
-                // Quality
-                qualityLimitation: "none",
-
-                // Network
-                rtt: 0,
-                jitter: 0,
-                packetLoss: 0,
-                availableBitrate: 0,
+                averageEncodeTime: 0,
+                qualityLimitationReason: "none",
+                qualityLimitationDurations: null,
+                encoderImplementation: "",
+                powerEfficientEncoder: null,
+                bytesSent: 0,
                 actualBitrate: 0,
+                targetBitrate: 0,
+                retransmittedBytesSent: 0
+            },
 
-                // Transport
+            transmission: {
+                rtt: 0,
+                packetLoss: 0,
+                packetsSent: 0,
+                packetsLost: 0,
+                jitter: 0,
+                availableOutgoingBitrate: 0,
+                availableIncomingBitrate: 0,
+                actualBitrate: 0,
                 localCandidateType: "",
                 remoteCandidateType: "",
                 localProtocol: "",
                 remoteProtocol: "",
-
-                // Browser estimation
-                availableOutgoingBitrate: 0,
-
-            };
-
-            let activeCandidatePair = null;
-
-            reports.forEach(report => {
-
-                switch (report.type) {
-
-                    case "outbound-rtp":
-
-                    if (report.kind !== "video") break;
-
-                    if (
-                        this.outboundVideoReportId &&
-                        report.id !== this.outboundVideoReportId
-                    ) {
-                        break;
-                    }
-
-                    if (!this.outboundVideoReportId) {
-                        this.outboundVideoReportId = report.id;
-                    }
-
-                        
-
-                        telemetry.encodedFrameWidth =
-                            report.frameWidth || telemetry.encodedFrameWidth;
-
-                        telemetry.encodedFrameHeight =
-                            report.frameHeight || telemetry.encodedFrameHeight;
-
-                        telemetry.framesEncoded = report.framesEncoded || 0;
-                        telemetry.totalEncodeTime = report.totalEncodeTime || 0;
-                        telemetry.qualityLimitation =
-                            report.qualityLimitationReason || "none";
-
-                        if (report.frameWidth && report.frameHeight) {
-
-                            telemetry.captureFrameWidth = report.frameWidth;
-                            telemetry.captureFrameHeight = report.frameHeight;
-
-                        }
-
-                        if (report.framesPerSecond !== undefined) {
-
-                            telemetry.fps = report.framesPerSecond;
-
-                        } else if (
-                            this.previousOutboundVideo &&
-                            report.framesEncoded !== undefined &&
-                            report.timestamp !== undefined
-                        ) {
-
-                            const frameDelta =
-                                report.framesEncoded -
-                                this.previousOutboundVideo.framesEncoded;
-                            const timeDelta =
-                                (report.timestamp -
-                                    this.previousOutboundVideo.timestamp) /
-                                1000;
-
-                            telemetry.fps =
-                                timeDelta > 0
-                                    ? Math.max(0, frameDelta / timeDelta)
-                                    : telemetry.fps;
-
-                        }
-
-                        if (
-                            report.bytesSent !== undefined &&
-                            report.timestamp !== undefined
-                        ) {
-
-                            if (
-                                this.previousOutboundVideo &&
-                                this.outboundVideoReportId === report.id &&
-                                this.previousOutboundVideo.bytesSent !== undefined
-                            ) {
-
-                                const bytesDelta =
-                                    report.bytesSent -
-                                    this.previousOutboundVideo.bytesSent;
-
-                                const timeDelta =
-                                    (report.timestamp -
-                                        this.previousOutboundVideo.timestamp) / 1000;
-
-                                if (timeDelta > 0 && bytesDelta >= 0) {
-
-                                    telemetry.actualBitrate =
-                                        Math.round((bytesDelta * 8) / timeDelta);
-
-                                }
-
-                            }
-
-                        }
-
-                        if (
-                            report.framesEncoded !== undefined &&
-                            report.timestamp !== undefined
-                        ) {
-
-                            this.previousOutboundVideo = {
-                                id: this.outboundVideoReportId,
-                                framesEncoded: report.framesEncoded,
-                                bytesSent: report.bytesSent,
-                                timestamp: report.timestamp
-                            };
-
-                        }
-
-                        break;
-
-                    case "inbound-rtp":
-
-                        if (report.kind !== "video") break;
-
-                        telemetry.receivedFrameWidth =
-                            report.frameWidth || 0;
-
-                        telemetry.receivedFrameHeight =
-                            report.frameHeight || 0;
-
-                        telemetry.frameWidth =
-                            telemetry.receivedFrameWidth;
-
-                        telemetry.frameHeight =
-                            telemetry.receivedFrameHeight;
-
-                        if (!telemetry.captureWidth && report.frameWidth) {
-                            telemetry.captureWidth = report.frameWidth;
-                        }
-
-                        if (!telemetry.captureHeight && report.frameHeight) {
-                            telemetry.captureHeight = report.frameHeight;
-                        }
-
-                        telemetry.jitter = report.jitter || 0;
-
-                        telemetry.framesDecoded = report.framesDecoded || 0;
-                        telemetry.totalDecodeTime = report.totalDecodeTime || 0;
-                        telemetry.framesDropped = report.framesDropped || 0;
-
-                        if (
-                            report.packetsLost !== undefined &&
-                            report.packetsReceived !== undefined
-                        ) {
-
-                            let packetsLost = report.packetsLost;
-                            let packetsReceived = report.packetsReceived;
-
-                            if (this.previousInboundVideo) {
-
-                                packetsLost =
-                                    report.packetsLost -
-                                    this.previousInboundVideo.packetsLost;
-                                packetsReceived =
-                                    report.packetsReceived -
-                                    this.previousInboundVideo.packetsReceived;
-
-                            }
-
-                            packetsLost = Math.max(0, packetsLost);
-                            packetsReceived = Math.max(0, packetsReceived);
-
-                            const total = packetsReceived + packetsLost;
-
-                            telemetry.packetLoss =
-                                total > 0
-                                    ? packetsLost / total
-                                    : 0;
-
-                            this.previousInboundVideo = {
-                                packetsLost: report.packetsLost,
-                                packetsReceived: report.packetsReceived
-                            };
-
-                        }
-
-                        break;
-
-                    case "candidate-pair":
-
-                        if (report.state !== "succeeded") break;
-
-                        if (
-                            report.selected ||
-                            report.nominated ||
-                            !activeCandidatePair
-                        ) {
-
-                            activeCandidatePair = report;
-
-                        }
-
-                        break;
-
-                    case "local-candidate":
-
-                        telemetry.localCandidateType =
-                            report.candidateType || "";
-
-                        telemetry.localProtocol =
-                            report.protocol || "";
-
-                        break;
-
-                    case "remote-candidate":
-
-                        telemetry.remoteCandidateType =
-                            report.candidateType || "";
-
-                        telemetry.remoteProtocol =
-                            report.protocol || "";
-
-                        break;
-
-                }
-
-            });
-
-            if (activeCandidatePair) {
-
-                telemetry.rtt =
-                    activeCandidatePair.currentRoundTripTime || 0;
-
-                telemetry.availableBitrate =
-                    activeCandidatePair.availableOutgoingBitrate || 0;
-
-
-            }
-
-            this.latestStats = telemetry;
-
-        }, 1000);
-
+                candidatePairState: "",
+                candidatePairId: ""
+            },
+
+            reception: {
+                width: 0,
+                height: 0,
+                fps: 0,
+                framesReceived: 0,
+                framesDecoded: 0,
+                framesDropped: 0,
+                framesPerSecond: 0,
+                bytesReceived: 0,
+                actualBitrate: 0,
+                packetsReceived: 0,
+                packetsLost: 0,
+                jitter: 0
+            },
+
+            decoding: {
+                framesDecoded: 0,
+                totalDecodeTime: 0,
+                averageDecodeTime: 0,
+                decoderImplementation: "",
+                powerEfficientDecoder: null
+            },
+
+            rendering: {
+                framesDropped: 0,
+                freezeCount: 0,
+                totalFreezesDuration: 0,
+                pauseCount: 0,
+                totalPausesDuration: 0
+            },
+
+            browser: {
+                qualityLimitationReason: "none",
+                encoderLimitedByCpu: false,
+                encoderLimitedByBandwidth: false,
+                encoderLimitedByOther: false
+            },
+
+            resolution: {
+                capture: "unknown",
+                encoded: "unknown",
+                received: "unknown",
+                status: "UNKNOWN"
+            },
+
+            // Backward-compatible flat fields used by the current engine/UI.
+            captureWidth: 0,
+            captureHeight: 0,
+            captureFrameWidth: 0,
+            captureFrameHeight: 0,
+            encodedWidth: 0,
+            encodedHeight: 0,
+            encodedFrameWidth: 0,
+            encodedFrameHeight: 0,
+            receivedWidth: 0,
+            receivedHeight: 0,
+            receivedFrameWidth: 0,
+            receivedFrameHeight: 0,
+            frameWidth: 0,
+            frameHeight: 0,
+            fps: 0,
+            framesEncoded: 0,
+            totalEncodeTime: 0,
+            encodeTime: 0,
+            framesDecoded: 0,
+            totalDecodeTime: 0,
+            decodeTime: 0,
+            framesDropped: 0,
+            qualityLimitation: "none",
+            rtt: 0,
+            jitter: 0,
+            packetLoss: 0,
+            availableBitrate: 0,
+            availableOutgoingBitrate: 0,
+            actualBitrate: 0,
+            localCandidateType: "",
+            remoteCandidateType: "",
+            localProtocol: "",
+            remoteProtocol: ""
+        };
+    }
+
+    parseMediaSource(report, telemetry) {
+        if (report.kind !== "video") {
+            return;
+        }
+
+        telemetry.capture.width = this.number(report.width);
+        telemetry.capture.height = this.number(report.height);
+        telemetry.capture.fps = this.number(report.framesPerSecond);
+        telemetry.capture.frames = this.number(report.frames);
+
+        telemetry.captureWidth = telemetry.capture.width;
+        telemetry.captureHeight = telemetry.capture.height;
+        telemetry.captureFrameWidth = telemetry.capture.width;
+        telemetry.captureFrameHeight = telemetry.capture.height;
+    }
+
+    parseTrack(report, telemetry) {
+        if (report.kind !== "video") {
+            return;
+        }
+
+        if (report.remoteSource === false || report.remoteSource === undefined) {
+            if (!telemetry.capture.width) telemetry.capture.width = this.number(report.frameWidth);
+            if (!telemetry.capture.height) telemetry.capture.height = this.number(report.frameHeight);
+            if (!telemetry.capture.fps) telemetry.capture.fps = this.number(report.framesPerSecond);
+        } else {
+            telemetry.reception.width = this.number(report.frameWidth);
+            telemetry.reception.height = this.number(report.frameHeight);
+            telemetry.reception.framesDropped = this.number(report.framesDropped);
+            telemetry.rendering.framesDropped = this.number(report.framesDropped);
+        }
+    }
+
+    parseOutboundRtp(report, telemetry) {
+        if (report.kind !== "video" && report.mediaType !== "video") {
+            return;
+        }
+
+        if (this.outboundVideoReportId && report.id !== this.outboundVideoReportId) {
+            return;
+        }
+
+        if (!this.outboundVideoReportId) {
+            this.outboundVideoReportId = report.id;
+        }
+
+        telemetry.encoding.width = this.number(report.frameWidth);
+        telemetry.encoding.height = this.number(report.frameHeight);
+        telemetry.encoding.framesEncoded = this.number(report.framesEncoded);
+        telemetry.encoding.totalEncodeTime = this.number(report.totalEncodeTime);
+        telemetry.encoding.qualityLimitationReason = report.qualityLimitationReason || "none";
+        telemetry.encoding.qualityLimitationDurations = report.qualityLimitationDurations || null;
+        telemetry.encoding.encoderImplementation = report.encoderImplementation || "";
+        telemetry.encoding.powerEfficientEncoder = report.powerEfficientEncoder ?? null;
+        telemetry.encoding.bytesSent = this.number(report.bytesSent);
+        telemetry.encoding.targetBitrate = this.number(report.targetBitrate);
+        telemetry.encoding.retransmittedBytesSent = this.number(report.retransmittedBytesSent);
+        telemetry.encoding.fps = this.getFramesPerSecond(report, "outbound", "framesEncoded");
+
+        telemetry.browser.qualityLimitationReason = telemetry.encoding.qualityLimitationReason;
+        telemetry.browser.encoderLimitedByCpu = telemetry.encoding.qualityLimitationReason === "cpu";
+        telemetry.browser.encoderLimitedByBandwidth = telemetry.encoding.qualityLimitationReason === "bandwidth";
+        telemetry.browser.encoderLimitedByOther = telemetry.encoding.qualityLimitationReason === "other";
+
+        telemetry.encoding.actualBitrate = this.getBitrate(report, "outbound", "bytesSent");
+        telemetry.transmission.actualBitrate = telemetry.encoding.actualBitrate;
+        telemetry.actualBitrate = telemetry.encoding.actualBitrate;
+
+        this.storePrevious(report, "outbound", [
+            "timestamp",
+            "bytesSent",
+            "framesEncoded",
+            "packetsSent"
+        ]);
+    }
+
+    parseInboundRtp(report, telemetry) {
+        if (report.kind !== "video" && report.mediaType !== "video") {
+            return;
+        }
+
+        if (this.inboundVideoReportId && report.id !== this.inboundVideoReportId) {
+            return;
+        }
+
+        if (!this.inboundVideoReportId) {
+            this.inboundVideoReportId = report.id;
+        }
+
+        telemetry.reception.width = this.number(report.frameWidth);
+        telemetry.reception.height = this.number(report.frameHeight);
+        telemetry.reception.framesReceived = this.number(report.framesReceived);
+        telemetry.reception.framesDecoded = this.number(report.framesDecoded);
+        telemetry.reception.framesDropped = this.number(report.framesDropped);
+        telemetry.reception.framesPerSecond = this.number(report.framesPerSecond);
+        telemetry.reception.bytesReceived = this.number(report.bytesReceived);
+        telemetry.reception.packetsReceived = this.number(report.packetsReceived);
+        telemetry.reception.packetsLost = this.number(report.packetsLost);
+        telemetry.reception.jitter = this.number(report.jitter);
+        telemetry.reception.fps =
+            telemetry.reception.framesPerSecond ||
+            this.getFramesPerSecond(report, "inbound", "framesDecoded");
+
+        telemetry.decoding.framesDecoded = telemetry.reception.framesDecoded;
+        telemetry.decoding.totalDecodeTime = this.number(report.totalDecodeTime);
+        telemetry.decoding.decoderImplementation = report.decoderImplementation || "";
+        telemetry.decoding.powerEfficientDecoder = report.powerEfficientDecoder ?? null;
+
+        telemetry.rendering.framesDropped = telemetry.reception.framesDropped;
+        telemetry.rendering.freezeCount = this.number(report.freezeCount);
+        telemetry.rendering.totalFreezesDuration = this.number(report.totalFreezesDuration);
+        telemetry.rendering.pauseCount = this.number(report.pauseCount);
+        telemetry.rendering.totalPausesDuration = this.number(report.totalPausesDuration);
+
+        telemetry.transmission.jitter = telemetry.reception.jitter;
+        telemetry.transmission.packetLoss = this.getPacketLoss(report, "inbound");
+        telemetry.transmission.packetsLost = telemetry.reception.packetsLost;
+
+        telemetry.reception.actualBitrate = this.getBitrate(report, "inbound", "bytesReceived");
+
+        this.storePrevious(report, "inbound", [
+            "timestamp",
+            "bytesReceived",
+            "framesDecoded",
+            "packetsLost",
+            "packetsReceived"
+        ]);
+    }
+
+    parseRemoteInboundRtp(report, telemetry) {
+        if (report.kind !== "video" && report.mediaType !== "video") {
+            return;
+        }
+
+        if (report.roundTripTime !== undefined) {
+            telemetry.transmission.rtt = this.number(report.roundTripTime);
+        }
+
+        if (report.packetsLost !== undefined) {
+            telemetry.transmission.packetsLost = this.number(report.packetsLost);
+        }
+
+        if (report.jitter !== undefined) {
+            telemetry.transmission.jitter = this.number(report.jitter);
+        }
+    }
+
+    parseCandidatePair(report, candidates) {
+        if (report.state !== "succeeded") {
+            return;
+        }
+
+        if (report.selected || report.nominated || !candidates.activePair) {
+            candidates.activePair = report;
+        }
+    }
+
+    applyCandidatePair(candidates, telemetry) {
+        const pair = candidates.activePair;
+
+        if (!pair) {
+            return;
+        }
+
+        telemetry.transmission.rtt =
+            telemetry.transmission.rtt ||
+            this.number(pair.currentRoundTripTime);
+
+        telemetry.transmission.availableOutgoingBitrate =
+            this.number(pair.availableOutgoingBitrate);
+
+        telemetry.transmission.availableIncomingBitrate =
+            this.number(pair.availableIncomingBitrate);
+
+        telemetry.transmission.candidatePairState = pair.state || "";
+        telemetry.transmission.candidatePairId = pair.id || "";
+
+        const local = candidates.local.get(pair.localCandidateId);
+        const remote = candidates.remote.get(pair.remoteCandidateId);
+
+        if (local) {
+            telemetry.transmission.localCandidateType = local.candidateType || "";
+            telemetry.transmission.localProtocol = local.protocol || "";
+        }
+
+        if (remote) {
+            telemetry.transmission.remoteCandidateType = remote.candidateType || "";
+            telemetry.transmission.remoteProtocol = remote.protocol || "";
+        }
+    }
+
+    finalizeTelemetry(telemetry) {
+        telemetry.encoding.averageEncodeTime =
+            this.averageTime(
+                telemetry.encoding.totalEncodeTime,
+                telemetry.encoding.framesEncoded
+            );
+
+        telemetry.decoding.averageDecodeTime =
+            this.averageTime(
+                telemetry.decoding.totalDecodeTime,
+                telemetry.decoding.framesDecoded
+            );
+
+        telemetry.resolution.capture = this.formatResolution(
+            telemetry.capture.width,
+            telemetry.capture.height
+        );
+
+        telemetry.resolution.encoded = this.formatResolution(
+            telemetry.encoding.width,
+            telemetry.encoding.height
+        );
+
+        telemetry.resolution.received = this.formatResolution(
+            telemetry.reception.width,
+            telemetry.reception.height
+        );
+
+        telemetry.resolution.status = this.getResolutionStatus(telemetry);
+
+        telemetry.captureWidth = telemetry.capture.width;
+        telemetry.captureHeight = telemetry.capture.height;
+        telemetry.captureFrameWidth = telemetry.capture.width;
+        telemetry.captureFrameHeight = telemetry.capture.height;
+
+        telemetry.encodedWidth = telemetry.encoding.width;
+        telemetry.encodedHeight = telemetry.encoding.height;
+        telemetry.encodedFrameWidth = telemetry.encoding.width;
+        telemetry.encodedFrameHeight = telemetry.encoding.height;
+
+        telemetry.receivedWidth = telemetry.reception.width;
+        telemetry.receivedHeight = telemetry.reception.height;
+        telemetry.receivedFrameWidth = telemetry.reception.width;
+        telemetry.receivedFrameHeight = telemetry.reception.height;
+
+        telemetry.frameWidth = telemetry.reception.width || telemetry.encoding.width;
+        telemetry.frameHeight = telemetry.reception.height || telemetry.encoding.height;
+
+        telemetry.fps =
+            telemetry.encoding.fps ||
+            telemetry.capture.fps ||
+            telemetry.reception.fps;
+
+        telemetry.framesEncoded = telemetry.encoding.framesEncoded;
+        telemetry.totalEncodeTime = telemetry.encoding.totalEncodeTime;
+        telemetry.encodeTime = telemetry.encoding.averageEncodeTime;
+
+        telemetry.framesDecoded = telemetry.decoding.framesDecoded;
+        telemetry.totalDecodeTime = telemetry.decoding.totalDecodeTime;
+        telemetry.decodeTime = telemetry.decoding.averageDecodeTime;
+
+        telemetry.framesDropped = telemetry.rendering.framesDropped;
+        telemetry.qualityLimitation = telemetry.encoding.qualityLimitationReason;
+
+        telemetry.rtt = telemetry.transmission.rtt;
+        telemetry.jitter = telemetry.transmission.jitter;
+        telemetry.packetLoss = telemetry.transmission.packetLoss;
+
+        telemetry.availableBitrate = telemetry.transmission.availableOutgoingBitrate;
+        telemetry.availableOutgoingBitrate = telemetry.transmission.availableOutgoingBitrate;
+        telemetry.actualBitrate = telemetry.encoding.actualBitrate || telemetry.transmission.actualBitrate;
+
+        telemetry.localCandidateType = telemetry.transmission.localCandidateType;
+        telemetry.remoteCandidateType = telemetry.transmission.remoteCandidateType;
+        telemetry.localProtocol = telemetry.transmission.localProtocol;
+        telemetry.remoteProtocol = telemetry.transmission.remoteProtocol;
+
+        telemetry.encoderLimitedByCpu = telemetry.browser.encoderLimitedByCpu;
+        telemetry.encoderLimitedByBandwidth = telemetry.browser.encoderLimitedByBandwidth;
+    }
+
+    getResolutionStatus(telemetry) {
+        const capture = telemetry.resolution.capture;
+        const encoded = telemetry.resolution.encoded;
+        const received = telemetry.resolution.received;
+
+        if (capture === "unknown" && encoded === "unknown" && received === "unknown") {
+            return "UNKNOWN";
+        }
+
+        if (capture !== "unknown" && encoded !== "unknown" && capture !== encoded) {
+            return "CAPTURE_TO_ENCODER_CHANGED";
+        }
+
+        if (encoded !== "unknown" && received !== "unknown" && encoded !== received) {
+            return "ENCODER_TO_RECEIVER_CHANGED";
+        }
+
+        return "CONSISTENT";
+    }
+
+    getFramesPerSecond(report, key, frameField) {
+        if (report.framesPerSecond !== undefined) {
+            return this.number(report.framesPerSecond);
+        }
+
+        const previous = this.previous.get(key);
+
+        if (!previous || report[frameField] === undefined || report.timestamp === undefined) {
+            return 0;
+        }
+
+        const frameDelta = this.number(report[frameField]) - this.number(previous[frameField]);
+        const timeDelta = (this.number(report.timestamp) - this.number(previous.timestamp)) / 1000;
+
+        if (timeDelta <= 0 || frameDelta < 0) {
+            return 0;
+        }
+
+        return Math.max(0, frameDelta / timeDelta);
+    }
+
+    getBitrate(report, key, byteField) {
+        const previous = this.previous.get(key);
+
+        if (!previous || report[byteField] === undefined || report.timestamp === undefined) {
+            return 0;
+        }
+
+        const bytesDelta = this.number(report[byteField]) - this.number(previous[byteField]);
+        const timeDelta = (this.number(report.timestamp) - this.number(previous.timestamp)) / 1000;
+
+        if (timeDelta <= 0 || bytesDelta < 0) {
+            return 0;
+        }
+
+        return Math.round((bytesDelta * 8) / timeDelta);
+    }
+
+    getPacketLoss(report, key) {
+        const previous = this.previous.get(key);
+
+        if (
+            !previous ||
+            report.packetsLost === undefined ||
+            report.packetsReceived === undefined
+        ) {
+            const lost = Math.max(0, this.number(report.packetsLost));
+            const received = Math.max(0, this.number(report.packetsReceived));
+            const total = lost + received;
+
+            return total > 0 ? lost / total : 0;
+        }
+
+        const lostDelta = Math.max(
+            0,
+            this.number(report.packetsLost) - this.number(previous.packetsLost)
+        );
+
+        const receivedDelta = Math.max(
+            0,
+            this.number(report.packetsReceived) - this.number(previous.packetsReceived)
+        );
+
+        const total = lostDelta + receivedDelta;
+
+        return total > 0 ? lostDelta / total : 0;
+    }
+
+    storePrevious(report, key, fields) {
+        const snapshot = {};
+
+        fields.forEach((field) => {
+            snapshot[field] = report[field];
+        });
+
+        this.previous.set(key, snapshot);
+    }
+
+    averageTime(totalTime, frames) {
+        if (!totalTime || !frames) {
+            return 0;
+        }
+
+        return totalTime / frames;
+    }
+
+    formatResolution(width, height) {
+        if (!width || !height) {
+            return "unknown";
+        }
+
+        return `${Math.round(width)}x${Math.round(height)}`;
+    }
+
+    number(value) {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : 0;
     }
 
     stop() {
-
-        this.outboundVideoReportId = null;
-        this.previousOutboundVideo = null;
-        this.previousInboundVideo = null;
-
         if (this.interval) {
-
             clearInterval(this.interval);
             this.interval = null;
-
         }
 
+        this.previous.clear();
+        this.outboundVideoReportId = null;
+        this.inboundVideoReportId = null;
     }
 
     getStats() {
-
         return this.latestStats;
-
     }
 
+    getDiagnostics() {
+        return this.latestStats;
+    }
 }

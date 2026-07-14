@@ -23,31 +23,153 @@ class SessionPreparationManager {
 
     prepare() {
         const profile = deviceCapabilityManager.getProfile();
+        const checks = this.runChecks(profile);
+        const issues = this.getIssues(checks);
+        const warnings = this.getWarnings(checks, profile);
 
         this.status = {
-            ready: true,
-
-            checks: {
-                secureContext: window.isSecureContext,
-                online: navigator.onLine,
-                mediaDevicesSupported: !!navigator.mediaDevices,
-                getUserMediaSupported:
-                    !!navigator.mediaDevices?.getUserMedia,
-                enumerateDevicesSupported:
-                    !!navigator.mediaDevices?.enumerateDevices,
-                browserSupported:
-                    profile.browser !== "Unknown",
-            },
-
+            ready: issues.length === 0,
+            checks,
+            issues,
+            warnings,
             deviceProfile: profile,
-
-            preparedAt: Date.now(),
+            recommendation: this.getRecommendation(checks, profile, issues, warnings),
+            preparedAt: Date.now()
         };
 
-        this.status.ready =
-            Object.values(this.status.checks).every(Boolean);
-
         return this.status;
+    }
+
+    runChecks(profile) {
+        return {
+            secureContext: Boolean(window.isSecureContext),
+            online: Boolean(navigator.onLine),
+
+            mediaDevicesSupported: Boolean(navigator.mediaDevices),
+            getUserMediaSupported: Boolean(navigator.mediaDevices?.getUserMedia),
+            enumerateDevicesSupported: Boolean(navigator.mediaDevices?.enumerateDevices),
+
+            webRTCSupported: Boolean(profile.webrtc?.peerConnection),
+            getStatsSupported: Boolean(profile.webrtc?.getStats),
+            senderParametersSupported: Boolean(
+                profile.browserCapabilities?.supportsSenderParameters
+            ),
+
+            browserKnown: profile.browser !== "Unknown",
+            browserSupported: this.isBrowserSupported(profile.browser)
+        };
+    }
+
+    isBrowserSupported(browser) {
+        return ["Chrome", "Edge", "Firefox", "Safari", "Opera"].includes(browser);
+    }
+
+    getIssues(checks) {
+        const issues = [];
+
+        if (!checks.secureContext) {
+            issues.push({
+                code: "INSECURE_CONTEXT",
+                message: "A secure context is required for reliable media and WebRTC APIs."
+            });
+        }
+
+        if (!checks.online) {
+            issues.push({
+                code: "OFFLINE",
+                message: "The browser is offline."
+            });
+        }
+
+        if (!checks.mediaDevicesSupported) {
+            issues.push({
+                code: "MEDIA_DEVICES_UNAVAILABLE",
+                message: "navigator.mediaDevices is unavailable."
+            });
+        }
+
+        if (!checks.getUserMediaSupported) {
+            issues.push({
+                code: "GET_USER_MEDIA_UNAVAILABLE",
+                message: "getUserMedia is unavailable."
+            });
+        }
+
+        if (!checks.webRTCSupported) {
+            issues.push({
+                code: "WEBRTC_UNAVAILABLE",
+                message: "RTCPeerConnection is unavailable."
+            });
+        }
+
+        if (!checks.browserSupported) {
+            issues.push({
+                code: "UNSUPPORTED_BROWSER",
+                message: "The browser is not recognized as a supported WebRTC browser."
+            });
+        }
+
+        return issues;
+    }
+
+    getWarnings(checks, profile) {
+        const warnings = [];
+
+        if (!checks.enumerateDevicesSupported) {
+            warnings.push({
+                code: "ENUMERATE_DEVICES_UNAVAILABLE",
+                message: "Camera discovery may be limited."
+            });
+        }
+
+        if (!checks.getStatsSupported) {
+            warnings.push({
+                code: "WEBRTC_STATS_UNAVAILABLE",
+                message: "Telemetry will be limited because getStats is unavailable."
+            });
+        }
+
+        if (!checks.senderParametersSupported) {
+            warnings.push({
+                code: "SENDER_PARAMETERS_LIMITED",
+                message: "Encoder control may be limited in this browser."
+            });
+        }
+
+        if (profile.qualityHints?.shouldStartConservative) {
+            warnings.push({
+                code: "CONSERVATIVE_DEVICE_PROFILE",
+                message: "Device capability suggests starting below HIGH."
+            });
+        }
+
+        if (profile.performance?.saveData) {
+            warnings.push({
+                code: "SAVE_DATA_ENABLED",
+                message: "Browser data saver is enabled."
+            });
+        }
+
+        return warnings;
+    }
+
+    getRecommendation(checks, profile, issues, warnings) {
+        if (issues.length > 0) {
+            return {
+                canStart: false,
+                startupProfile: "LOW",
+                reason: issues[0].message
+            };
+        }
+
+        return {
+            canStart: true,
+            startupProfile: profile.qualityHints?.preferredStartupProfile || "MEDIUM",
+            canPrefer720p: Boolean(profile.qualityHints?.canPrefer720p),
+            reason: warnings.length > 0
+                ? warnings[0].message
+                : "Environment is ready for communication."
+        };
     }
 
     getStatus() {
@@ -70,6 +192,18 @@ class SessionPreparationManager {
         return { ...this.getStatus().checks };
     }
 
+    getIssues() {
+        return [...this.getStatus().issues];
+    }
+
+    getWarningsSnapshot() {
+        return [...this.getStatus().warnings];
+    }
+
+    getRecommendationSnapshot() {
+        return { ...this.getStatus().recommendation };
+    }
+
     hasMediaSupport() {
         const checks = this.getStatus().checks;
 
@@ -80,6 +214,19 @@ class SessionPreparationManager {
         );
     }
 
+    hasWebRTCSupport() {
+        const checks = this.getStatus().checks;
+
+        return (
+            checks.webRTCSupported &&
+            checks.getStatsSupported
+        );
+    }
+
+    supportsEncoderControl() {
+        return this.getStatus().checks.senderParametersSupported;
+    }
+
     isSecure() {
         return this.getStatus().checks.secureContext;
     }
@@ -87,8 +234,22 @@ class SessionPreparationManager {
     getPreparationTime() {
         return this.status?.preparedAt ?? null;
     }
+
+    getDiagnostics() {
+        const status = this.getStatus();
+
+        return {
+            ready: status.ready,
+            checks: status.checks,
+            issues: status.issues,
+            warnings: status.warnings,
+            recommendation: status.recommendation,
+            preparedAt: status.preparedAt
+        };
+    }
 }
 
 const sessionPreparationManager = new SessionPreparationManager();
 
+export { SessionPreparationManager };
 export default sessionPreparationManager;

@@ -428,68 +428,9 @@ const VideoRoom = () => {
     encodedInsertableStreams: false,
 });
 
-        networkEngineRef.current = new NetworkEngine(peerConnection.current);
+        
 
-        networkEngineRef.current.start();
-
-        communicationStatusTimerRef.current = setInterval(() => {
-
-            const guardian =
-                networkEngineRef.current.connectionGuardian;
-
-            const telemetry =
-                networkEngineRef.current.telemetry.getStats();
-
-            setCommunicationStatus({
-
-                connected: guardian.isConnected(),
-
-                quality:
-                    networkEngineRef.current.currentProfile === "HIGH"
-                        ? "Excellent"
-                        : networkEngineRef.current.currentProfile === "MEDIUM"
-                        ? "Good"
-                        : "Basic",
-
-                 latency:
-                    telemetry?.rtt
-                        ? Math.round(telemetry.rtt * 1000)
-                        : "--",
-
-                video:
-                    networkEngineRef.current.currentProfile === "HIGH"
-                        ? "HD"
-                        : "SD",
-
-                actualBitrate:
-                    telemetry?.actualBitrate || 0,
-
-                availableBitrate:
-                    telemetry?.availableBitrate || 0,
-
-                captureWidth:
-                    telemetry?.captureWidth || 0,
-
-                captureHeight:
-                    telemetry?.captureHeight || 0,
-
-                encodedWidth:
-                    telemetry?.frameWidth || 0,
-
-                encodedHeight:
-                    telemetry?.frameHeight || 0,
-
-                receivedWidth:
-                    telemetry?.receivedFrameWidth || 0,
-
-                receivedHeight:
-                    telemetry?.receivedFrameHeight || 0,
-
-            });
-
-        }, 1000);
-
-        window.liveAtlasNetwork = networkEngineRef.current;
+        
 
         /* ORIGINAL ICE state handler — quality thresholds upgraded */
         peerConnection.current.oniceconnectionstatechange = async () => {
@@ -554,6 +495,84 @@ const VideoRoom = () => {
             );
             if (!existingSender) peerConnection.current.addTrack(track, stream);
         });
+
+
+        networkEngineRef.current = new NetworkEngine(peerConnection.current, {
+            applyInitialProfile: true,
+            initialProfile: "MEDIUM",
+            engineVersion: "V2_COMPAT"
+        });
+
+        await networkEngineRef.current.start();
+
+
+        communicationStatusTimerRef.current = setInterval(() => {
+
+            if (!networkEngineRef.current) return;
+
+            const diagnostics = networkEngineRef.current.getDiagnostics();
+
+            const guardian =
+                networkEngineRef.current.connectionGuardian;
+
+            const telemetry =
+                networkEngineRef.current.telemetry.getStats();
+
+            const profileName =
+                diagnostics.currentProfile ||
+                networkEngineRef.current.currentProfile ||
+                "MEDIUM";
+
+            setCommunicationStatus({
+
+                connected: guardian.isConnected(),
+
+                quality:
+                    profileName === "HIGH"
+                        ? "Excellent"
+                        : profileName === "MEDIUM"
+                        ? "Good"
+                        : "Basic",
+
+                 latency:
+                    telemetry?.rtt
+                        ? Math.round(telemetry.rtt * 1000)
+                        : "--",
+
+                video:
+                    profileName === "HIGH"
+                    ? "HD"
+                    : "SD",
+
+                actualBitrate:
+                    telemetry?.actualBitrate || 0,
+
+                availableBitrate:
+                    telemetry?.availableBitrate || 0,
+
+                captureWidth:
+                    telemetry?.captureWidth || 0,
+
+                captureHeight:
+                    telemetry?.captureHeight || 0,
+
+                encodedWidth:
+                    telemetry?.encodedWidth || telemetry?.encodedFrameWidth || 0,
+
+                encodedHeight:
+                    telemetry?.encodedHeight || telemetry?.encodedFrameHeight || 0,
+
+                receivedWidth:
+                    telemetry?.receivedWidth || telemetry?.receivedFrameWidth || 0,
+
+                receivedHeight:
+                    telemetry?.receivedHeight || telemetry?.receivedFrameHeight || 0,
+
+            });
+
+        }, 1000);
+
+        window.liveAtlasNetwork = networkEngineRef.current;
         
 
         /* ORIGINAL offer creation — with codec priority injected into SDP */
