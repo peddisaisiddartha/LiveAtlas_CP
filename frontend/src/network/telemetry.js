@@ -1,13 +1,28 @@
+/**
+ * Telemetry
+ *
+ * Truth-only WebRTC diagnostics.
+ *
+ * This module never controls quality.
+ * It only reads WebRTC stats and separates:
+ * - capture
+ * - encoding
+ * - transmission
+ * - reception
+ * - decoding/rendering
+ */
+
 export class Telemetry {
     constructor(peerConnection, options = {}) {
         this.peerConnection = peerConnection;
         this.interval = null;
+        this.intervalMs = options.intervalMs || 1000;
+
         this.latestStats = {};
         this.previous = new Map();
 
-        this.intervalMs = options.intervalMs || 1000;
-        this.outboundVideoReportId = null;
-        this.inboundVideoReportId = null;
+        this.outboundVideoId = null;
+        this.inboundVideoId = null;
     }
 
     start() {
@@ -23,7 +38,7 @@ export class Telemetry {
     }
 
     async collect() {
-        if (!this.peerConnection || typeof this.peerConnection.getStats !== "function") {
+        if (!this.peerConnection?.getStats) {
             return null;
         }
 
@@ -41,14 +56,6 @@ export class Telemetry {
             return this.latestStats;
         }
 
-        const parsed = this.parseReports(reports);
-
-        this.latestStats = parsed;
-
-        return parsed;
-    }
-
-    parseReports(reports) {
         const telemetry = this.createEmptyTelemetry();
 
         const candidates = {
@@ -58,46 +65,43 @@ export class Telemetry {
         };
 
         reports.forEach((report) => {
-            switch (report.type) {
-                case "media-source":
-                    this.parseMediaSource(report, telemetry);
-                    break;
+            if (report.type === "media-source") {
+                this.readMediaSource(report, telemetry);
+            }
 
-                case "track":
-                    this.parseTrack(report, telemetry);
-                    break;
+            if (report.type === "track") {
+                this.readTrack(report, telemetry);
+            }
 
-                case "outbound-rtp":
-                    this.parseOutboundRtp(report, telemetry);
-                    break;
+            if (report.type === "outbound-rtp") {
+                this.readOutboundVideo(report, telemetry);
+            }
 
-                case "inbound-rtp":
-                    this.parseInboundRtp(report, telemetry);
-                    break;
+            if (report.type === "inbound-rtp") {
+                this.readInboundVideo(report, telemetry);
+            }
 
-                case "remote-inbound-rtp":
-                    this.parseRemoteInboundRtp(report, telemetry);
-                    break;
+            if (report.type === "remote-inbound-rtp") {
+                this.readRemoteInboundVideo(report, telemetry);
+            }
 
-                case "candidate-pair":
-                    this.parseCandidatePair(report, candidates);
-                    break;
+            if (report.type === "candidate-pair") {
+                this.readCandidatePair(report, candidates);
+            }
 
-                case "local-candidate":
-                    candidates.local.set(report.id, report);
-                    break;
+            if (report.type === "local-candidate") {
+                candidates.local.set(report.id, report);
+            }
 
-                case "remote-candidate":
-                    candidates.remote.set(report.id, report);
-                    break;
-
-                default:
-                    break;
+            if (report.type === "remote-candidate") {
+                candidates.remote.set(report.id, report);
             }
         });
 
-        this.applyCandidatePair(candidates, telemetry);
-        this.finalizeTelemetry(telemetry);
+        this.applyCandidateInfo(candidates, telemetry);
+        this.finalize(telemetry);
+
+        this.latestStats = telemetry;
 
         return telemetry;
     }
@@ -109,8 +113,7 @@ export class Telemetry {
             capture: {
                 width: 0,
                 height: 0,
-                fps: 0,
-                frames: 0
+                fps: 0
             },
 
             encoding: {
@@ -118,33 +121,25 @@ export class Telemetry {
                 height: 0,
                 fps: 0,
                 framesEncoded: 0,
-                totalEncodeTime: 0,
-                averageEncodeTime: 0,
-                qualityLimitationReason: "none",
-                qualityLimitationDurations: null,
-                encoderImplementation: "",
-                powerEfficientEncoder: null,
                 bytesSent: 0,
                 actualBitrate: 0,
-                targetBitrate: 0,
-                retransmittedBytesSent: 0
+                totalEncodeTime: 0,
+                averageEncodeTime: 0,
+                qualityLimitation: "none",
+                encoderImplementation: "",
+                powerEfficientEncoder: null
             },
 
             transmission: {
                 rtt: 0,
-                packetLoss: 0,
-                packetsSent: 0,
-                packetsLost: 0,
                 jitter: 0,
+                packetLoss: 0,
                 availableOutgoingBitrate: 0,
-                availableIncomingBitrate: 0,
                 actualBitrate: 0,
                 localCandidateType: "",
                 remoteCandidateType: "",
                 localProtocol: "",
-                remoteProtocol: "",
-                candidatePairState: "",
-                candidatePairId: ""
+                remoteProtocol: ""
             },
 
             reception: {
@@ -154,7 +149,6 @@ export class Telemetry {
                 framesReceived: 0,
                 framesDecoded: 0,
                 framesDropped: 0,
-                framesPerSecond: 0,
                 bytesReceived: 0,
                 actualBitrate: 0,
                 packetsReceived: 0,
@@ -173,16 +167,7 @@ export class Telemetry {
             rendering: {
                 framesDropped: 0,
                 freezeCount: 0,
-                totalFreezesDuration: 0,
-                pauseCount: 0,
-                totalPausesDuration: 0
-            },
-
-            browser: {
-                qualityLimitationReason: "none",
-                encoderLimitedByCpu: false,
-                encoderLimitedByBandwidth: false,
-                encoderLimitedByOther: false
+                totalFreezesDuration: 0
             },
 
             resolution: {
@@ -192,11 +177,15 @@ export class Telemetry {
                 status: "UNKNOWN"
             },
 
-            // Backward-compatible flat fields used by the current engine/UI.
+            browser: {
+                qualityLimitation: "none",
+                encoderLimitedByCpu: false,
+                encoderLimitedByBandwidth: false
+            },
+
+            // Compatibility fields used by UI / existing engine.
             captureWidth: 0,
             captureHeight: 0,
-            captureFrameWidth: 0,
-            captureFrameHeight: 0,
             encodedWidth: 0,
             encodedHeight: 0,
             encodedFrameWidth: 0,
@@ -207,21 +196,24 @@ export class Telemetry {
             receivedFrameHeight: 0,
             frameWidth: 0,
             frameHeight: 0,
+
             fps: 0,
             framesEncoded: 0,
-            totalEncodeTime: 0,
-            encodeTime: 0,
             framesDecoded: 0,
-            totalDecodeTime: 0,
-            decodeTime: 0,
             framesDropped: 0,
-            qualityLimitation: "none",
+
             rtt: 0,
             jitter: 0,
             packetLoss: 0,
+
+            actualBitrate: 0,
             availableBitrate: 0,
             availableOutgoingBitrate: 0,
-            actualBitrate: 0,
+
+            qualityLimitation: "none",
+            encoderLimitedByCpu: false,
+            encoderLimitedByBandwidth: false,
+
             localCandidateType: "",
             remoteCandidateType: "",
             localProtocol: "",
@@ -229,7 +221,7 @@ export class Telemetry {
         };
     }
 
-    parseMediaSource(report, telemetry) {
+    readMediaSource(report, telemetry) {
         if (report.kind !== "video") {
             return;
         }
@@ -237,119 +229,145 @@ export class Telemetry {
         telemetry.capture.width = this.number(report.width);
         telemetry.capture.height = this.number(report.height);
         telemetry.capture.fps = this.number(report.framesPerSecond);
-        telemetry.capture.frames = this.number(report.frames);
-
-        telemetry.captureWidth = telemetry.capture.width;
-        telemetry.captureHeight = telemetry.capture.height;
-        telemetry.captureFrameWidth = telemetry.capture.width;
-        telemetry.captureFrameHeight = telemetry.capture.height;
     }
 
-    parseTrack(report, telemetry) {
+    readTrack(report, telemetry) {
         if (report.kind !== "video") {
             return;
         }
 
-        if (report.remoteSource === false || report.remoteSource === undefined) {
-            if (!telemetry.capture.width) telemetry.capture.width = this.number(report.frameWidth);
-            if (!telemetry.capture.height) telemetry.capture.height = this.number(report.frameHeight);
-            if (!telemetry.capture.fps) telemetry.capture.fps = this.number(report.framesPerSecond);
+        if (report.remoteSource === true) {
+            if (!telemetry.reception.width) {
+                telemetry.reception.width = this.number(report.frameWidth);
+            }
+
+            if (!telemetry.reception.height) {
+                telemetry.reception.height = this.number(report.frameHeight);
+            }
+
+            telemetry.rendering.framesDropped =
+                this.number(report.framesDropped);
         } else {
-            telemetry.reception.width = this.number(report.frameWidth);
-            telemetry.reception.height = this.number(report.frameHeight);
-            telemetry.reception.framesDropped = this.number(report.framesDropped);
-            telemetry.rendering.framesDropped = this.number(report.framesDropped);
+            if (!telemetry.capture.width) {
+                telemetry.capture.width = this.number(report.frameWidth);
+            }
+
+            if (!telemetry.capture.height) {
+                telemetry.capture.height = this.number(report.frameHeight);
+            }
+
+            if (!telemetry.capture.fps) {
+                telemetry.capture.fps = this.number(report.framesPerSecond);
+            }
         }
     }
 
-    parseOutboundRtp(report, telemetry) {
+    readOutboundVideo(report, telemetry) {
         if (report.kind !== "video" && report.mediaType !== "video") {
             return;
         }
 
-        if (this.outboundVideoReportId && report.id !== this.outboundVideoReportId) {
+        if (this.outboundVideoId && report.id !== this.outboundVideoId) {
             return;
         }
 
-        if (!this.outboundVideoReportId) {
-            this.outboundVideoReportId = report.id;
+        if (!this.outboundVideoId) {
+            this.outboundVideoId = report.id;
         }
 
         telemetry.encoding.width = this.number(report.frameWidth);
         telemetry.encoding.height = this.number(report.frameHeight);
         telemetry.encoding.framesEncoded = this.number(report.framesEncoded);
-        telemetry.encoding.totalEncodeTime = this.number(report.totalEncodeTime);
-        telemetry.encoding.qualityLimitationReason = report.qualityLimitationReason || "none";
-        telemetry.encoding.qualityLimitationDurations = report.qualityLimitationDurations || null;
-        telemetry.encoding.encoderImplementation = report.encoderImplementation || "";
-        telemetry.encoding.powerEfficientEncoder = report.powerEfficientEncoder ?? null;
         telemetry.encoding.bytesSent = this.number(report.bytesSent);
-        telemetry.encoding.targetBitrate = this.number(report.targetBitrate);
-        telemetry.encoding.retransmittedBytesSent = this.number(report.retransmittedBytesSent);
-        telemetry.encoding.fps = this.getFramesPerSecond(report, "outbound", "framesEncoded");
+        telemetry.encoding.totalEncodeTime = this.number(report.totalEncodeTime);
+        telemetry.encoding.qualityLimitation =
+            report.qualityLimitationReason || "none";
+        telemetry.encoding.encoderImplementation =
+            report.encoderImplementation || "";
+        telemetry.encoding.powerEfficientEncoder =
+            report.powerEfficientEncoder ?? null;
 
-        telemetry.browser.qualityLimitationReason = telemetry.encoding.qualityLimitationReason;
-        telemetry.browser.encoderLimitedByCpu = telemetry.encoding.qualityLimitationReason === "cpu";
-        telemetry.browser.encoderLimitedByBandwidth = telemetry.encoding.qualityLimitationReason === "bandwidth";
-        telemetry.browser.encoderLimitedByOther = telemetry.encoding.qualityLimitationReason === "other";
+        telemetry.encoding.fps =
+            this.number(report.framesPerSecond) ||
+            this.rate(report, "outbound", "framesEncoded");
 
-        telemetry.encoding.actualBitrate = this.getBitrate(report, "outbound", "bytesSent");
-        telemetry.transmission.actualBitrate = telemetry.encoding.actualBitrate;
-        telemetry.actualBitrate = telemetry.encoding.actualBitrate;
+        telemetry.encoding.actualBitrate =
+            this.bitrate(report, "outbound", "bytesSent");
 
-        this.storePrevious(report, "outbound", [
+        telemetry.browser.qualityLimitation =
+            telemetry.encoding.qualityLimitation;
+
+        telemetry.browser.encoderLimitedByCpu =
+            telemetry.encoding.qualityLimitation === "cpu";
+
+        telemetry.browser.encoderLimitedByBandwidth =
+            telemetry.encoding.qualityLimitation === "bandwidth";
+
+        this.store(report, "outbound", [
             "timestamp",
             "bytesSent",
-            "framesEncoded",
-            "packetsSent"
+            "framesEncoded"
         ]);
     }
 
-    parseInboundRtp(report, telemetry) {
+    readInboundVideo(report, telemetry) {
         if (report.kind !== "video" && report.mediaType !== "video") {
             return;
         }
 
-        if (this.inboundVideoReportId && report.id !== this.inboundVideoReportId) {
+        if (this.inboundVideoId && report.id !== this.inboundVideoId) {
             return;
         }
 
-        if (!this.inboundVideoReportId) {
-            this.inboundVideoReportId = report.id;
+        if (!this.inboundVideoId) {
+            this.inboundVideoId = report.id;
         }
 
         telemetry.reception.width = this.number(report.frameWidth);
         telemetry.reception.height = this.number(report.frameHeight);
-        telemetry.reception.framesReceived = this.number(report.framesReceived);
-        telemetry.reception.framesDecoded = this.number(report.framesDecoded);
-        telemetry.reception.framesDropped = this.number(report.framesDropped);
-        telemetry.reception.framesPerSecond = this.number(report.framesPerSecond);
-        telemetry.reception.bytesReceived = this.number(report.bytesReceived);
-        telemetry.reception.packetsReceived = this.number(report.packetsReceived);
-        telemetry.reception.packetsLost = this.number(report.packetsLost);
-        telemetry.reception.jitter = this.number(report.jitter);
+        telemetry.reception.framesReceived =
+            this.number(report.framesReceived);
+        telemetry.reception.framesDecoded =
+            this.number(report.framesDecoded);
+        telemetry.reception.framesDropped =
+            this.number(report.framesDropped);
+        telemetry.reception.bytesReceived =
+            this.number(report.bytesReceived);
+        telemetry.reception.packetsReceived =
+            this.number(report.packetsReceived);
+        telemetry.reception.packetsLost =
+            this.number(report.packetsLost);
+        telemetry.reception.jitter =
+            this.number(report.jitter);
+
         telemetry.reception.fps =
-            telemetry.reception.framesPerSecond ||
-            this.getFramesPerSecond(report, "inbound", "framesDecoded");
+            this.number(report.framesPerSecond) ||
+            this.rate(report, "inbound", "framesDecoded");
 
-        telemetry.decoding.framesDecoded = telemetry.reception.framesDecoded;
-        telemetry.decoding.totalDecodeTime = this.number(report.totalDecodeTime);
-        telemetry.decoding.decoderImplementation = report.decoderImplementation || "";
-        telemetry.decoding.powerEfficientDecoder = report.powerEfficientDecoder ?? null;
+        telemetry.reception.actualBitrate =
+            this.bitrate(report, "inbound", "bytesReceived");
 
-        telemetry.rendering.framesDropped = telemetry.reception.framesDropped;
-        telemetry.rendering.freezeCount = this.number(report.freezeCount);
-        telemetry.rendering.totalFreezesDuration = this.number(report.totalFreezesDuration);
-        telemetry.rendering.pauseCount = this.number(report.pauseCount);
-        telemetry.rendering.totalPausesDuration = this.number(report.totalPausesDuration);
+        telemetry.decoding.framesDecoded =
+            telemetry.reception.framesDecoded;
+        telemetry.decoding.totalDecodeTime =
+            this.number(report.totalDecodeTime);
+        telemetry.decoding.decoderImplementation =
+            report.decoderImplementation || "";
+        telemetry.decoding.powerEfficientDecoder =
+            report.powerEfficientDecoder ?? null;
+
+        telemetry.rendering.framesDropped =
+            telemetry.reception.framesDropped;
+        telemetry.rendering.freezeCount =
+            this.number(report.freezeCount);
+        telemetry.rendering.totalFreezesDuration =
+            this.number(report.totalFreezesDuration);
 
         telemetry.transmission.jitter = telemetry.reception.jitter;
-        telemetry.transmission.packetLoss = this.getPacketLoss(report, "inbound");
-        telemetry.transmission.packetsLost = telemetry.reception.packetsLost;
+        telemetry.transmission.packetLoss =
+            this.packetLoss(report, "inbound");
 
-        telemetry.reception.actualBitrate = this.getBitrate(report, "inbound", "bytesReceived");
-
-        this.storePrevious(report, "inbound", [
+        this.store(report, "inbound", [
             "timestamp",
             "bytesReceived",
             "framesDecoded",
@@ -358,7 +376,7 @@ export class Telemetry {
         ]);
     }
 
-    parseRemoteInboundRtp(report, telemetry) {
+    readRemoteInboundVideo(report, telemetry) {
         if (report.kind !== "video" && report.mediaType !== "video") {
             return;
         }
@@ -367,16 +385,12 @@ export class Telemetry {
             telemetry.transmission.rtt = this.number(report.roundTripTime);
         }
 
-        if (report.packetsLost !== undefined) {
-            telemetry.transmission.packetsLost = this.number(report.packetsLost);
-        }
-
         if (report.jitter !== undefined) {
             telemetry.transmission.jitter = this.number(report.jitter);
         }
     }
 
-    parseCandidatePair(report, candidates) {
+    readCandidatePair(report, candidates) {
         if (report.state !== "succeeded") {
             return;
         }
@@ -386,7 +400,7 @@ export class Telemetry {
         }
     }
 
-    applyCandidatePair(candidates, telemetry) {
+    applyCandidateInfo(candidates, telemetry) {
         const pair = candidates.activePair;
 
         if (!pair) {
@@ -400,60 +414,60 @@ export class Telemetry {
         telemetry.transmission.availableOutgoingBitrate =
             this.number(pair.availableOutgoingBitrate);
 
-        telemetry.transmission.availableIncomingBitrate =
-            this.number(pair.availableIncomingBitrate);
-
-        telemetry.transmission.candidatePairState = pair.state || "";
-        telemetry.transmission.candidatePairId = pair.id || "";
-
         const local = candidates.local.get(pair.localCandidateId);
         const remote = candidates.remote.get(pair.remoteCandidateId);
 
         if (local) {
-            telemetry.transmission.localCandidateType = local.candidateType || "";
-            telemetry.transmission.localProtocol = local.protocol || "";
+            telemetry.transmission.localCandidateType =
+                local.candidateType || "";
+            telemetry.transmission.localProtocol =
+                local.protocol || "";
         }
 
         if (remote) {
-            telemetry.transmission.remoteCandidateType = remote.candidateType || "";
-            telemetry.transmission.remoteProtocol = remote.protocol || "";
+            telemetry.transmission.remoteCandidateType =
+                remote.candidateType || "";
+            telemetry.transmission.remoteProtocol =
+                remote.protocol || "";
         }
     }
 
-    finalizeTelemetry(telemetry) {
+    finalize(telemetry) {
         telemetry.encoding.averageEncodeTime =
-            this.averageTime(
+            this.average(
                 telemetry.encoding.totalEncodeTime,
                 telemetry.encoding.framesEncoded
             );
 
         telemetry.decoding.averageDecodeTime =
-            this.averageTime(
+            this.average(
                 telemetry.decoding.totalDecodeTime,
                 telemetry.decoding.framesDecoded
             );
 
-        telemetry.resolution.capture = this.formatResolution(
-            telemetry.capture.width,
-            telemetry.capture.height
-        );
+        telemetry.resolution.capture =
+            this.resolution(
+                telemetry.capture.width,
+                telemetry.capture.height
+            );
 
-        telemetry.resolution.encoded = this.formatResolution(
-            telemetry.encoding.width,
-            telemetry.encoding.height
-        );
+        telemetry.resolution.encoded =
+            this.resolution(
+                telemetry.encoding.width,
+                telemetry.encoding.height
+            );
 
-        telemetry.resolution.received = this.formatResolution(
-            telemetry.reception.width,
-            telemetry.reception.height
-        );
+        telemetry.resolution.received =
+            this.resolution(
+                telemetry.reception.width,
+                telemetry.reception.height
+            );
 
-        telemetry.resolution.status = this.getResolutionStatus(telemetry);
+        telemetry.resolution.status =
+            this.resolutionStatus(telemetry);
 
         telemetry.captureWidth = telemetry.capture.width;
         telemetry.captureHeight = telemetry.capture.height;
-        telemetry.captureFrameWidth = telemetry.capture.width;
-        telemetry.captureFrameHeight = telemetry.capture.height;
 
         telemetry.encodedWidth = telemetry.encoding.width;
         telemetry.encodedHeight = telemetry.encoding.height;
@@ -465,92 +479,139 @@ export class Telemetry {
         telemetry.receivedFrameWidth = telemetry.reception.width;
         telemetry.receivedFrameHeight = telemetry.reception.height;
 
-        telemetry.frameWidth = telemetry.reception.width || telemetry.encoding.width;
-        telemetry.frameHeight = telemetry.reception.height || telemetry.encoding.height;
+        telemetry.frameWidth =
+            telemetry.reception.width ||
+            telemetry.encoding.width;
+
+        telemetry.frameHeight =
+            telemetry.reception.height ||
+            telemetry.encoding.height;
 
         telemetry.fps =
             telemetry.encoding.fps ||
             telemetry.capture.fps ||
             telemetry.reception.fps;
 
-        telemetry.framesEncoded = telemetry.encoding.framesEncoded;
-        telemetry.totalEncodeTime = telemetry.encoding.totalEncodeTime;
-        telemetry.encodeTime = telemetry.encoding.averageEncodeTime;
-
-        telemetry.framesDecoded = telemetry.decoding.framesDecoded;
-        telemetry.totalDecodeTime = telemetry.decoding.totalDecodeTime;
-        telemetry.decodeTime = telemetry.decoding.averageDecodeTime;
-
-        telemetry.framesDropped = telemetry.rendering.framesDropped;
-        telemetry.qualityLimitation = telemetry.encoding.qualityLimitationReason;
+        telemetry.framesEncoded =
+            telemetry.encoding.framesEncoded;
+        telemetry.framesDecoded =
+            telemetry.reception.framesDecoded;
+        telemetry.framesDropped =
+            telemetry.rendering.framesDropped;
 
         telemetry.rtt = telemetry.transmission.rtt;
         telemetry.jitter = telemetry.transmission.jitter;
         telemetry.packetLoss = telemetry.transmission.packetLoss;
 
-        telemetry.availableBitrate = telemetry.transmission.availableOutgoingBitrate;
-        telemetry.availableOutgoingBitrate = telemetry.transmission.availableOutgoingBitrate;
-        telemetry.actualBitrate = telemetry.encoding.actualBitrate || telemetry.transmission.actualBitrate;
+        telemetry.actualBitrate =
+            telemetry.encoding.actualBitrate ||
+            telemetry.transmission.actualBitrate;
 
-        telemetry.localCandidateType = telemetry.transmission.localCandidateType;
-        telemetry.remoteCandidateType = telemetry.transmission.remoteCandidateType;
-        telemetry.localProtocol = telemetry.transmission.localProtocol;
-        telemetry.remoteProtocol = telemetry.transmission.remoteProtocol;
+        telemetry.availableBitrate =
+            telemetry.transmission.availableOutgoingBitrate;
 
-        telemetry.encoderLimitedByCpu = telemetry.browser.encoderLimitedByCpu;
-        telemetry.encoderLimitedByBandwidth = telemetry.browser.encoderLimitedByBandwidth;
+        telemetry.availableOutgoingBitrate =
+            telemetry.transmission.availableOutgoingBitrate;
+
+        telemetry.qualityLimitation =
+            telemetry.browser.qualityLimitation;
+
+        telemetry.encoderLimitedByCpu =
+            telemetry.browser.encoderLimitedByCpu;
+
+        telemetry.encoderLimitedByBandwidth =
+            telemetry.browser.encoderLimitedByBandwidth;
+
+        telemetry.localCandidateType =
+            telemetry.transmission.localCandidateType;
+        telemetry.remoteCandidateType =
+            telemetry.transmission.remoteCandidateType;
+        telemetry.localProtocol =
+            telemetry.transmission.localProtocol;
+        telemetry.remoteProtocol =
+            telemetry.transmission.remoteProtocol;
     }
 
-    getResolutionStatus(telemetry) {
+    resolutionStatus(telemetry) {
         const capture = telemetry.resolution.capture;
         const encoded = telemetry.resolution.encoded;
         const received = telemetry.resolution.received;
 
-        if (capture === "unknown" && encoded === "unknown" && received === "unknown") {
+        if (
+            capture === "unknown" &&
+            encoded === "unknown" &&
+            received === "unknown"
+        ) {
             return "UNKNOWN";
         }
 
-        if (capture !== "unknown" && encoded !== "unknown" && capture !== encoded) {
-            return "CAPTURE_TO_ENCODER_CHANGED";
+        if (
+            capture !== "unknown" &&
+            encoded !== "unknown" &&
+            capture !== encoded
+        ) {
+            return "CAPTURE_ENCODER_MISMATCH";
         }
 
-        if (encoded !== "unknown" && received !== "unknown" && encoded !== received) {
-            return "ENCODER_TO_RECEIVER_CHANGED";
+        if (
+            encoded !== "unknown" &&
+            received !== "unknown" &&
+            encoded !== received
+        ) {
+            return "ENCODER_RECEIVER_MISMATCH";
         }
 
-        return "CONSISTENT";
+        return "ALIGNED";
     }
 
-    getFramesPerSecond(report, key, frameField) {
-        if (report.framesPerSecond !== undefined) {
-            return this.number(report.framesPerSecond);
-        }
-
+    rate(report, key, frameField) {
         const previous = this.previous.get(key);
 
-        if (!previous || report[frameField] === undefined || report.timestamp === undefined) {
+        if (
+            !previous ||
+            report[frameField] === undefined ||
+            report.timestamp === undefined
+        ) {
             return 0;
         }
 
-        const frameDelta = this.number(report[frameField]) - this.number(previous[frameField]);
-        const timeDelta = (this.number(report.timestamp) - this.number(previous.timestamp)) / 1000;
+        const frameDelta =
+            this.number(report[frameField]) -
+            this.number(previous[frameField]);
+
+        const timeDelta =
+            (
+                this.number(report.timestamp) -
+                this.number(previous.timestamp)
+            ) / 1000;
 
         if (timeDelta <= 0 || frameDelta < 0) {
             return 0;
         }
 
-        return Math.max(0, frameDelta / timeDelta);
+        return frameDelta / timeDelta;
     }
 
-    getBitrate(report, key, byteField) {
+    bitrate(report, key, byteField) {
         const previous = this.previous.get(key);
 
-        if (!previous || report[byteField] === undefined || report.timestamp === undefined) {
+        if (
+            !previous ||
+            report[byteField] === undefined ||
+            report.timestamp === undefined
+        ) {
             return 0;
         }
 
-        const bytesDelta = this.number(report[byteField]) - this.number(previous[byteField]);
-        const timeDelta = (this.number(report.timestamp) - this.number(previous.timestamp)) / 1000;
+        const bytesDelta =
+            this.number(report[byteField]) -
+            this.number(previous[byteField]);
+
+        const timeDelta =
+            (
+                this.number(report.timestamp) -
+                this.number(previous.timestamp)
+            ) / 1000;
 
         if (timeDelta <= 0 || bytesDelta < 0) {
             return 0;
@@ -559,29 +620,25 @@ export class Telemetry {
         return Math.round((bytesDelta * 8) / timeDelta);
     }
 
-    getPacketLoss(report, key) {
+    packetLoss(report, key) {
         const previous = this.previous.get(key);
 
-        if (
-            !previous ||
-            report.packetsLost === undefined ||
-            report.packetsReceived === undefined
-        ) {
-            const lost = Math.max(0, this.number(report.packetsLost));
-            const received = Math.max(0, this.number(report.packetsReceived));
-            const total = lost + received;
+        const packetsLost = this.number(report.packetsLost);
+        const packetsReceived = this.number(report.packetsReceived);
 
-            return total > 0 ? lost / total : 0;
+        if (!previous) {
+            const total = packetsLost + packetsReceived;
+            return total > 0 ? packetsLost / total : 0;
         }
 
         const lostDelta = Math.max(
             0,
-            this.number(report.packetsLost) - this.number(previous.packetsLost)
+            packetsLost - this.number(previous.packetsLost)
         );
 
         const receivedDelta = Math.max(
             0,
-            this.number(report.packetsReceived) - this.number(previous.packetsReceived)
+            packetsReceived - this.number(previous.packetsReceived)
         );
 
         const total = lostDelta + receivedDelta;
@@ -589,7 +646,7 @@ export class Telemetry {
         return total > 0 ? lostDelta / total : 0;
     }
 
-    storePrevious(report, key, fields) {
+    store(report, key, fields) {
         const snapshot = {};
 
         fields.forEach((field) => {
@@ -599,15 +656,15 @@ export class Telemetry {
         this.previous.set(key, snapshot);
     }
 
-    averageTime(totalTime, frames) {
-        if (!totalTime || !frames) {
+    average(total, count) {
+        if (!total || !count) {
             return 0;
         }
 
-        return totalTime / frames;
+        return total / count;
     }
 
-    formatResolution(width, height) {
+    resolution(width, height) {
         if (!width || !height) {
             return "unknown";
         }
@@ -627,8 +684,8 @@ export class Telemetry {
         }
 
         this.previous.clear();
-        this.outboundVideoReportId = null;
-        this.inboundVideoReportId = null;
+        this.outboundVideoId = null;
+        this.inboundVideoId = null;
     }
 
     getStats() {
@@ -639,3 +696,5 @@ export class Telemetry {
         return this.latestStats;
     }
 }
+
+export default Telemetry;

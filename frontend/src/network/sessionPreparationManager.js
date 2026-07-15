@@ -1,17 +1,17 @@
 /**
  * SessionPreparationManager
  *
- * Responsible for validating that the environment is ready
- * before a communication session begins.
+ * Read-only readiness checker for LiveAtlas communication sessions.
  *
- * This module NEVER:
+ * This module never:
  * - creates RTCPeerConnection
  * - captures media
  * - changes encoder settings
  * - modifies bitrate
  * - restarts ICE
+ * - controls adaptation
  *
- * It only reports readiness.
+ * It only reports whether the browser environment is ready.
  */
 
 import deviceCapabilityManager from "./deviceCapabilityManager";
@@ -33,7 +33,7 @@ class SessionPreparationManager {
             issues,
             warnings,
             deviceProfile: profile,
-            recommendation: this.getRecommendation(checks, profile, issues, warnings),
+            recommendation: this.buildRecommendation(profile, issues, warnings),
             preparedAt: Date.now()
         };
 
@@ -70,7 +70,7 @@ class SessionPreparationManager {
         if (!checks.secureContext) {
             issues.push({
                 code: "INSECURE_CONTEXT",
-                message: "A secure context is required for media and WebRTC APIs."
+                message: "A secure HTTPS context is required for media and WebRTC APIs."
             });
         }
 
@@ -125,21 +125,14 @@ class SessionPreparationManager {
         if (!checks.getStatsSupported) {
             warnings.push({
                 code: "WEBRTC_STATS_UNAVAILABLE",
-                message: "Telemetry will be limited because getStats is unavailable."
+                message: "Telemetry may be limited because getStats is unavailable."
             });
         }
 
         if (!checks.senderParametersSupported) {
             warnings.push({
                 code: "SENDER_PARAMETERS_LIMITED",
-                message: "Encoder control may be limited in this browser."
-            });
-        }
-
-        if (profile.qualityHints?.shouldStartConservative) {
-            warnings.push({
-                code: "CONSERVATIVE_DEVICE_PROFILE",
-                message: "Device capability suggests starting below HIGH."
+                message: "Startup encoder preference may be limited in this browser."
             });
         }
 
@@ -153,18 +146,19 @@ class SessionPreparationManager {
         return warnings;
     }
 
-    getRecommendation(checks, profile, issues, warnings) {
+    buildRecommendation(profile, issues, warnings) {
         if (issues.length > 0) {
             return {
                 canStart: false,
-                startupProfile: "LOW",
+                presentationReady: false,
                 reason: issues[0].message
             };
         }
 
         return {
             canStart: true,
-            startupProfile: profile.qualityHints?.preferredStartupProfile || "MEDIUM",
+            presentationReady: true,
+            preferredStartupProfile: "HIGH",
             canPrefer720p: Boolean(profile.qualityHints?.canPrefer720p),
             reason: warnings.length > 0
                 ? warnings[0].message
@@ -207,28 +201,27 @@ class SessionPreparationManager {
     hasMediaSupport() {
         const checks = this.getStatus().checks;
 
-        return (
+        return Boolean(
             checks.mediaDevicesSupported &&
-            checks.getUserMediaSupported &&
-            checks.enumerateDevicesSupported
+            checks.getUserMediaSupported
         );
     }
 
     hasWebRTCSupport() {
         const checks = this.getStatus().checks;
 
-        return (
+        return Boolean(
             checks.webRTCSupported &&
             checks.getStatsSupported
         );
     }
 
     supportsEncoderControl() {
-        return this.getStatus().checks.senderParametersSupported;
+        return Boolean(this.getStatus().checks.senderParametersSupported);
     }
 
     isSecure() {
-        return this.getStatus().checks.secureContext;
+        return Boolean(this.getStatus().checks.secureContext);
     }
 
     getPreparationTime() {

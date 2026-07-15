@@ -1,17 +1,16 @@
 /**
  * DeviceCapabilityManager
  *
- * Responsible only for detecting device capabilities.
+ * Read-only device and browser capability detector.
  *
- * This module NEVER:
+ * This module never:
  * - modifies WebRTC
  * - changes encoder settings
  * - changes bitrate
  * - restarts ICE
  * - communicates with AdaptiveController
  *
- * It simply provides information about the current device so other modules can
- * make safer decisions.
+ * It only reports the current browser/device environment.
  */
 
 class DeviceCapabilityManager {
@@ -22,36 +21,35 @@ class DeviceCapabilityManager {
 
     detect() {
         const nav = navigator;
-        const screenInfo = this.getScreenInfo();
         const browser = this.detectBrowser();
+        const screen = this.getScreenInfo();
 
         this.profile = {
-            hardwareConcurrency: nav.hardwareConcurrency || null,
-            deviceMemory: nav.deviceMemory || null,
+            browser,
             userAgent: nav.userAgent || "",
             platform: nav.platform || null,
             language: nav.language || null,
             languages: nav.languages || [],
             online: nav.onLine,
 
-            screen: screenInfo,
+            hardwareConcurrency: nav.hardwareConcurrency || null,
+            deviceMemory: nav.deviceMemory || null,
 
-            touchSupport: this.detectTouchSupport(),
             mobile: this.detectMobile(),
             desktop: !this.detectMobile(),
+            touchSupport: this.detectTouchSupport(),
 
+            screen,
             timezone: this.detectTimezone(),
-            browser,
-            browserCapabilities: this.detectBrowserCapabilities(browser),
 
             media: this.detectMediaCapabilities(),
             webrtc: this.detectWebRTCCapabilities(),
-
+            browserCapabilities: this.detectBrowserCapabilities(browser),
             performance: this.detectPerformanceCapabilities(),
 
             qualityHints: this.getQualityHints({
                 browser,
-                screen: screenInfo,
+                screen,
                 hardwareConcurrency: nav.hardwareConcurrency,
                 deviceMemory: nav.deviceMemory
             }),
@@ -79,43 +77,41 @@ class DeviceCapabilityManager {
     detectBrowserCapabilities(browser) {
         return {
             browser,
+
             supportsSenderParameters:
                 typeof RTCRtpSender !== "undefined" &&
-                !!RTCRtpSender.prototype &&
-                typeof RTCRtpSender.prototype.getParameters === "function" &&
-                typeof RTCRtpSender.prototype.setParameters === "function",
+                typeof RTCRtpSender.prototype?.getParameters === "function" &&
+                typeof RTCRtpSender.prototype?.setParameters === "function",
 
             supportsReceiverStats:
-                typeof RTCRtpReceiver !== "undefined" &&
-                !!RTCRtpReceiver.prototype,
+                typeof RTCRtpReceiver !== "undefined",
 
             supportsTransceiver:
                 typeof RTCRtpTransceiver !== "undefined",
-
-            supportsInsertableStreams:
-                typeof RTCRtpScriptTransform !== "undefined" ||
-                typeof window.RTCRtpScriptTransform !== "undefined",
 
             supportsWebCodecs:
                 typeof VideoEncoder !== "undefined" &&
                 typeof VideoDecoder !== "undefined",
 
             prefersStandardWebRTCStats:
-                browser === "Chrome" || browser === "Edge" || browser === "Firefox",
+                ["Chrome", "Edge", "Firefox"].includes(browser),
 
-            hasKnownAggressiveEncoderAdaptation:
-                browser === "Chrome" || browser === "Edge"
+            hasBrowserManagedCongestionControl:
+                ["Chrome", "Edge", "Firefox", "Safari"].includes(browser),
+
+            mayAdaptEncoderAggressively:
+                ["Chrome", "Edge"].includes(browser)
         };
     }
 
     detectMediaCapabilities() {
         return {
-            mediaDevices: !!navigator.mediaDevices,
-            getUserMedia: !!navigator.mediaDevices?.getUserMedia,
-            enumerateDevices: !!navigator.mediaDevices?.enumerateDevices,
-            getDisplayMedia: !!navigator.mediaDevices?.getDisplayMedia,
-            mediaCapabilities: !!navigator.mediaCapabilities,
-            permissions: !!navigator.permissions
+            mediaDevices: Boolean(navigator.mediaDevices),
+            getUserMedia: Boolean(navigator.mediaDevices?.getUserMedia),
+            enumerateDevices: Boolean(navigator.mediaDevices?.enumerateDevices),
+            getDisplayMedia: Boolean(navigator.mediaDevices?.getDisplayMedia),
+            mediaCapabilities: Boolean(navigator.mediaCapabilities),
+            permissions: Boolean(navigator.permissions)
         };
     }
 
@@ -124,12 +120,12 @@ class DeviceCapabilityManager {
             peerConnection: typeof RTCPeerConnection !== "undefined",
             sessionDescription: typeof RTCSessionDescription !== "undefined",
             iceCandidate: typeof RTCIceCandidate !== "undefined",
-            dataChannel:
-                typeof RTCPeerConnection !== "undefined" &&
-                typeof RTCPeerConnection.prototype.createDataChannel === "function",
             getStats:
                 typeof RTCPeerConnection !== "undefined" &&
-                typeof RTCPeerConnection.prototype.getStats === "function"
+                typeof RTCPeerConnection.prototype?.getStats === "function",
+            dataChannel:
+                typeof RTCPeerConnection !== "undefined" &&
+                typeof RTCPeerConnection.prototype?.createDataChannel === "function"
         };
     }
 
@@ -142,8 +138,8 @@ class DeviceCapabilityManager {
 
         return {
             performanceApi: typeof performance !== "undefined",
-            memoryApi: !!performance?.memory,
-            networkInformationApi: !!connection,
+            memoryApi: Boolean(performance?.memory),
+            networkInformationApi: Boolean(connection),
             effectiveType: connection?.effectiveType || null,
             downlink: connection?.downlink || null,
             rtt: connection?.rtt || null,
@@ -165,7 +161,7 @@ class DeviceCapabilityManager {
     }
 
     detectTouchSupport() {
-        return (
+        return Boolean(
             "ontouchstart" in window ||
             navigator.maxTouchPoints > 0 ||
             navigator.msMaxTouchPoints > 0
@@ -189,36 +185,27 @@ class DeviceCapabilityManager {
         const memory = Number(input.deviceMemory || 0);
         const width = Number(input.screen?.width || 0);
         const height = Number(input.screen?.height || 0);
-        const isMobile = this.detectMobile();
+
+        const displayCanShow720p =
+            width >= 1280 &&
+            height >= 720;
+
+        const deviceLikelyHandles720p =
+            (cpu >= 4 || cpu === 0) &&
+            (memory >= 4 || memory === 0);
 
         const canPrefer720p =
-            width >= 1280 &&
-            height >= 720 &&
-            (
-                cpu >= 4 ||
-                cpu === 0
-            ) &&
-            (
-                memory >= 4 ||
-                memory === 0
-            );
-
-        const shouldStartConservative =
-            isMobile &&
-            (
-                (cpu > 0 && cpu <= 4) ||
-                (memory > 0 && memory <= 3)
-            );
+            displayCanShow720p &&
+            deviceLikelyHandles720p;
 
         return {
             canPrefer720p,
-            shouldStartConservative,
-            preferredStartupProfile: canPrefer720p && !shouldStartConservative
-                ? "HIGH"
-                : "MEDIUM",
+            displayCanShow720p,
+            deviceLikelyHandles720p,
+            preferredPresentationProfile: "HIGH",
             reason: canPrefer720p
-                ? "Device appears capable of HD startup"
-                : "Device capability suggests MEDIUM startup"
+                ? "Device appears suitable for 720p presentation mode"
+                : "Presentation mode can still request HD; browser may adapt if needed"
         };
     }
 
@@ -227,13 +214,14 @@ class DeviceCapabilityManager {
             return {
                 available: false,
                 cameras: [],
-                supports720p: false,
+                cameraCount: 0,
                 reason: "enumerateDevices unavailable"
             };
         }
 
         try {
             const devices = await navigator.mediaDevices.enumerateDevices();
+
             const cameras = devices
                 .filter((device) => device.kind === "videoinput")
                 .map((device) => ({
@@ -246,16 +234,15 @@ class DeviceCapabilityManager {
                 available: cameras.length > 0,
                 cameras,
                 cameraCount: cameras.length,
-                supports720p: cameras.length > 0,
                 reason: cameras.length > 0
-                    ? "Camera available; exact capture capability should be verified after getUserMedia"
+                    ? "Camera available; exact capture resolution is verified after getUserMedia"
                     : "No camera detected"
             };
         } catch (error) {
             return {
                 available: false,
                 cameras: [],
-                supports720p: false,
+                cameraCount: 0,
                 reason: error?.message || "Camera detection failed"
             };
         }
@@ -274,19 +261,38 @@ class DeviceCapabilityManager {
     }
 
     isMobile() {
-        return this.profile?.mobile ?? this.detectMobile();
+        return this.getProfile().mobile;
     }
 
     isDesktop() {
-        return !this.isMobile();
+        return this.getProfile().desktop;
     }
 
     supportsTouch() {
-        return this.profile?.touchSupport ?? this.detectTouchSupport();
+        return this.getProfile().touchSupport;
     }
 
     getBrowser() {
-        return this.profile?.browser ?? this.detectBrowser();
+        return this.getProfile().browser;
+    }
+
+    supportsSenderParameters() {
+        return Boolean(this.getProfile().browserCapabilities?.supportsSenderParameters);
+    }
+
+    supportsWebRTC() {
+        const webrtc = this.getProfile().webrtc;
+
+        return Boolean(
+            webrtc.peerConnection &&
+            webrtc.sessionDescription &&
+            webrtc.iceCandidate &&
+            webrtc.getStats
+        );
+    }
+
+    canPrefer720p() {
+        return Boolean(this.getProfile().qualityHints?.canPrefer720p);
     }
 
     getHardwareProfile() {
@@ -307,29 +313,6 @@ class DeviceCapabilityManager {
         return this.getProfile().qualityHints;
     }
 
-    canPrefer720p() {
-        return Boolean(this.getProfile().qualityHints?.canPrefer720p);
-    }
-
-    getPreferredStartupProfile() {
-        return this.getProfile().qualityHints?.preferredStartupProfile || "MEDIUM";
-    }
-
-    supportsSenderParameters() {
-        return Boolean(this.getProfile().browserCapabilities?.supportsSenderParameters);
-    }
-
-    supportsWebRTC() {
-        const webrtc = this.getProfile().webrtc;
-
-        return Boolean(
-            webrtc.peerConnection &&
-            webrtc.sessionDescription &&
-            webrtc.iceCandidate &&
-            webrtc.getStats
-        );
-    }
-
     getLastDetectionTime() {
         return this.lastDetection;
     }
@@ -341,6 +324,7 @@ class DeviceCapabilityManager {
             browser: profile.browser,
             platform: profile.platform,
             mobile: profile.mobile,
+            desktop: profile.desktop,
             online: profile.online,
             hardwareConcurrency: profile.hardwareConcurrency,
             deviceMemory: profile.deviceMemory,
@@ -348,6 +332,7 @@ class DeviceCapabilityManager {
             media: profile.media,
             webrtc: profile.webrtc,
             browserCapabilities: profile.browserCapabilities,
+            performance: profile.performance,
             qualityHints: profile.qualityHints,
             detectedAt: profile.detectedAt
         };

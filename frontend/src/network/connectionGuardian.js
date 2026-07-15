@@ -1,17 +1,16 @@
 /**
  * ConnectionGuardian
  *
- * Responsible ONLY for tracking WebRTC connection state.
+ * Read-only WebRTC connection state tracker.
  *
- * This module NEVER:
+ * This module never:
  * - calls restartIce()
  * - changes bitrate
  * - modifies encoder settings
  * - creates RTCPeerConnection
  * - performs recovery
  *
- * It simply records connection state, transition history and connection health
- * signals so other Communication Engine V2 modules can make decisions.
+ * It only records connection state and exposes diagnostics.
  */
 
 class ConnectionGuardian {
@@ -52,10 +51,10 @@ class ConnectionGuardian {
     update(partialState = {}) {
         const now = Date.now();
         const normalized = this.normalizeState(partialState);
-
         const changed = this.hasStateChanged(normalized);
 
         this.updatePreviousStates(normalized);
+
         this.state = {
             ...this.state,
             ...normalized,
@@ -199,17 +198,10 @@ class ConnectionGuardian {
     }
 
     calculateStabilityState(now) {
-        if (this.isFailed()) {
-            return "FAILED";
-        }
-
-        if (this.isDisconnected()) {
-            return "DISCONNECTED";
-        }
-
-        if (this.isConnecting()) {
-            return "CONNECTING";
-        }
+        if (this.isClosed()) return "CLOSED";
+        if (this.isFailed()) return "FAILED";
+        if (this.isDisconnected()) return "DISCONNECTED";
+        if (this.isConnecting()) return "CONNECTING";
 
         if (!this.isConnected()) {
             return "NEW";
@@ -219,13 +211,8 @@ class ConnectionGuardian {
             ? now - this.state.connectedSince
             : 0;
 
-        if (connectedDuration >= 15000) {
-            return "STABLE";
-        }
-
-        if (connectedDuration >= 4000) {
-            return "CONNECTED";
-        }
+        if (connectedDuration >= 15000) return "STABLE";
+        if (connectedDuration >= 4000) return "CONNECTED";
 
         return "WARMING_UP";
     }
@@ -244,14 +231,23 @@ class ConnectionGuardian {
             iceGatheringState: this.state.iceGatheringState,
             signalingState: this.state.signalingState,
             stabilityState: this.state.stabilityState,
+
+            connectedSince: this.state.connectedSince,
+            disconnectedSince: this.state.disconnectedSince,
+            failedSince: this.state.failedSince,
+
             connectionDuration: this.state.connectionDuration,
             disconnectedDuration: this.state.disconnectedDuration,
             failedDuration: this.state.failedDuration,
+
             transitionCount: this.state.transitionCount,
             lastTransition: this.state.lastTransition,
+
             isConnected: this.isConnected(),
+            isConnecting: this.isConnecting(),
             isDisconnected: this.isDisconnected(),
-            isFailed: this.isFailed()
+            isFailed: this.isFailed(),
+            isClosed: this.isClosed()
         };
     }
 
@@ -308,13 +304,14 @@ class ConnectionGuardian {
     }
 
     isConnected() {
-        return (
-            this.state.connectionState === "connected" &&
-            (
-                this.state.iceConnectionState === "connected" ||
-                this.state.iceConnectionState === "completed"
-            )
-        );
+        const peerConnected =
+            this.state.connectionState === "connected";
+
+        const iceConnected =
+            this.state.iceConnectionState === "connected" ||
+            this.state.iceConnectionState === "completed";
+
+        return peerConnected || iceConnected;
     }
 
     isConnecting() {

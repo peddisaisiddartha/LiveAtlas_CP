@@ -13,15 +13,14 @@ export class NetworkEngine {
 
         this.options = {
             telemetryIntervalMs: options.telemetryIntervalMs || 1000,
-            applyInitialProfile: options.applyInitialProfile ?? true,
-            engineVersion: options.engineVersion || "V2_COMPAT"
+            applyStartupEncoderPreference:
+                options.applyStartupEncoderPreference ?? true,
+            engineVersion: options.engineVersion || "BROWSER_COOPERATIVE_PRESENTATION"
         };
 
         this.telemetry = new Telemetry(peerConnection);
-        this.adaptiveController = new AdaptiveController({
-            initialProfile: options.initialProfile || "HIGH"
-        });
-        this.encoderController = new EncoderController();
+        this.adaptiveController = new AdaptiveController();
+        this.encoderController = new EncoderController(options.encoder || {});
 
         this.featureToggleManager = featureToggleManager;
         this.deviceCapabilityManager = deviceCapabilityManager;
@@ -29,16 +28,16 @@ export class NetworkEngine {
         this.connectionGuardian = connectionGuardian;
         this.resourceMonitor = resourceMonitor;
 
-        this.interval = null;
-        this.currentProfile = null;
         this.started = false;
+        this.interval = null;
+
+        this.currentProfile = "HIGH";
+        this.lastStats = null;
+        this.lastDiagnostics = null;
+        this.lastEncoderResult = null;
 
         this.connectionListenersRegistered = false;
         this.connectionHandlers = {};
-
-        this.lastStats = null;
-        this.lastEngineDecision = null;
-        this.lastAppliedProfile = null;
     }
 
     async start() {
@@ -50,17 +49,15 @@ export class NetworkEngine {
 
         this.enableSupportSystems();
         await this.initializeSupportSystems();
-
         this.registerConnectionListeners();
 
         this.telemetry.start();
 
-        if (this.options.applyInitialProfile) {
-            await this.applyStartupProfile();
-        }
-
-        if (this.interval) {
-            return;
+        if (this.options.applyStartupEncoderPreference) {
+            this.lastEncoderResult =
+                await this.encoderController.applyStartupPreference(
+                    this.peerConnection
+                );
         }
 
         this.interval = setInterval(() => {
@@ -69,6 +66,8 @@ export class NetworkEngine {
     }
 
     enableSupportSystems() {
+        this.featureToggleManager.enableCoreSupportSystems?.();
+
         this.featureToggleManager.enable("deviceCapabilityManager");
         this.featureToggleManager.enable("sessionPreparationManager");
         this.featureToggleManager.enable("connectionGuardian");
@@ -93,40 +92,7 @@ export class NetworkEngine {
         }
     }
 
-    async applyStartupProfile() {
-        const preferredProfileName =
-            this.deviceCapabilityManager.getPreferredStartupProfile?.() || "HIGH";
-
-        const profile =
-            this.adaptiveController.profiles?.[preferredProfileName] ||
-            this.adaptiveController.profiles?.HIGH;
-
-        if (!profile) {
-            return;
-        }
-
-        const applied = await this.encoderController.applyProfile(
-            this.peerConnection,
-            profile
-        );
-
-        if (applied) {
-            this.currentProfile = profile.name;
-            this.lastAppliedProfile = profile;
-            this.lastEngineDecision = {
-                type: "STARTUP_PROFILE",
-                profile: profile.name,
-                reason: "Device capability startup preference",
-                timestamp: Date.now()
-            };
-
-            console.log(
-                `[NetworkEngine] Startup profile=${profile.name} (${profile.width}x${profile.height})`
-            );
-        }
-    }
-
-    async tick() {
+    tick() {
         if (!this.started || !this.peerConnection) {
             return;
         }
@@ -137,52 +103,52 @@ export class NetworkEngine {
             return;
         }
 
-        this.lastStats = this.enrichStats(stats);
-
         this.refreshRuntimeSystems();
+
+        this.lastStats = this.enrichStats(stats);
 
         this.adaptiveController.update(this.lastStats);
 
-        const decision = this.adaptiveController.getLastDecision?.() || null;
-
-        this.lastEngineDecision = {
-            type: "ADAPTIVE_DECISION",
-            profile: this.adaptiveController.getCurrentProfileName?.() || null,
-            reason: this.adaptiveController.getLastReason(),
-            networkState: this.adaptiveController.getNetworkState(),
-            decision,
-            timestamp: Date.now()
+        this.lastDiagnostics = {
+            timestamp: Date.now(),
+            engineVersion: this.options.engineVersion,
+            profile: this.currentProfile,
+            telemetry: this.lastStats,
+            adaptive: this.adaptiveController.getDiagnostics(),
+            encoder: this.encoderController.getDiagnostics(),
+            connection: this.connectionGuardian.getDiagnostics?.() || null,
+            resource: this.resourceMonitor.getDiagnostics?.() || null,
+            device: this.deviceCapabilityManager.getDiagnostics?.() || null
         };
-
-        if (!this.adaptiveController.hasProfileChanged()) {
-            return;
-        }
-
-        const profile = this.adaptiveController.getCurrentProfile();
-
-        if (!profile || !profile.name) {
-            return;
-        }
-
-        await this.applyAdaptiveProfile(profile);
     }
 
     enrichStats(stats) {
         const connectionState = this.connectionGuardian.getState?.() || {};
-        const resourceState = this.resourceMonitor.getSnapshot?.() || this.resourceMonitor.getState?.() || null;
 
         return {
             ...stats,
 
-            connectionState: connectionState.connectionState || this.peerConnection.connectionState,
-            iceConnectionState: connectionState.iceConnectionState || this.peerConnection.iceConnectionState,
-            iceGatheringState: connectionState.iceGatheringState || this.peerConnection.iceGatheringState,
-            signalingState: connectionState.signalingState || this.peerConnection.signalingState,
+            connectionState:
+                connectionState.connectionState ||
+                this.peerConnection.connectionState,
 
-            connectionStabilityState: connectionState.stabilityState || "UNKNOWN",
-            connectionDuration: connectionState.connectionDuration || 0,
+            iceConnectionState:
+                connectionState.iceConnectionState ||
+                this.peerConnection.iceConnectionState,
 
-            resourceState
+            iceGatheringState:
+                connectionState.iceGatheringState ||
+                this.peerConnection.iceGatheringState,
+
+            signalingState:
+                connectionState.signalingState ||
+                this.peerConnection.signalingState,
+
+            connectionStabilityState:
+                connectionState.stabilityState || "UNKNOWN",
+
+            connectionDuration:
+                connectionState.connectionDuration || 0
         };
     }
 
@@ -194,38 +160,6 @@ export class NetworkEngine {
         if (this.featureToggleManager.isEnabled("connectionGuardian")) {
             this.connectionGuardian.update(this.getPeerConnectionState());
         }
-    }
-
-    async applyAdaptiveProfile(profile) {
-        if (this.currentProfile === profile.name) {
-            return;
-        }
-
-        const previousProfile = this.currentProfile || "NONE";
-
-        console.log(`[NetworkEngine] ${previousProfile} -> ${profile.name}`);
-
-        const applied = await this.encoderController.applyProfile(
-            this.peerConnection,
-            profile
-        );
-
-        if (!applied) {
-            return;
-        }
-
-        this.currentProfile = profile.name;
-        this.lastAppliedProfile = profile;
-
-        const stats = this.telemetry.getStats() || {};
-
-        console.log(
-            `[NetworkEngine] Profile=${profile.name} | ` +
-            `Actual=${Math.round((stats.actualBitrate || 0) / 1000)} kbps | ` +
-            `Available=${Math.round((stats.availableBitrate || 0) / 1000)} kbps | ` +
-            `RTT=${Math.round((stats.rtt || 0) * 1000)} ms | ` +
-            `Reason=${this.adaptiveController.getLastReason()}`
-        );
     }
 
     registerConnectionListeners() {
@@ -323,11 +257,17 @@ export class NetworkEngine {
     }
 
     getCurrentProfile() {
-        return this.lastAppliedProfile;
+        return {
+            name: "HIGH",
+            width: 1280,
+            height: 720,
+            fps: 30,
+            bitrate: 3800000
+        };
     }
 
     getCurrentProfileName() {
-        return this.currentProfile;
+        return "HIGH";
     }
 
     getLastStats() {
@@ -335,22 +275,20 @@ export class NetworkEngine {
     }
 
     getLastDecision() {
-        return this.lastEngineDecision;
+        return this.adaptiveController.getLastDecision();
     }
 
     getDiagnostics() {
-        return {
+        return this.lastDiagnostics || {
+            timestamp: Date.now(),
             engineVersion: this.options.engineVersion,
-            started: this.started,
-            currentProfile: this.currentProfile,
-            lastAppliedProfile: this.lastAppliedProfile,
-            lastStats: this.lastStats,
-            lastEngineDecision: this.lastEngineDecision,
-            adaptive: this.adaptiveController.getDiagnostics?.() || null,
-            encoder: this.encoderController.getLastDiagnostics?.() || null,
+            profile: this.currentProfile,
+            telemetry: this.telemetry.getStats(),
+            adaptive: this.adaptiveController.getDiagnostics(),
+            encoder: this.encoderController.getDiagnostics(),
             connection: this.connectionGuardian.getDiagnostics?.() || null,
-            device: this.deviceCapabilityManager.getDiagnostics?.() || null,
-            resource: this.resourceMonitor.getDiagnostics?.() || null
+            resource: this.resourceMonitor.getDiagnostics?.() || null,
+            device: this.deviceCapabilityManager.getDiagnostics?.() || null
         };
     }
 
@@ -376,9 +314,10 @@ export class NetworkEngine {
 
         this.encoderController.reset();
 
-        this.currentProfile = null;
         this.lastStats = null;
-        this.lastEngineDecision = null;
-        this.lastAppliedProfile = null;
+        this.lastDiagnostics = null;
+        this.lastEncoderResult = null;
     }
 }
+
+export default NetworkEngine;

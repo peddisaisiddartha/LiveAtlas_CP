@@ -158,7 +158,7 @@ class FeatureToggleManager {
             disabled: this.getDisabledFeatures(),
             engineMode: this.isEnabled("communicationEngineV2")
                 ? "COMMUNICATION_ENGINE_V2"
-                : "LEGACY_NETWORK_ENGINE"
+                : "BROWSER_COOPERATIVE_PRESENTATION"
         };
     }
 }

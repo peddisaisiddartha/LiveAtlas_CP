@@ -11,7 +11,7 @@ import { askAI } from '../ai/aiService';
 import { supabase } from '../lib/supabase';
 import { NetworkEngine } from "../network/networkEngine";
 import CommunicationStatus from "../Components/CommunicationStatus";
-import { BrowserCooperationEngine } from "../network/browserCooperationEngine";
+import { BrowserController } from "../network/browserController";
 
 /* ─────────────────────────────────────────────────────────
    QUALITY CONSTANTS  — tweak here for different networks
@@ -139,7 +139,7 @@ const VideoRoom = () => {
     const networkEngineRef = useRef(null);
     const iceRestartTimerRef = useRef(null);
     const communicationStatusTimerRef = useRef(null);
-    const browserCooperationRef = useRef(null);
+    const browserControllerRef = useRef(null);
 
     /* ── ORIGINAL INTENT FETCH + REALTIME (unchanged) ── */
     useEffect(() => {
@@ -296,9 +296,9 @@ const VideoRoom = () => {
                 networkEngineRef.current.stop();
             }
 
-            if (browserCooperationRef.current) {
-                browserCooperationRef.current.reset();
-                browserCooperationRef.current = null;   
+            if (browserControllerRef.current) {
+                browserControllerRef.current.reset();
+                browserControllerRef.current = null;
             }
 
             if (communicationStatusTimerRef.current) {
@@ -389,24 +389,24 @@ const VideoRoom = () => {
         if (localVideoRef.current) localVideoRef.current.srcObject = stream;
 
 
-        browserCooperationRef.current = new BrowserCooperationEngine({
-            intent:
-                selectedIntent === "Talk"
-                ? "talk"
-                : selectedIntent === "Experience"
-                ? "experience"
-                : selectedIntent === "Learn"
-                ? "learn"
-                : "scenery"
-            });
+            browserControllerRef.current = new BrowserController({
+                intent:
+                    selectedIntent === "Talk"
+                    ? "talk"
+                    : selectedIntent === "Experience"
+                    ? "experience"
+                    : selectedIntent === "Learn"
+                    ? "learn"
+                    : "scenery"
+            }); 
 
-            const captureDiagnostics =
-                browserCooperationRef.current.applyToStream(
-                    stream,
-                    browserCooperationRef.current.intent
-                );
+        const captureDiagnostics =
+            browserControllerRef.current.applyToStream(
+                stream,
+                browserControllerRef.current.intent
+            );
 
-            console.log("[BrowserCooperation] Capture:", captureDiagnostics);
+        console.log("[BrowserController] Capture:", captureDiagnostics);
 
         /* ORIGINAL mic level analyser (unchanged) */
         if (!window.AudioContext && !window.webkitAudioContext) {
@@ -525,9 +525,15 @@ const VideoRoom = () => {
 
 
         networkEngineRef.current = new NetworkEngine(peerConnection.current, {
-            applyInitialProfile: true,
-            initialProfile: "MEDIUM",
-            engineVersion: "V2_COMPAT"
+            applyStartupEncoderPreference: true,
+            engineVersion: "BROWSER_COOPERATIVE_PRESENTATION",
+            encoder: {
+                maxBitrate: 3800000,
+                minBitrate: 1200000,
+                maxFramerate: 30,
+                scaleResolutionDownBy: 1,
+                degradationPreference: "maintain-resolution"
+            }
         });
 
         await networkEngineRef.current.start();
@@ -545,22 +551,22 @@ const VideoRoom = () => {
             const telemetry =
                 networkEngineRef.current.telemetry.getStats();
 
-            const browserCooperation =
-                browserCooperationRef.current?.update(telemetry);
+            const browserReview =
+                browserControllerRef.current?.reviewTelemetry(telemetry);
 
             if (
-                browserCooperation?.recommendation?.action === "GENTLE_REAPPLY_HIGH_PROFILE"
+                browserReview?.recommendation?.action === "ENCODER_STUCK_LOW"
             ) {
                 console.log(
-                    "[BrowserCooperation]",
-                    browserCooperation.recommendation.reason
+                    "[BrowserController]",
+                    browserReview.recommendation.reason
                 );
             }
 
             const profileName =
-                diagnostics.currentProfile ||
-                networkEngineRef.current.currentProfile ||
-                "MEDIUM";
+                networkEngineRef.current.getCurrentProfileName?.() ||
+                diagnostics.profile ||
+                "HIGH";
 
             setCommunicationStatus({
 

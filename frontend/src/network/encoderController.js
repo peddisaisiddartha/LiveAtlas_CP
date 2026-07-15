@@ -1,92 +1,140 @@
+/**
+ * EncoderController
+ *
+ * Presentation-safe encoder controller.
+ *
+ * This module does NOT fight the browser.
+ *
+ * It applies a single startup HD preference to the video sender,
+ * then lets WebRTC's native congestion control do its job.
+ *
+ * It never:
+ * - restarts ICE
+ * - creates RTCPeerConnection
+ * - replaces tracks
+ * - runs adaptation loops
+ * - forces repeated profile switching
+ */
+
 export class EncoderController {
     constructor(options = {}) {
-        this.lastProfile = null;
-        this.lastAppliedAt = null;
+        this.applied = false;
+        this.lastPlan = null;
+        this.lastResult = null;
         this.lastError = null;
-        this.lastDiagnostics = null;
 
-        this.preserveHdResolution = options.preserveHdResolution ?? true;
+        this.options = {
+            maxBitrate: options.maxBitrate || 3800000,
+            minBitrate: options.minBitrate || 1200000,
+            maxFramerate: options.maxFramerate || 30,
+            scaleResolutionDownBy: options.scaleResolutionDownBy || 1,
+            degradationPreference:
+                options.degradationPreference || "maintain-resolution"
+        };
     }
 
-    async applyProfile(peerConnection, profile) {
-        if (!peerConnection || !profile) {
-            return false;
+    async applyStartupPreference(peerConnection) {
+        if (!peerConnection || this.applied) {
+            return this.lastResult;
         }
 
         const sender = this.getVideoSender(peerConnection);
 
         if (!sender || !sender.track) {
-            this.lastDiagnostics = {
-                status: "NO_VIDEO_SENDER",
-                profileName: profile.name,
+            this.lastResult = {
+                applied: false,
+                reason: "No video sender available",
                 timestamp: Date.now()
             };
 
-            return false;
+            return this.lastResult;
         }
 
-        const track = sender.track;
-        const settings = this.getTrackSettings(track);
-
-        const desiredPlan = this.buildEncoderPlan(profile, settings);
-
-        if (this.isSamePlan(desiredPlan)) {
-            return false;
-        }
+        const trackSettings = this.getTrackSettings(sender.track);
+        const plan = this.createStartupPlan(trackSettings);
 
         try {
             const params = sender.getParameters();
 
             params.encodings = this.prepareEncodings(params.encodings);
+
             params.encodings[0] = {
                 ...params.encodings[0],
-                ...desiredPlan.encoding
+                active: true,
+                maxBitrate: plan.maxBitrate,
+                maxFramerate: plan.maxFramerate,
+                scaleResolutionDownBy: plan.scaleResolutionDownBy,
+                priority: "high",
+                networkPriority: "high"
             };
 
-            if (desiredPlan.degradationPreference) {
-                params.degradationPreference = desiredPlan.degradationPreference;
+            if (this.supportsMinBitrate()) {
+                params.encodings[0].minBitrate = plan.minBitrate;
             }
+
+            params.degradationPreference = plan.degradationPreference;
 
             await sender.setParameters(params);
 
-            this.lastProfile = {
-                name: profile.name,
-                width: profile.width,
-                height: profile.height,
-                fps: profile.fps,
-                bitrate: profile.bitrate
-            };
-
-            this.lastAppliedAt = Date.now();
+            this.applied = true;
+            this.lastPlan = plan;
             this.lastError = null;
-            this.lastDiagnostics = {
-                status: "APPLIED",
-                profileName: profile.name,
-                capture: desiredPlan.capture,
-                encoding: desiredPlan.encoding,
-                degradationPreference: desiredPlan.degradationPreference,
-                resolutionPolicy: desiredPlan.resolutionPolicy,
-                timestamp: this.lastAppliedAt
-            };
-
-            console.log(
-                `[Encoder] Applied ${profile.name} (${profile.width}x${profile.height} @ ${profile.fps} FPS, ${Math.round(profile.bitrate / 1000)} kbps)`
-            );
-
-            return true;
-        } catch (error) {
-            this.lastError = error;
-            this.lastDiagnostics = {
-                status: "FAILED",
-                profileName: profile.name,
-                message: error?.message || "Failed to apply encoder profile",
+            this.lastResult = {
+                applied: true,
+                reason: "Startup HD preference applied",
+                plan,
                 timestamp: Date.now()
             };
 
-            console.error("[Encoder] Failed to apply profile:", error);
+            console.log(
+                `[Encoder] Startup preference applied: ` +
+                `${plan.targetWidth}x${plan.targetHeight}, ` +
+                `${Math.round(plan.maxBitrate / 1000)} kbps, ` +
+                `${plan.maxFramerate} fps`
+            );
 
-            return false;
+            return this.lastResult;
+        } catch (error) {
+            this.lastError = error;
+            this.lastResult = {
+                applied: false,
+                reason: error?.message || "Failed to apply startup encoder preference",
+                plan,
+                timestamp: Date.now()
+            };
+
+            console.warn("[Encoder] Startup preference failed:", error);
+
+            return this.lastResult;
         }
+    }
+
+    createStartupPlan(trackSettings = {}) {
+        const captureWidth = Number(trackSettings.width || 0);
+        const captureHeight = Number(trackSettings.height || 0);
+
+        const captureIsHd =
+            captureWidth >= 1280 &&
+            captureHeight >= 720;
+
+        return {
+            targetWidth: captureIsHd ? 1280 : captureWidth || 1280,
+            targetHeight: captureIsHd ? 720 : captureHeight || 720,
+
+            captureWidth,
+            captureHeight,
+            captureIsHd,
+
+            maxBitrate: this.options.maxBitrate,
+            minBitrate: this.options.minBitrate,
+            maxFramerate: this.options.maxFramerate,
+            scaleResolutionDownBy: this.options.scaleResolutionDownBy,
+            degradationPreference: this.options.degradationPreference,
+
+            policy: captureIsHd
+                ? "PRESERVE_HD_CAPTURE"
+                : "USE_AVAILABLE_CAPTURE"
+        };
     }
 
     getVideoSender(peerConnection) {
@@ -107,126 +155,6 @@ export class EncoderController {
         return track.getSettings() || {};
     }
 
-    buildEncoderPlan(profile, settings) {
-        const captureWidth = Number(settings.width || 0);
-        const captureHeight = Number(settings.height || 0);
-
-        const canCapture720p =
-            captureWidth >= 1280 &&
-            captureHeight >= 720;
-
-        const isHigh = profile.name === "HIGH";
-        const isMedium = profile.name === "MEDIUM";
-        const isLow = profile.name === "LOW";
-
-        const resolutionPolicy = this.getResolutionPolicy({
-            profile,
-            captureWidth,
-            captureHeight,
-            canCapture720p
-        });
-
-        const encoding = {
-            active: true,
-            maxBitrate: profile.bitrate,
-            maxFramerate: this.getFps(profile),
-            scaleResolutionDownBy: resolutionPolicy.scaleResolutionDownBy,
-            priority: isLow ? "medium" : "high",
-            networkPriority: isLow ? "medium" : "high"
-        };
-
-        const minBitrate = this.getMinBitrate(profile);
-
-        if (minBitrate) {
-            encoding.minBitrate = minBitrate;
-        }
-
-        return {
-            profileName: profile.name,
-            capture: {
-                width: captureWidth || null,
-                height: captureHeight || null
-            },
-            encoding,
-            degradationPreference: this.getDegradationPreference(profile, canCapture720p),
-            resolutionPolicy
-        };
-    }
-
-    getResolutionPolicy({ profile, captureWidth, captureHeight, canCapture720p }) {
-        if (profile.name === "HIGH") {
-            if (this.preserveHdResolution && canCapture720p) {
-                return {
-                    name: "PRESERVE_CAPTURE_HD",
-                    scaleResolutionDownBy: 1,
-                    reason: "Camera capture supports 1280x720"
-                };
-            }
-
-            return {
-                name: "HIGH_WITH_AVAILABLE_CAPTURE",
-                scaleResolutionDownBy: 1,
-                reason: captureWidth && captureHeight
-                    ? `Camera capture is ${captureWidth}x${captureHeight}`
-                    : "Camera capture size is unknown"
-            };
-        }
-
-        if (profile.name === "MEDIUM") {
-            if (canCapture720p) {
-                return {
-                    name: "MEDIUM_SOFT_SCALE",
-                    scaleResolutionDownBy: 1.333,
-                    reason: "Medium profile reduces load while avoiding aggressive downscale"
-                };
-            }
-
-            return {
-                name: "MEDIUM_NO_EXTRA_SCALE",
-                scaleResolutionDownBy: 1,
-                reason: "Capture is already below HD"
-            };
-        }
-
-        return {
-            name: "LOW_CONSERVATIVE_SCALE",
-            scaleResolutionDownBy: canCapture720p ? 2 : 1.5,
-            reason: "Low profile for degraded network conditions"
-        };
-    }
-
-    getDegradationPreference(profile, canCapture720p) {
-        if (profile.degradationPreference) {
-            return profile.degradationPreference;
-        }
-
-        if (profile.name === "HIGH" && canCapture720p) {
-            return "maintain-resolution";
-        }
-
-        if (profile.name === "LOW") {
-            return "maintain-framerate";
-        }
-
-        return "balanced";
-    }
-
-    getMinBitrate(profile) {
-        if (profile.name === "HIGH") return 2500000;
-        if (profile.name === "MEDIUM") return 1000000;
-        if (profile.name === "LOW") return 350000;
-
-        return undefined;
-    }
-
-    getFps(profile) {
-        if (profile.name === "HIGH") return 30;
-        if (profile.name === "MEDIUM") return 24;
-        if (profile.name === "LOW") return 20;
-
-        return profile.fps || 24;
-    }
-
     prepareEncodings(encodings) {
         if (!Array.isArray(encodings) || encodings.length === 0) {
             return [{}];
@@ -235,37 +163,43 @@ export class EncoderController {
         return encodings;
     }
 
-    isSamePlan(plan) {
-        if (!this.lastProfile || !this.lastDiagnostics) {
-            return false;
-        }
-
-        const lastEncoding = this.lastDiagnostics.encoding;
-
-        return (
-            this.lastProfile.name === plan.profileName &&
-            lastEncoding?.maxBitrate === plan.encoding.maxBitrate &&
-            lastEncoding?.maxFramerate === plan.encoding.maxFramerate &&
-            lastEncoding?.scaleResolutionDownBy === plan.encoding.scaleResolutionDownBy
-        );
+    supportsMinBitrate() {
+        return true;
     }
 
-    getLastProfile() {
-        return this.lastProfile;
+    wasApplied() {
+        return this.applied;
     }
 
-    getLastDiagnostics() {
-        return this.lastDiagnostics;
+    getLastPlan() {
+        return this.lastPlan;
+    }
+
+    getLastResult() {
+        return this.lastResult;
     }
 
     getLastError() {
         return this.lastError;
     }
 
+    getDiagnostics() {
+        return {
+            applied: this.applied,
+            lastPlan: this.lastPlan,
+            lastResult: this.lastResult,
+            lastError: this.lastError
+                ? this.lastError.message || String(this.lastError)
+                : null
+        };
+    }
+
     reset() {
-        this.lastProfile = null;
-        this.lastAppliedAt = null;
+        this.applied = false;
+        this.lastPlan = null;
+        this.lastResult = null;
         this.lastError = null;
-        this.lastDiagnostics = null;
     }
 }
+
+export default EncoderController;
