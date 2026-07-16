@@ -16,6 +16,14 @@
 class ConnectionGuardian {
     constructor(options = {}) {
         this.maxTransitions = options.maxTransitions || 30;
+
+        this.thresholds = {
+
+            warmingUp: 4000,
+
+            stable: 15000
+
+        };
         this.reset();
     }
 
@@ -211,8 +219,13 @@ class ConnectionGuardian {
             ? now - this.state.connectedSince
             : 0;
 
-        if (connectedDuration >= 15000) return "STABLE";
-        if (connectedDuration >= 4000) return "CONNECTED";
+        if (connectedDuration >= this.thresholds.stable) {
+            return "STABLE";
+        }
+
+        if (connectedDuration >= this.thresholds.warmingUp) {
+            return "CONNECTED";
+        }
 
         return "WARMING_UP";
     }
@@ -231,6 +244,7 @@ class ConnectionGuardian {
             iceGatheringState: this.state.iceGatheringState,
             signalingState: this.state.signalingState,
             stabilityState: this.state.stabilityState,
+            quality: this.getConnectionQuality(),
 
             connectedSince: this.state.connectedSince,
             disconnectedSince: this.state.disconnectedSince,
@@ -338,6 +352,32 @@ class ConnectionGuardian {
 
     isClosed() {
         return this.state.connectionState === "closed";
+    }
+
+    getConnectionQuality() {
+
+        if (this.isFailed()) {
+            return "FAILED";
+        }
+
+        if (this.isDisconnected()) {
+            return "UNSTABLE";
+        }
+
+        if (this.isConnecting()) {
+            return "CONNECTING";
+        }
+
+        if (this.state.stabilityState === "STABLE") {
+            return "EXCELLENT";
+        }
+
+        if (this.state.stabilityState === "CONNECTED") {
+            return "GOOD";
+        }
+
+        return "UNKNOWN";
+
     }
 }
 

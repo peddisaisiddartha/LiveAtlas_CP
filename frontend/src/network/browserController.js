@@ -30,6 +30,20 @@ export class BrowserController {
 
         this.lowEncodingSince = null;
         this.lastHintApplied = null;
+
+        this.thresholds = {
+
+            healthyRtt: 0.45,
+
+            healthyPacketLoss: 0.04,
+
+            healthyJitter: 0.08,
+
+            healthyBitrate: 900000,
+
+            recoveryDelay: 15000
+
+        };
     }
 
     applyToStream(stream, intent = this.intent) {
@@ -175,13 +189,13 @@ export class BrowserController {
             receivedHeight >= 720;
 
         const networkLooksHealthy =
-            rtt < 0.45 &&
-            packetLoss < 0.04 &&
-            jitter < 0.08 &&
-            (
-                actualBitrate === 0 ||
-                actualBitrate >= 900000
-            );
+            rtt < this.thresholds.healthyRtt &&
+            packetLoss < this.thresholds.healthyPacketLoss &&
+            jitter < this.thresholds.healthyJitter &&
+        (
+            actualBitrate === 0 ||
+            actualBitrate >= this.thresholds.healthyBitrate
+        );
 
         const encodingLowerThanCapture =
             captureIsHd &&
@@ -275,7 +289,10 @@ export class BrowserController {
             state.encodingLowerThanCapture &&
             state.networkLooksHealthy
         ) {
-            if (state.lowEncodingDuration >= 15000) {
+            if (
+                state.lowEncodingDuration >=
+                this.thresholds.recoveryDelay
+            ) {
                 return {
                     action: "ENCODER_STUCK_LOW",
                     reason: "Capture is HD and network looks healthy, but encoded resolution remains low"

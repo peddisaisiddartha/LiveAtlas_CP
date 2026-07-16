@@ -530,6 +530,29 @@ export class Telemetry {
             telemetry.transmission.localProtocol;
         telemetry.remoteProtocol =
             telemetry.transmission.remoteProtocol;
+        telemetry.pipeline = {
+
+            capture: telemetry.resolution.capture,
+
+            encoded: telemetry.resolution.encoded,
+
+            received: telemetry.resolution.received,
+
+            status: telemetry.resolution.status,
+
+            captureWidth: telemetry.capture.width,
+
+            captureHeight: telemetry.capture.height,
+
+            encodedWidth: telemetry.encoding.width,
+
+            encodedHeight: telemetry.encoding.height,
+
+            receivedWidth: telemetry.reception.width,
+
+            receivedHeight: telemetry.reception.height
+
+        };
     }
 
     resolutionStatus(telemetry) {

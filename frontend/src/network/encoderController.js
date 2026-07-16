@@ -27,14 +27,18 @@ export class EncoderController {
             maxBitrate: options.maxBitrate || 3800000,
             minBitrate: options.minBitrate || 1200000,
             maxFramerate: options.maxFramerate || 30,
-            scaleResolutionDownBy: options.scaleResolutionDownBy || 1,
+            scaleResolutionDownBy:
+                Math.max(
+                    1,
+                    Number(options.scaleResolutionDownBy) || 1
+                ),
             degradationPreference:
                 options.degradationPreference || "maintain-resolution"
         };
     }
 
     async applyStartupPreference(peerConnection) {
-        if (!peerConnection || this.applied) {
+        if (!peerConnection) {
             return this.lastResult;
         }
 
@@ -61,6 +65,7 @@ export class EncoderController {
             params.encodings[0] = {
                 ...params.encodings[0],
                 active: true,
+                adaptivePtime: false,
                 maxBitrate: plan.maxBitrate,
                 maxFramerate: plan.maxFramerate,
                 scaleResolutionDownBy: plan.scaleResolutionDownBy,
@@ -76,7 +81,7 @@ export class EncoderController {
 
             await sender.setParameters(params);
 
-            this.applied = true;
+            
             this.lastPlan = plan;
             this.lastError = null;
             this.lastResult = {
@@ -133,7 +138,13 @@ export class EncoderController {
 
             policy: captureIsHd
                 ? "PRESERVE_HD_CAPTURE"
-                : "USE_AVAILABLE_CAPTURE"
+                : "USE_CAPTURE_NATIVE",
+
+            allowBrowserAdaptation: true,
+
+            preserveResolution: captureIsHd,
+
+            verifyEncoderResolution: true
         };
     }
 
@@ -193,6 +204,35 @@ export class EncoderController {
                 : null
         };
     }
+
+    verifyEncoderState(trackSettings = {}) {
+
+    const width = Number(trackSettings.width || 0);
+    const height = Number(trackSettings.height || 0);
+
+    return {
+
+        captureIsHd:
+            width >= 1280 &&
+            height >= 720,
+
+        captureWidth: width,
+
+        captureHeight: height,
+
+        expectedWidth:
+            this.lastPlan?.targetWidth ?? width,
+
+        expectedHeight:
+            this.lastPlan?.targetHeight ?? height,
+
+        matchesPlan:
+            width === (this.lastPlan?.targetWidth ?? width) &&
+            height === (this.lastPlan?.targetHeight ?? height)
+
+    };
+
+}
 
     reset() {
         this.applied = false;

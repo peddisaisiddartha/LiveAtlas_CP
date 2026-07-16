@@ -156,13 +156,30 @@ class SessionPreparationManager {
         }
 
         return {
+
             canStart: true,
+
             presentationReady: true,
+
             preferredStartupProfile: "HIGH",
-            canPrefer720p: Boolean(profile.qualityHints?.canPrefer720p),
-            reason: warnings.length > 0
+
+            canPrefer720p: Boolean(
+                profile.qualityHints?.canPrefer720p
+            ),
+
+            canPreserveHd: Boolean(
+                profile.qualityHints?.canPrefer720p
+            ),
+
+            supportsEncoderVerification: Boolean(
+                profile.browserCapabilities?.supportsSenderParameters
+            ),
+
+            reason:
+                warnings.length > 0
                 ? warnings[0].message
                 : "Environment is ready for communication."
+
         };
     }
 

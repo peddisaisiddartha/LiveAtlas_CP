@@ -199,13 +199,34 @@ class DeviceCapabilityManager {
             deviceLikelyHandles720p;
 
         return {
+
             canPrefer720p,
+
             displayCanShow720p,
+
             deviceLikelyHandles720p,
+
             preferredPresentationProfile: "HIGH",
+
+            preserveHdByDefault: canPrefer720p,
+
+            startupEncoderProfile: canPrefer720p
+                ? "HIGH"
+                : "MEDIUM",
+
+            browserExpectedToAdapt:
+                ["Chrome", "Edge"].includes(input.browser),
+
+            verifyActualCapture: true,
+
+            verifyEncodedResolution: true,
+
+            verifyReceivedResolution: true,
+
             reason: canPrefer720p
-                ? "Device appears suitable for 720p presentation mode"
-                : "Presentation mode can still request HD; browser may adapt if needed"
+                ? "Device appears suitable for HD presentation mode."
+                : "Device can still request HD. Browser may adapt if required."
+
         };
     }
 
