@@ -1,291 +1,717 @@
 /**
  * AdaptiveController
  *
- * Presentation-safe diagnostic controller.
+ * Decision engine for LiveAtlas.
  *
- * This module does NOT switch encoder profiles.
+ * This module observes the complete media pipeline and produces a stable,
+ * evidence-based recommendation. It never calls WebRTC APIs, changes a sender,
+ * restarts ICE, replaces tracks, or attempts to override browser congestion
+ * control.
  *
- * It never:
- * - downgrades to LOW
- * - changes bitrate
- * - calls sender.setParameters()
- * - fights browser adaptation
- *
- * It only:
- * - reads telemetry
- * - classifies connection/encoder health
- * - explains whether the issue appears to be network, browser, or encoder
+ * The browser remains responsible for real-time adaptation. This controller
+ * identifies where quality changed and tells the orchestration layer whether
+ * the browser should be allowed to recover naturally.
  */
+
+const DEFAULT_PROFILES = Object.freeze({
+
+    LOW: {
+        name: "LOW",
+        width: 640,
+        height: 360,
+        fps: 20,
+        bitrate: 800000
+    },
+
+    MEDIUM: {
+        name: "MEDIUM",
+        width: 960,
+        height: 540,
+        fps: 24,
+        bitrate: 1800000
+    },
+
+    HIGH: {
+        name: "HIGH",
+        width: 1280,
+        height: 720,
+        fps: 30,
+        bitrate: 3800000
+    }
+
+});
+
+const DEFAULT_OPTIONS = Object.freeze({
+    historySize: 20,
+    analysisWindowSize: 8,
+    minimumSamplesForDecision: 4,
+    hdAreaRatio: 0.90,
+    healthyRttMs: 220,
+    healthyJitterMs: 45,
+    healthyPacketLoss: 0.03,
+    healthyBitrate: 1800000,
+});
 
 export class AdaptiveController {
     constructor(options = {}) {
-        this.history = [];
-        this.maxHistory = options.maxHistory || 20;
+        this.options = {
+            ...DEFAULT_OPTIONS,
+            ...options,
+        };
 
-        this.currentProfile = "HIGH";
+        // Kept for compatibility with the existing NetworkEngine API.
+        this.profiles = structuredClone(DEFAULT_PROFILES);
+
+        this.currentProfile = this.profiles.HIGH;
+        this.previousProfile = null;
         this.profileChanged = false;
 
-        this.networkState = "OBSERVING";
-        this.lastReason = "Diagnostics only";
+        this.history = [];
+        this.lastDecision = this.createInitialDecision();
+        this.lastUpdatedAt = null;
 
-        this.lastDecision = {
-            profile: "HIGH",
-            health: "OBSERVING",
-            reason: "Diagnostics only",
-            shouldApplyEncoder: false
-        };
-
-        this.profiles = {
-            HIGH: {
-                name: "HIGH",
-                width: 1280,
-                height: 720,
-                fps: 30,
-                bitrate: 3800000,
-                degradationPreference: "maintain-resolution"
-            }
-        };
+        this.lastProfileChange = 0;
+        this.minimumProfileDuration = 10000; // 10 seconds
     }
 
-    update(stats = {}) {
-        this.profileChanged = false;
+    update(telemetry = {}) {
+        const sample = this.normalizeTelemetry(telemetry);
 
-        const sample = this.normalizeStats(stats);
+        if (!sample.timestamp) {
+            return this.getLastDecision();
+        }
 
         this.history.push(sample);
 
-        if (this.history.length > this.maxHistory) {
+        if (this.history.length > this.options.historySize) {
             this.history.shift();
         }
 
-        const average = this.getAverages();
-        const decision = this.evaluate(average, sample);
+        const samples = this.getAnalysisSamples();
+        const pipeline = this.analyzePipeline(samples);
+        const network = this.analyzeNetwork(samples);
+        const browser = this.analyzeBrowser(samples, pipeline, network);
 
-        this.lastDecision = decision;
-        this.networkState = decision.health;
-        this.lastReason = decision.reason;
-    }
+        this.previousProfile = this.currentProfile;
+        this.profileChanged = false;
+        this.lastUpdatedAt = sample.timestamp;
 
-    normalizeStats(stats) {
-        return {
-            timestamp: Date.now(),
-
-            rtt: this.number(stats.rtt),
-            packetLoss: this.number(stats.packetLoss),
-            jitter: this.number(stats.jitter),
-            fps: this.number(stats.fps),
-
-            actualBitrate: this.number(stats.actualBitrate),
-            availableBitrate: this.number(stats.availableBitrate),
-
-            captureWidth: this.number(stats.captureWidth),
-            captureHeight: this.number(stats.captureHeight),
-
-            encodedWidth: this.number(
-                stats.encodedWidth ||
-                stats.encodedFrameWidth ||
-                stats.frameWidth
-            ),
-
-            encodedHeight: this.number(
-                stats.encodedHeight ||
-                stats.encodedFrameHeight ||
-                stats.frameHeight
-            ),
-
-            receivedWidth: this.number(
-                stats.receivedWidth ||
-                stats.receivedFrameWidth
-            ),
-
-            receivedHeight: this.number(
-                stats.receivedHeight ||
-                stats.receivedFrameHeight
-            ),
-
-            qualityLimitation: stats.qualityLimitation || "none",
-            encoderLimitedByCpu: Boolean(stats.encoderLimitedByCpu),
-            encoderLimitedByBandwidth: Boolean(stats.encoderLimitedByBandwidth),
-
-            connectionState: stats.connectionState || "unknown",
-            iceConnectionState: stats.iceConnectionState || "unknown"
-        };
-    }
-
-    getAverages() {
-        const count = Math.max(this.history.length, 1);
-
-        const total = this.history.reduce((acc, sample) => {
-            acc.rtt += sample.rtt;
-            acc.packetLoss += sample.packetLoss;
-            acc.jitter += sample.jitter;
-            acc.fps += sample.fps;
-            acc.actualBitrate += sample.actualBitrate;
-            acc.availableBitrate += sample.availableBitrate;
-            return acc;
-        }, {
-            rtt: 0,
-            packetLoss: 0,
-            jitter: 0,
-            fps: 0,
-            actualBitrate: 0,
-            availableBitrate: 0
+        this.lastDecision = this.createDecision({
+            sample,
+            samples,
+            pipeline,
+            network,
+            browser,
         });
 
-        return {
-            rtt: total.rtt / count,
-            packetLoss: total.packetLoss / count,
-            jitter: total.jitter / count,
-            fps: total.fps / count,
-            actualBitrate: total.actualBitrate / count,
-            availableBitrate: total.availableBitrate / count,
-            samples: count
-        };
-    }
-
-    evaluate(avg, latest) {
-        const captureIsHd =
-            latest.captureWidth >= 1280 &&
-            latest.captureHeight >= 720;
-
-        const encodedIsHd =
-            latest.encodedWidth >= 1280 &&
-            latest.encodedHeight >= 720;
-
-        const receivedIsHd =
-            latest.receivedWidth >= 1280 &&
-            latest.receivedHeight >= 720;
-
-        const browserLimited =
-            latest.encoderLimitedByCpu ||
-            latest.encoderLimitedByBandwidth ||
-            latest.qualityLimitation === "cpu" ||
-            latest.qualityLimitation === "bandwidth";
-
-        const networkBad =
-            avg.packetLoss >= 0.08 ||
-            avg.rtt >= 0.8 ||
-            avg.jitter >= 0.12;
-
-        const networkHealthy =
-            avg.rtt < 0.45 &&
-            avg.packetLoss < 0.04 &&
-            avg.jitter < 0.08;
-
-        const encoderLowerThanCapture =
-            captureIsHd &&
-            latest.encodedWidth > 0 &&
-            latest.encodedHeight > 0 &&
-            !encodedIsHd;
-
-        if (browserLimited) {
-            return {
-                profile: "HIGH",
-                health: "BROWSER_LIMITED",
-                reason: "Browser reports encoder CPU or bandwidth limitation",
-                shouldApplyEncoder: false,
-                captureIsHd,
-                encodedIsHd,
-                receivedIsHd,
-                networkHealthy,
-                browserLimited
-            };
-        }
-
-        if (networkBad) {
-            return {
-                profile: "HIGH",
-                health: "NETWORK_LIMITED",
-                reason: "Network metrics show real congestion",
-                shouldApplyEncoder: false,
-                captureIsHd,
-                encodedIsHd,
-                receivedIsHd,
-                networkHealthy: false,
-                browserLimited
-            };
-        }
-
-        if (encoderLowerThanCapture && networkHealthy) {
-            return {
-                profile: "HIGH",
-                health: "ENCODER_LOWER_THAN_CAPTURE",
-                reason: "Capture is HD and network looks healthy, but encoded resolution is lower",
-                shouldApplyEncoder: false,
-                captureIsHd,
-                encodedIsHd,
-                receivedIsHd,
-                networkHealthy,
-                browserLimited
-            };
-        }
-
-        if (captureIsHd && encodedIsHd) {
-            return {
-                profile: "HIGH",
-                health: "HD_ALIGNED",
-                reason: "Capture and encoded resolution are aligned at HD",
-                shouldApplyEncoder: false,
-                captureIsHd,
-                encodedIsHd,
-                receivedIsHd,
-                networkHealthy,
-                browserLimited
-            };
-        }
-
-        return {
-            profile: "HIGH",
-            health: "OBSERVING",
-            reason: "Collecting diagnostics",
-            shouldApplyEncoder: false,
-            captureIsHd,
-            encodedIsHd,
-            receivedIsHd,
-            networkHealthy,
-            browserLimited
-        };
-    }
-
-    hasProfileChanged() {
-        return false;
+        return this.getLastDecision();
     }
 
     getCurrentProfile() {
-        return this.profiles.HIGH;
+        return { ...this.currentProfile };
     }
 
     getCurrentProfileName() {
-        return "HIGH";
+        return this.currentProfile.name;
     }
 
-    getNetworkState() {
-        return this.networkState;
+    getStartupProfile() {
+        return this.getCurrentProfile();
     }
 
-    getLastReason() {
-        return this.lastReason;
+    hasProfileChanged() {
+        return this.profileChanged;
     }
 
     getLastDecision() {
-        return this.lastDecision;
+        return this.clone(this.lastDecision);
+    }
+
+    getDecision() {
+        return this.getLastDecision();
+    }
+
+    getHistory() {
+        return this.history.map((sample) => this.clone(sample));
     }
 
     getDiagnostics() {
         return {
-            mode: "DIAGNOSTIC_ONLY",
-            currentProfile: "HIGH",
-            networkState: this.networkState,
-            lastReason: this.lastReason,
-            lastDecision: this.lastDecision,
-            historySize: this.history.length
+            profile: this.getCurrentProfile(),
+            historySize: this.history.length,
+            lastUpdatedAt: this.lastUpdatedAt,
+            decision: this.getLastDecision(),
         };
     }
 
-    number(value) {
-        const parsed = Number(value);
-        return Number.isFinite(parsed) ? parsed : 0;
+    reset() {
+        this.currentProfile = this.profiles.HIGH;
+        this.previousProfile = null;
+        this.profileChanged = false;
+        this.history = [];
+        this.lastUpdatedAt = null;
+        this.lastDecision = this.createInitialDecision();
     }
+
+    createInitialDecision() {
+        return {
+            timestamp: null,
+            state: "OBSERVING",
+            reason: "Waiting for WebRTC telemetry.",
+            pipeline: {
+                state: "UNKNOWN",
+                capture: null,
+                encoded: null,
+                received: null,
+                captureToEncoderRatio: null,
+                encoderToReceiverRatio: null,
+            },
+            network: {
+                state: "UNKNOWN",
+                stable: false,
+                estimateUnderstatesThroughput: false,
+            },
+            browser: {
+                state: "UNKNOWN",
+                shouldAllowNativeRecovery: true,
+            },
+            recommendation: {
+                encoderAction: "NO_PARAMETER_CHANGE",
+                networkAction: "NO_ACTION",
+                browserAction: "ALLOW_NATIVE_ADAPTATION",
+            },
+        };
+    }
+
+    getAnalysisSamples() {
+        return this.history.slice(-this.options.analysisWindowSize);
+    }
+
+    normalizeTelemetry(telemetry) {
+        const captureWidth = this.firstNumber(
+            telemetry.capture?.width,
+            telemetry.capture?.frameWidth,
+            telemetry.captureWidth,
+            telemetry.captureFrameWidth
+        );
+
+        const captureHeight = this.firstNumber(
+            telemetry.capture?.height,
+            telemetry.capture?.frameHeight,
+            telemetry.captureHeight,
+            telemetry.captureFrameHeight
+        );
+
+        const encodedWidth = this.firstNumber(
+            telemetry.encoding?.width,
+            telemetry.encoding?.frameWidth,
+            telemetry.encodedWidth,
+            telemetry.encodedFrameWidth
+        );
+
+        const encodedHeight = this.firstNumber(
+            telemetry.encoding?.height,
+            telemetry.encoding?.frameHeight,
+            telemetry.encodedHeight,
+            telemetry.encodedFrameHeight
+        );
+
+        const receivedWidth = this.firstNumber(
+            telemetry.reception?.width,
+            telemetry.reception?.frameWidth,
+            telemetry.receivedWidth,
+            telemetry.receivedFrameWidth,
+            telemetry.frameWidth
+        );
+
+        const receivedHeight = this.firstNumber(
+            telemetry.reception?.height,
+            telemetry.reception?.frameHeight,
+            telemetry.receivedHeight,
+            telemetry.receivedFrameHeight,
+            telemetry.frameHeight
+        );
+
+        return {
+            timestamp: this.firstNumber(telemetry.timestamp, Date.now()),
+
+            capture: this.createResolution(captureWidth, captureHeight),
+            encoded: this.createResolution(encodedWidth, encodedHeight),
+            received: this.createResolution(receivedWidth, receivedHeight),
+
+            fps: this.firstNumber(
+                telemetry.encoding?.fps,
+                telemetry.fps
+            ),
+
+            actualBitrate: this.firstNumber(
+                telemetry.transmission?.actualBitrate,
+                telemetry.actualBitrate
+            ),
+
+            availableBitrate: this.firstNumber(
+                telemetry.transmission?.availableBitrate,
+                telemetry.availableBitrate,
+                telemetry.availableOutgoingBitrate
+            ),
+
+            rttMs: this.toMilliseconds(
+                this.firstNumber(
+                    telemetry.rttMs,
+                    telemetry.transmission?.rttMs,
+                    telemetry.rtt,
+                    telemetry.transmission?.rtt
+                ),
+                telemetry.rttMs !== undefined ||
+                    telemetry.transmission?.rttMs !== undefined
+            ),
+
+            jitterMs: this.toMilliseconds(
+                this.firstNumber(
+                    telemetry.jitterMs,
+                    telemetry.reception?.jitterMs,
+                    telemetry.jitter,
+                    telemetry.reception?.jitter
+                ),
+                telemetry.jitterMs !== undefined ||
+                    telemetry.reception?.jitterMs !== undefined
+            ),
+
+            packetLoss: this.toRatio(
+                this.firstNumber(
+                    telemetry.packetLoss,
+                    telemetry.reception?.packetLoss
+                )
+            ),
+
+            qualityLimitation: String(
+                telemetry.qualityLimitation ||
+                    telemetry.encoding?.qualityLimitation ||
+                    telemetry.encoding?.qualityLimitationReason ||
+                    "none"
+            ).toLowerCase(),
+
+            encoderLimitedByCpu: Boolean(
+                telemetry.encoderLimitedByCpu ||
+                    telemetry.encoding?.limitedByCpu
+            ),
+
+            encoderLimitedByBandwidth: Boolean(
+                telemetry.encoderLimitedByBandwidth ||
+                    telemetry.encoding?.limitedByBandwidth
+            ),
+
+            connectionState:
+                telemetry.connectionState ||
+                telemetry.connection?.connectionState ||
+                "",
+
+            iceConnectionState:
+                telemetry.iceConnectionState ||
+                telemetry.connection?.iceConnectionState ||
+                "",
+        };
+    }
+
+    analyzePipeline(samples) {
+        const latest = samples[samples.length - 1];
+
+        if (!latest) {
+            return {
+                state: "UNKNOWN",
+                capture: null,
+                encoded: null,
+                received: null,
+                captureToEncoderRatio: null,
+                encoderToReceiverRatio: null,
+            };
+        }
+
+        const captureToEncoderRatio = this.resolutionRatio(
+            latest.encoded,
+            latest.capture
+        );
+
+        const encoderToReceiverRatio = this.resolutionRatio(
+            latest.received,
+            latest.encoded
+        );
+
+        const encodedBelowCapture =
+            this.isHd(latest.capture) &&
+            captureToEncoderRatio !== null &&
+            captureToEncoderRatio < 0.90;
+
+        const receivedBelowEncoder =
+            this.isHd(latest.encoded) &&
+            encoderToReceiverRatio !== null &&
+            encoderToReceiverRatio < 0.90;
+
+        let state = "PARTIALLY_OBSERVED";
+
+        if (!latest.capture.width || !latest.capture.height) {
+            state = "CAPTURE_UNKNOWN";
+        } else if (!latest.encoded.width || !latest.encoded.height) {
+            state = "ENCODER_UNKNOWN";
+        } else if (encodedBelowCapture) {
+            state = "CAPTURE_TO_ENCODER_DEGRADATION";
+        } else if (receivedBelowEncoder) {
+            state = "ENCODER_TO_RECEIVER_DEGRADATION";
+        } else if (this.isHd(latest.capture) && this.isHd(latest.encoded)) {
+            state = "HD_PRESERVED";
+        } else {
+            state = "PIPELINE_ALIGNED";
+        }
+
+        return {
+            state,
+            capture: latest.capture,
+            encoded: latest.encoded,
+            received: latest.received,
+            captureToEncoderRatio,
+            encoderToReceiverRatio,
+            encodedBelowCapture,
+            receivedBelowEncoder,
+        };
+    }
+
+    analyzeNetwork(samples) {
+        if (!samples.length) {
+            return {
+                state: "UNKNOWN",
+                stable: false,
+                healthySampleRatio: 0,
+                estimateUnderstatesThroughput: false,
+            };
+        }
+
+        const averageRttMs = this.average(samples, "rttMs");
+        const averageJitterMs = this.average(samples, "jitterMs");
+        const averagePacketLoss = this.average(samples, "packetLoss");
+        const averageActualBitrate = this.average(samples, "actualBitrate");
+        const averageAvailableBitrate = this.average(samples, "availableBitrate");
+
+        const healthySamples = samples.filter((sample) => {
+            const rttHealthy =
+                sample.rttMs === 0 ||
+                sample.rttMs <= this.options.healthyRttMs;
+
+            const jitterHealthy =
+                sample.jitterMs === 0 ||
+                sample.jitterMs <= this.options.healthyJitterMs;
+
+            const lossHealthy =
+                sample.packetLoss <= this.options.healthyPacketLoss;
+
+            return rttHealthy && jitterHealthy && lossHealthy;
+        });
+
+        const healthySampleRatio = healthySamples.length / samples.length;
+
+        const estimateUnderstatesThroughput =
+            averageActualBitrate > 1500000 &&
+        (
+            averageAvailableBitrate === 0 ||
+            averageActualBitrate > averageAvailableBitrate * 1.5
+        );
+
+        const hasSustainedVideoThroughput =
+            averageActualBitrate >= this.options.healthyBitrate;
+
+        const stable =
+            healthySampleRatio >= 0.75 &&
+        (
+            hasSustainedVideoThroughput ||
+            estimateUnderstatesThroughput
+        );
+
+        let state = "OBSERVING";
+
+        if (samples.length < this.options.minimumSamplesForDecision) {
+            state = "OBSERVING";
+        } else if (stable) {
+            state = "HEALTHY";
+        } else if (healthySampleRatio >= 0.5) {
+            state = "VARIABLE";
+        } else {
+            state = "CONSTRAINED";
+        }
+
+        return {
+            state,
+            stable,
+            healthySampleRatio,
+            averageRttMs,
+            averageJitterMs,
+            averagePacketLoss,
+            averageActualBitrate,
+            averageAvailableBitrate,
+            estimateUnderstatesThroughput,
+            hasSustainedVideoThroughput,
+        };
+    }
+
+    analyzeBrowser(samples, pipeline, network) {
+        const latest = samples[samples.length - 1];
+
+        if (!latest) {
+            return {
+                state: "UNKNOWN",
+                shouldAllowNativeRecovery: true,
+            };
+        }
+
+        const cpuLimited =
+            latest.encoderLimitedByCpu ||
+            latest.qualityLimitation.includes("cpu");
+
+        const bandwidthLimited =
+            latest.encoderLimitedByBandwidth ||
+            latest.qualityLimitation.includes("bandwidth");
+
+        const sustainedEncoderDownscale =
+            samples.length >= this.options.minimumSamplesForDecision &&
+            samples.filter((sample) => {
+                const ratio = this.resolutionRatio(
+                    sample.encoded,
+                    sample.capture
+                );
+
+                return (
+                    ratio !== null &&
+                    ratio < this.options.hdAreaRatio
+                );
+            }).length >= this.options.minimumSamplesForDecision;
+
+        const likelyConservative =
+            sustainedEncoderDownscale &&
+            network.stable &&
+            !cpuLimited &&
+            !bandwidthLimited;
+
+        let state = "NATIVE_ADAPTATION";
+
+        if (likelyConservative) {
+            state = "CONSERVATIVE_ENCODING";
+        } else if (cpuLimited) {
+            state = "CPU_LIMITED";
+        } else if (bandwidthLimited) {
+            state = "BANDWIDTH_LIMITED";
+        } else if (pipeline.state === "HD_PRESERVED") {
+            state = "HD_PRESERVED";
+        }
+
+        return {
+            state,
+            cpuLimited,
+            bandwidthLimited,
+            sustainedEncoderDownscale,
+            likelyConservative,
+            shouldAllowNativeRecovery: true,
+        };
+    }
+
+    createDecision({ sample, samples, pipeline, network, browser }) {
+        let state = "OBSERVING";
+        let reason = "Collecting enough stable telemetry samples.";
+
+        if (this.isConnectionUnavailable(sample)) {
+            state = "CONNECTION_NOT_READY";
+            reason = "WebRTC connection is not ready for media analysis.";
+        } else if (samples.length < this.options.minimumSamplesForDecision) {
+            state = "OBSERVING";
+            reason = "Collecting a short telemetry history before judging quality.";
+        } else if (pipeline.state === "HD_PRESERVED") {
+            state = "HD_PRESERVED";
+            reason = "Capture and encoder are preserving HD resolution.";
+        } else if (browser.likelyConservative) {
+            state = "BROWSER_CONSERVATIVE";
+            reason =
+                "The encoder is below capture resolution while transport remains stable. " +
+                "Allow Chrome to recover without repeatedly changing sender parameters.";
+        } else if (browser.cpuLimited) {
+            state = "BROWSER_CPU_LIMITED";
+            reason =
+                "Browser telemetry reports CPU pressure. Keep the session stable and let the browser adapt.";
+        } else if (network.state === "CONSTRAINED") {
+            state = "NETWORK_CONSTRAINED";
+            reason =
+                "Multiple transport signals indicate genuine network pressure. Native WebRTC congestion control should lead.";
+        } else if (pipeline.state === "CAPTURE_TO_ENCODER_DEGRADATION") {
+            state = "ENCODER_BELOW_CAPTURE";
+            reason =
+                "The camera is capturing more detail than the active encoder is producing. Continue observing browser recovery.";
+        } else if (pipeline.state === "ENCODER_TO_RECEIVER_DEGRADATION") {
+            state = "RECEIVER_BELOW_ENCODER";
+            reason =
+                "The receiver is displaying less resolution than the sender encodes. Inspect receiver-side browser and rendering telemetry.";
+        } else {
+            state = "STABLE";
+            reason = "The media pipeline is stable with no action required.";
+        }
+
+        const profile = this.selectProfile(
+            pipeline,
+            network,
+            browser
+        );
+
+        const now = Date.now();
+
+        if (
+            this.currentProfile.name !== profile.name &&
+            now - this.lastProfileChange >= this.minimumProfileDuration
+        ) {
+            this.currentProfile = profile;
+            this.profileChanged = true;
+            this.lastProfileChange = now;
+        } else {
+            this.profileChanged = false;
+        }
+
+        return {
+            timestamp: sample.timestamp,
+            state,
+            reason,
+            profile,
+            pipeline,
+            network,
+            browser,
+            recommendation: {
+                encoderAction: this.profileChanged
+                ? "APPLY_PROFILE"
+                : "NO_PARAMETER_CHANGE",
+                networkAction: "NO_ACTION",
+                browserAction: "ALLOW_NATIVE_ADAPTATION",
+                applyProfile: this.profileChanged
+            }
+        };
+    }
+
+    isConnectionUnavailable(sample) {
+        const terminalStates = ["failed", "closed"];
+        const connectionState = String(sample.connectionState).toLowerCase();
+        const iceState = String(sample.iceConnectionState).toLowerCase();
+
+        return (
+            terminalStates.includes(connectionState) ||
+            terminalStates.includes(iceState)
+        );
+    }
+
+    createResolution(width, height) {
+        const normalizedWidth = Math.max(0, Number(width) || 0);
+        const normalizedHeight = Math.max(0, Number(height) || 0);
+
+        return {
+            width: normalizedWidth,
+            height: normalizedHeight,
+            area: normalizedWidth * normalizedHeight,
+        };
+    }
+
+    resolutionRatio(output, input) {
+        if (!output?.area || !input?.area) {
+            return null;
+        }
+
+        return output.area / input.area;
+    }
+
+    isHd(resolution) {
+        return (
+            resolution?.width >= 1280 &&
+            resolution?.height >= 720
+        );
+    }
+
+    average(samples, key) {
+        const values = samples
+            .map((sample) => Number(sample[key]))
+            .filter((value) => Number.isFinite(value) && value >= 0);
+
+        if (!values.length) {
+            return 0;
+        }
+
+        return values.reduce((total, value) => total + value, 0) / values.length;
+    }
+
+    firstNumber(...values) {
+        for (const value of values) {
+            const numericValue = Number(value);
+
+            if (Number.isFinite(numericValue) && numericValue >= 0) {
+                return numericValue;
+            }
+        }
+
+        return 0;
+    }
+
+    toMilliseconds(value, alreadyMilliseconds) {
+        if (!Number.isFinite(value) || value <= 0) {
+            return 0;
+        }
+
+        return alreadyMilliseconds ? value : value * 1000;
+    }
+
+    toRatio(value) {
+        if (!Number.isFinite(value) || value <= 0) {
+            return 0;
+        }
+
+        return value > 1 ? value / 100 : value;
+    }
+
+    clone(value) {
+        return JSON.parse(JSON.stringify(value));
+    }
+
+    selectProfile(pipeline, network, browser) {
+
+    // Preserve HD whenever possible.
+    if (
+        pipeline.state === "HD_PRESERVED" &&
+        network.stable
+    ) {
+        return this.profiles.HIGH;
+    }
+
+    // Browser is temporarily conservative.
+    // Don't immediately downgrade.
+    if (
+        browser.likelyConservative &&
+        network.stable
+    ) {
+        return this.currentProfile;
+    }
+
+    // CPU limitation is real.
+    if (
+        browser.cpuLimited
+    ) {
+        return this.profiles.MEDIUM;
+    }
+
+    // Genuine network congestion.
+    if (
+        network.state === "CONSTRAINED"
+    ) {
+        return this.profiles.LOW;
+    }
+
+    // Variable network.
+    if (
+        network.state === "VARIABLE"
+    ) {
+        return this.profiles.MEDIUM;
+    }
+
+    return this.profiles.HIGH;
+
+}
 }
 
 export default AdaptiveController;
