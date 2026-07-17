@@ -5,6 +5,7 @@ export default function CommunicationStatus({
     connected = false,
     quality = "Basic",
     latency = "--",
+    jitterBufferDelay = 0,
     video = "SD",
 
     actualBitrate = 0,
@@ -43,6 +44,11 @@ export default function CommunicationStatus({
             <div className="status-row">
                 <span>🌐</span>
                 <span>{latency} ms</span>
+            </div>
+
+            <div className="status-row">
+                <span>⏱️</span>
+                <span>{(jitterBufferDelay * 1000).toFixed(1)} ms</span>
             </div>
 
             <hr />

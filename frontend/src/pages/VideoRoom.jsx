@@ -584,6 +584,9 @@ const VideoRoom = () => {
                         ? Math.round(telemetry.rtt * 1000)
                         : "--",
 
+                        jitterBufferDelay:
+                            telemetry?.reception?.averageJitterBufferDelay || 0,
+
                 video:
                     profileName === "HIGH"
                     ? "HD"
@@ -785,6 +788,7 @@ const VideoRoom = () => {
                     connected={communicationStatus.connected}
                     quality={communicationStatus.quality}
                     latency={communicationStatus.latency}
+                    jitterBufferDelay={communicationStatus.jitterBufferDelay}
                     video={communicationStatus.video}
 
                     actualBitrate={communicationStatus.actualBitrate}

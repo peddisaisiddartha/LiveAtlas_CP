@@ -153,7 +153,12 @@ export class Telemetry {
                 actualBitrate: 0,
                 packetsReceived: 0,
                 packetsLost: 0,
-                jitter: 0
+                jitter: 0,
+
+                jitterBufferDelay: 0,
+                jitterBufferEmittedCount: 0,
+                averageJitterBufferDelay: 0,
+                
             },
 
             decoding: {
@@ -339,6 +344,20 @@ export class Telemetry {
             this.number(report.packetsLost);
         telemetry.reception.jitter =
             this.number(report.jitter);
+
+        telemetry.reception.jitterBufferDelay =
+            this.number(report.jitterBufferDelay);
+
+        telemetry.reception.jitterBufferEmittedCount =
+            this.number(report.jitterBufferEmittedCount);
+
+        if (telemetry.reception.jitterBufferEmittedCount > 0) {
+
+            telemetry.reception.averageJitterBufferDelay =
+            telemetry.reception.jitterBufferDelay /
+            telemetry.reception.jitterBufferEmittedCount;
+
+        }
 
         telemetry.reception.fps =
             this.number(report.framesPerSecond) ||
