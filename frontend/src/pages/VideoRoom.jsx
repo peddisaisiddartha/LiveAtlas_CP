@@ -244,32 +244,84 @@ const VideoRoom = () => {
 
         /* ORIGINAL connectWebSocket — only RECONNECT_DELAY_MS changed (800ms vs 2000ms) */
         const connectWebSocket = () => {
-            const normalizedRoomID = roomID.replace("_", "-");
+        const normalizedRoomID = roomID.replace("_", "-");
+
+        if (!navigator.onLine) {
+            console.warn("Offline: skipping WebSocket connection");
             setIsReconnecting(true);
-            if (!navigator.onLine) { console.warn("Offline: skipping reconnect"); return; }
-            if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-                console.log("WebSocket already connected"); return;
+            return;
+        }
+
+        // Prevent duplicate WebSocket connections
+        if (
+            ws.current &&
+            (
+                ws.current.readyState === WebSocket.OPEN ||
+                ws.current.readyState === WebSocket.CONNECTING
+            )
+        ) {
+            console.log("WebSocket already connected/connecting");
+            return;
+        }
+
+        setIsReconnecting(true);
+
+        const socket = new WebSocket(
+            `${protocol}://liveatlas-cp.onrender.com/ws/tours/${normalizedRoomID}/`
+        );
+
+        // Make this socket the current active socket
+        ws.current = socket;
+
+        socket.onopen = async () => {
+            console.log("WebSocket connected");
+
+            // Ignore stale sockets
+            if (ws.current !== socket) return;
+
+            setIsReconnecting(false);
+
+            if (!peerConnection.current) {
+                await setupWebRTC();
             }
-            ws.current = new WebSocket(
-                `${protocol}://liveatlas-cp.onrender.com/ws/tours/${normalizedRoomID}/`
-            );
-            ws.current.onopen = async () => {
-                console.log("WebSocket connected");
-                setIsReconnecting(false);
-                if (!peerConnection.current) await setupWebRTC();
-            };
-            ws.current.onclose = () => {
-                console.log("WebSocket disconnected. Reconnecting...");
-                setIsReconnecting(true);
-                setTimeout(() => {
-                    if (document.visibilityState === "visible") connectWebSocket();
-                }, Q.RECONNECT_DELAY_MS); // ← was 2000, now 800
-            };
-            ws.current.onmessage = async (event) => {
+        };
+
+        socket.onclose = () => {
+            console.log("WebSocket disconnected");
+
+            // Ignore an old socket that has already been replaced
+            if (ws.current !== socket) return;
+
+            ws.current = null;
+            setIsReconnecting(true);
+
+            setTimeout(() => {
+                if (
+                    document.visibilityState === "visible" &&
+                    !ws.current
+                ) {
+                    console.log("Attempting WebSocket reconnect...");
+                    connectWebSocket();
+                }
+            }, Q.RECONNECT_DELAY_MS);
+        };
+
+        socket.onerror = (error) => {
+            console.error("WebSocket error:", error);
+        };
+
+        socket.onmessage = async (event) => {
+            // Ignore messages from stale sockets
+            if (ws.current !== socket) return;
+
+            try {
                 const data = JSON.parse(event.data);
                 handleSignalMessage(data);
-            };
+            } catch (error) {
+                console.error("WebSocket message parsing error:", error);
+            }
         };
+    };
 
         if (!ws.current) connectWebSocket();
 
@@ -476,39 +528,36 @@ const VideoRoom = () => {
             if (state === "disconnected" || state === "failed") {
                 setConnectionQuality("poor");
                 console.warn("WebRTC connection unstable:", state);
-                setTimeout(() => {
-                    if (peerConnection.current && peerConnection.current.iceConnectionState !== "connected") {
-                        console.warn("Attempting ICE recovery...");
-                    }
-                }, 4000);
-            }
-            if (state === "closed") console.log("ICE connection closed");
 
-
-
-          if (state === "disconnected" || state === "failed") {
-
-            console.warn("Waiting before ICE restart...");
-
-            if (iceRestartTimerRef.current) {
-                return;
-            }
-
-            iceRestartTimerRef.current = setTimeout(() => {
-
-                iceRestartTimerRef.current = null;
-
-                if (
-                    peerConnection.current &&
-                    peerConnection.current.iceConnectionState !== "connected" &&
-                    peerConnection.current.restartIce
-                ) {
-                    console.log("Restarting ICE...");
-                    peerConnection.current.restartIce();
+                if (iceRestartTimerRef.current) {
+                    return;
                 }
 
-            }, 3000);
+                console.warn("Waiting before ICE restart...");
 
+                iceRestartTimerRef.current = setTimeout(() => {
+                    iceRestartTimerRef.current = null;
+
+                    const pc = peerConnection.current;
+
+                    if (
+                        pc &&
+                        (pc.iceConnectionState === "disconnected" ||
+                        pc.iceConnectionState === "failed") &&
+                        pc.restartIce &&
+                        ws.current &&
+                        ws.current.readyState === WebSocket.OPEN
+                    ) {
+                        console.log("Restarting ICE...");
+                        pc.restartIce();
+                    } else {
+                        console.log("ICE restart skipped - connection or signaling not ready");
+                    }
+                }, 3000);
+            }
+
+            if (state === "closed") {
+                console.log("ICE connection closed");
             }
             // sender.setParameters(params);
         };
