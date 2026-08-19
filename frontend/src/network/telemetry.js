@@ -430,8 +430,11 @@ export class Telemetry {
             telemetry.transmission.rtt ||
             this.number(pair.currentRoundTripTime);
 
-        telemetry.transmission.availableOutgoingBitrate =
-            this.number(pair.availableOutgoingBitrate);
+        const estimatedBitrate = this.number(pair.availableOutgoingBitrate);
+
+        if (estimatedBitrate > 0) {
+            telemetry.transmission.availableOutgoingBitrate = estimatedBitrate;
+        }
 
         const local = candidates.local.get(pair.localCandidateId);
         const remote = candidates.remote.get(pair.remoteCandidateId);
@@ -659,8 +662,10 @@ export class Telemetry {
             return 0;
         }
 
-        return Math.round((bytesDelta * 8) / timeDelta);
-    }
+        const bitrate = Math.round((bytesDelta * 8) / timeDelta);
+
+        return bitrate > 0 ? bitrate : 0;
+    } 
 
     packetLoss(report, key) {
         const previous = this.previous.get(key);
