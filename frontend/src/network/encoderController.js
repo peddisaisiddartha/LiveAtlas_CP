@@ -73,9 +73,7 @@ export class EncoderController {
                 networkPriority: "high"
             };
 
-            if (this.supportsMinBitrate()) {
-                params.encodings[0].minBitrate = plan.minBitrate;
-            }
+            
 
             params.degradationPreference = plan.degradationPreference;
 
