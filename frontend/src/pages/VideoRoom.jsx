@@ -482,6 +482,8 @@ const VideoRoom = () => {
         checkMicLevel();
 
          /* UPDATED STUN-ONLY TEST */
+         console.log("[ICE CONFIG] STUN-only configuration loaded");
+         
         peerConnection.current = new RTCPeerConnection({
             iceServers: [
                 {
