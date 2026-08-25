@@ -481,31 +481,18 @@ const VideoRoom = () => {
         audioContext.resume();
         checkMicLevel();
 
-         /* UPDATED TURN + STUN servers */
-       peerConnection.current = new RTCPeerConnection({
-    iceServers: [
-        {
-            urls: "stun:stun.relay.metered.ca:80",
-        },
-        {
-            urls: "turn:standard.relay.metered.ca:80",
-            username: "3f8759bd068204338517a31d",
-            credential: "9n2CI75lIUpwOsnx",
-        },
-
-        {
-            urls: "turn:standard.relay.metered.ca:443",
-            username: "3f8759bd068204338517a31d",
-            credential: "9n2CI75lIUpwOsnx",
-        },
-        
-    ],
-
-    iceCandidatePoolSize: 10,
-    bundlePolicy: "max-bundle",
-    rtcpMuxPolicy: "require",
-    encodedInsertableStreams: false,
-});
+         /* UPDATED STUN-ONLY TEST */
+        peerConnection.current = new RTCPeerConnection({
+            iceServers: [
+                {
+                    urls: "stun:stun.relay.metered.ca:80"
+                }
+            ],
+            iceCandidatePoolSize: 10,
+            bundlePolicy: "max-bundle",
+            rtcpMuxPolicy: "require",
+            encodedInsertableStreams: false,
+        });
 
         
 
