@@ -60,6 +60,7 @@ export class Telemetry {
 
         const candidates = {
             activePair: null,
+            pairs: [],
             local: new Map(),
             remote: new Map()
         };
@@ -410,6 +411,8 @@ export class Telemetry {
     }
 
     readCandidatePair(report, candidates) {
+        candidates.pairs.push(report);
+
         if (report.state !== "succeeded") {
             return;
         }
@@ -430,10 +433,39 @@ export class Telemetry {
             telemetry.transmission.rtt ||
             this.number(pair.currentRoundTripTime);
 
-        const estimatedBitrate = this.number(pair.availableOutgoingBitrate);
+        const bitratePair = candidates.pairs
+            .filter((candidatePair) =>
+                this.number(candidatePair.availableOutgoingBitrate) > 0
+            )
+            .sort((a, b) => {
+                const score = (candidatePair) => {
+                    let value = 0;
+
+                    if (candidatePair.state === "succeeded") {
+                        value += 2;
+                    }
+
+                    if (candidatePair.selected) {
+                        value += 4;
+                    }
+
+                    if (candidatePair.nominated) {
+                        value += 3;
+                    }
+
+                    return value;
+                };
+
+                return score(b) - score(a);
+            })[0];
+
+        const estimatedBitrate = this.number(
+            bitratePair?.availableOutgoingBitrate
+        );
 
         if (estimatedBitrate > 0) {
-            telemetry.transmission.availableOutgoingBitrate = estimatedBitrate;
+            telemetry.transmission.availableOutgoingBitrate =
+            estimatedBitrate;
         }
 
         const local = candidates.local.get(pair.localCandidateId);
