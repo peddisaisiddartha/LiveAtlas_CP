@@ -511,6 +511,21 @@ const VideoRoom = () => {
         /* ORIGINAL ICE state handler — quality thresholds upgraded */
         peerConnection.current.oniceconnectionstatechange = async () => {
             const state = peerConnection.current.iceConnectionState;
+
+            const stats = await peerConnection.current.getStats();
+
+            stats.forEach(report => {
+                if (report.type === "candidate-pair" && report.state === "succeeded") {
+                    console.log("[ICE PATH]", {
+                        selected: report.selected,
+                        nominated: report.nominated,
+                        localCandidateId: report.localCandidateId,
+                        remoteCandidateId: report.remoteCandidateId,
+                        availableOutgoingBitrate: report.availableOutgoingBitrate,
+                        currentRoundTripTime: report.currentRoundTripTime
+                    });
+                }
+            });
             
             if (state === "connected" || state === "completed") {
                 setConnectionQuality("good");
