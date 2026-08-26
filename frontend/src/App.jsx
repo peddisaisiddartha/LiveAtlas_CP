@@ -8,6 +8,7 @@ import UserDashboard from './pages/UserDashboard';   // We will create this
 import TransitionOverlay from "./Components/TransitionOverlay";
 import "./Components/TransitionOverlay.css";
 import Loader from './Components/Loader';
+import SpatialTestPage from './spatial/SpatialTestPage';
 
 
 function App() {
@@ -86,6 +87,10 @@ if (loading) {
 
         {/* Video Room */}
         <Route path="/room/:roomID" element={<VideoRoom />} />
+
+        {/* Spatial Presence Test */}
+        <Route path="/spatial-test" element={<SpatialTestPage />} />
+
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </BrowserRouter>
