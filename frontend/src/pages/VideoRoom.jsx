@@ -514,15 +514,40 @@ const VideoRoom = () => {
 
             const stats = await peerConnection.current.getStats();
 
-            stats.forEach(report => {
+            stats.forEach(async report => {
                 if (report.type === "candidate-pair" && report.state === "succeeded") {
-                    console.log("[ICE PATH]", {
-                        selected: report.selected,
-                        nominated: report.nominated,
-                        localCandidateId: report.localCandidateId,
-                        remoteCandidateId: report.remoteCandidateId,
-                        availableOutgoingBitrate: report.availableOutgoingBitrate,
-                        currentRoundTripTime: report.currentRoundTripTime
+                    const stats = await peerConnection.current.getStats();
+
+                    let candidates = {};
+
+                    stats.forEach(report => {
+                        if (
+                            report.type === "local-candidate" ||
+                            report.type === "remote-candidate"
+                        ) {
+                            candidates[report.id] = report;
+                        }
+                    });
+
+                    stats.forEach(report => {
+                        if (
+                            report.type === "candidate-pair" &&
+                            report.state === "succeeded" &&
+                            report.nominated === true
+                        ) {
+                            const local = candidates[report.localCandidateId];
+                            const remote = candidates[report.remoteCandidateId];
+
+                            console.log("[ICE PATH]", {
+                                localType: local?.candidateType,
+                                localProtocol: local?.protocol,
+                                remoteType: remote?.candidateType,
+                                remoteProtocol: remote?.protocol,
+                                rtt: report.currentRoundTripTime,
+                                availableOutgoingBitrate:
+                                report.availableOutgoingBitrate
+                            });
+                        }
                     });
                 }
             });
