@@ -52,28 +52,191 @@ export class DepthEngine {
         }
 
 
-        estimate(source) {
+                async estimate(source) {
             if (!source) {
                 return null;
             }
 
-        /*
-         * Placeholder for the real depth-estimation pipeline.
-         *
-         * We are intentionally NOT running an AI depth model yet.
-         * The first milestone is to establish the spatial pipeline
-         * without adding unnecessary processing or dependencies.
-         */
+            if (
+                source.readyState !== undefined &&
+                source.readyState <
+                    HTMLMediaElement.HAVE_CURRENT_DATA
+            ) {
+                return null;
+            }
 
-        this.depthMap = {
-            width: this.width,
-            height: this.height,
-            sourceAvailable: true,
-            status: "placeholder"
-        };
+            try {
+                if (!this.depthPipeline) {
+                    console.log(
+                        "[Spatial] Loading depth-estimation model..."
+                    );
 
-        return this.depthMap;
-    }
+                    const { pipeline } =
+                        await import(
+                            "@huggingface/transformers"
+                        );
+
+                    this.depthPipeline =
+                        await pipeline(
+                            "depth-estimation",
+                            "onnx-community/depth-anything-v2-small"
+                        );
+
+                    console.log(
+                        "[Spatial] Depth-estimation model ready"
+                    );
+                }
+
+                const result =
+                    await this.depthPipeline(
+                        source
+                    );
+
+                if (
+                    !result ||
+                    !result.depth
+                ) {
+                    console.warn(
+                        "[Spatial] Depth estimation returned no depth map"
+                    );
+
+                    return null;
+                }
+
+                const depth =
+                    result.depth;
+
+                const canvas =
+                    document.createElement(
+                        "canvas"
+                    );
+
+                canvas.width =
+                    depth.width;
+
+                canvas.height =
+                    depth.height;
+
+                const ctx =
+                    canvas.getContext(
+                        "2d"
+                    );
+
+                if (!ctx) {
+                    return null;
+                }
+
+                const imageData =
+                    ctx.createImageData(
+                        canvas.width,
+                        canvas.height
+                    );
+
+                const data =
+                    imageData.data;
+
+                const depthData =
+                    depth.data;
+
+                let min =
+                    Infinity;
+
+                let max =
+                    -Infinity;
+
+                for (
+                    let i = 0;
+                    i < depthData.length;
+                    i++
+                ) {
+                    const value =
+                        depthData[i];
+
+                    if (value < min) {
+                        min = value;
+                    }
+
+                    if (value > max) {
+                        max = value;
+                    }
+                }
+
+                const range =
+                    Math.max(
+                        max - min,
+                        0.0001
+                    );
+
+                for (
+                    let i = 0;
+                    i < depthData.length;
+                    i++
+                ) {
+                    const normalized =
+                        (
+                            depthData[i] -
+                            min
+                        ) / range;
+
+                    const value =
+                        Math.round(
+                            normalized * 255
+                        );
+
+                    const pixel =
+                        i * 4;
+
+                    data[pixel] =
+                        value;
+
+                    data[pixel + 1] =
+                        value;
+
+                    data[pixel + 2] =
+                        value;
+
+                    data[pixel + 3] =
+                        255;
+                }
+
+                ctx.putImageData(
+                    imageData,
+                    0,
+                    0
+                );
+
+                this.depthMap = {
+                    width: canvas.width,
+                    height: canvas.height,
+                    sourceAvailable: true,
+                    source: canvas,
+                    status: "ai",
+                    min,
+                    max
+                };
+
+                this.width =
+                    canvas.width;
+
+                this.height =
+                    canvas.height;
+
+                console.log(
+                    "[Spatial] AI depth map generated:",
+                    `${canvas.width}x${canvas.height}`
+                );
+
+                return this.depthMap;
+
+            } catch (error) {
+                console.error(
+                    "[Spatial] Depth estimation failed:",
+                    error
+                );
+
+                return null;
+            }
+        }
 
     getDepthMap() {
         return this.depthMap;

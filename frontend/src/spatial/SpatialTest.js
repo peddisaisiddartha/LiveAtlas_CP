@@ -10,6 +10,9 @@ export class SpatialTest {
         this.webXR = new WebXRController();
         this.renderer = new SpatialRenderer();
         this.depth = new DepthEngine();
+        this.renderer.setDepthEngine(
+        this.depth
+        );
         this.synthetic360 = new Synthetic360Scene();
 
         this.webXR.setRenderer(this.renderer);
@@ -48,12 +51,8 @@ export class SpatialTest {
                 );
             }
 
-            if (depthCanvas) {
-                this.depth.setDepthSource(
-                    depthCanvas
-                );
-            }
 
+            
             if (depthCanvas) {
                 this.renderer.setDepthCanvas(
                     depthCanvas

@@ -12,6 +12,9 @@ import { supabase } from '../lib/supabase';
 import { NetworkEngine } from "../network/networkEngine";
 import CommunicationStatus from "../Components/CommunicationStatus";
 import { BrowserController } from "../network/browserController";
+import SpatialRenderer from "../spatial/SpatialRenderer";
+import WebXRController from "../spatial/WebXRController";
+import DepthEngine from "../spatial/DepthEngine";
 
 /* ─────────────────────────────────────────────────────────
    QUALITY CONSTANTS  — tweak here for different networks
@@ -90,6 +93,16 @@ function preferHighQualityCodecs(sdp, kind) {
    MAIN COMPONENT — ALL ORIGINAL LOGIC PRESERVED
 ═══════════════════════════════════════════════════════ */
 const VideoRoom = () => {
+
+    const spatialRendererRef =
+        useRef(null);
+
+    const spatialXRRef =
+        useRef(null);
+
+    const depthEngineRef =
+        useRef(null);
+
     const { roomID } = useParams();
     const navigate = useNavigate();
 
@@ -140,6 +153,40 @@ const VideoRoom = () => {
     const iceRestartTimerRef = useRef(null);
     const communicationStatusTimerRef = useRef(null);
     const browserControllerRef = useRef(null);
+
+
+        useEffect(() => {
+            if (!spatialRendererRef.current) {
+                spatialRendererRef.current =
+                    new SpatialRenderer();
+                }
+
+            if (!spatialXRRef.current) {
+                spatialXRRef.current =
+                    new WebXRController();
+
+                spatialXRRef.current.setRenderer(
+                    spatialRendererRef.current
+                );
+            }
+
+            console.log(
+                "[Spatial] Renderer + WebXR initialized"
+            );
+
+            return () => {
+                if (spatialXRRef.current) {
+                    spatialXRRef.current.stopSession();
+                }
+
+                if (spatialRendererRef.current) {
+                    spatialRendererRef.current.destroy();
+                }
+
+                spatialXRRef.current = null;
+                spatialRendererRef.current = null;
+            };
+        }, []);
 
     /* ── ORIGINAL INTENT FETCH + REALTIME (unchanged) ── */
     useEffect(() => {
@@ -379,18 +426,104 @@ const VideoRoom = () => {
 
     useEffect(() => {
 
+        const runImmersiveVR = async () => {
+
     const video = remoteVideoRef.current;
 
-    if (!video || !vrContainerRef.current) {
-        console.log("Immersive VR skipped: missing video or container");
-        return;
-    }
+        if (
+            isImmersiveVR &&
+            video &&
+            spatialRendererRef.current
+        ) {
+            spatialRendererRef.current.setVideoSource(
+                video
+            );
 
-    if (isImmersiveVR) {
+            console.log(
+                "[Spatial] Real LiveAtlas video attached to renderer"
+            );
+        }
 
-        console.log("Starting Immersive VR...");
+            if (
+                isImmersiveVR &&
+                video &&
+                !depthEngineRef.current
+            ) {
+                depthEngineRef.current =
+                    new DepthEngine();
 
-        setShowControls(false);
+                depthEngineRef.current.initialize(
+                    video.videoWidth || 1280,
+                    video.videoHeight || 720
+                );
+
+                console.log(
+                    "[Spatial] AI DepthEngine attached to live video"
+                );
+            }
+
+                if (
+                    isImmersiveVR &&
+                    video &&
+                    depthEngineRef.current
+                ) {
+                    depthEngineRef.current
+                    .estimate(video)
+                    .then((depthMap) => {
+                        if (
+                            depthMap &&
+                            depthMap.source &&
+                            spatialRendererRef.current
+                        ) {
+                            spatialRendererRef.current.setDepthCanvas(
+                                depthMap.source
+                            );
+
+                            console.log(
+                                "[Spatial] AI depth map attached to WebXR renderer"
+                            );
+                        }
+                    })
+                    .catch((error) => {
+                        console.error(
+                            "[Spatial] AI depth integration failed:",
+                            error
+                        );
+                    });
+                }
+
+            if (
+                isImmersiveVR &&
+                spatialXRRef.current &&
+                !spatialXRRef.current.isActive()
+            ) {
+                const spatialStarted =
+                    await spatialXRRef.current.startSession();
+
+                console.log(
+                    "[Spatial] Real-video WebXR session:",
+                    spatialStarted
+                );
+            }
+
+        if (!video || !vrContainerRef.current) {
+            console.log("Immersive VR skipped: missing video or container");
+            return;
+        }
+
+        if (isImmersiveVR) {
+
+            console.log("Starting Immersive VR...");
+
+            setShowControls(false);
+
+            const spatialVideo = video;
+
+            console.log(
+                "[Spatial] Real LiveAtlas video connected:",
+                !!spatialVideo,
+                spatialVideo?.readyState
+            );
 
         startImmersiveVR(
             vrContainerRef.current,
@@ -405,6 +538,10 @@ const VideoRoom = () => {
 
         stopImmersiveVR();
     }
+
+       };
+
+    runImmersiveVR();
 
     return () => {
         stopImmersiveVR();
@@ -730,6 +867,19 @@ const VideoRoom = () => {
         peerConnection.current.ontrack = (event) => {
             if (remoteVideoRef.current) {
                 remoteVideoRef.current.srcObject = event.streams[0];
+
+            if (
+                isImmersiveVR &&
+                spatialRendererRef.current
+            ) {
+                spatialRendererRef.current.setVideoSource(
+                    remoteVideoRef.current
+                );
+
+                console.log(
+                    "[Spatial] Remote video connected directly to WebXR renderer"
+                );
+            }
 
                 /* [QUALITY] Force real-time playback — no buffering delay */
                 remoteVideoRef.current.playbackRate = 1.0;
