@@ -6,6 +6,7 @@ export class WebXRController {
         this.referenceSpace = null;
         this.renderer = null;
         this.enabled = spatialConfig.webXR.enabled;
+
         this.pose = {
             x: 0,
             y: 0,
@@ -14,15 +15,14 @@ export class WebXRController {
             pitch: 0,
             roll: 0
         };
+
         this.onXRFrame = this.onXRFrame.bind(this);
         this.lastPoseLogTime = 0;
     }
 
-
-        setRenderer(renderer) {
-            this.renderer = renderer;
-        }
-
+    setRenderer(renderer) {
+        this.renderer = renderer;
+    }
 
     async isSupported() {
         if (!this.enabled) {
@@ -33,24 +33,33 @@ export class WebXRController {
             return false;
         }
 
-        return await navigator.xr.isSessionSupported("immersive-vr");
+        return await navigator.xr.isSessionSupported(
+            "immersive-vr"
+        );
     }
 
-        async startSession() {
-            if (this.session) {
-                console.log("[Spatial] WebXR session already active");
-                return true;
-            }
+    async startSession() {
+        if (this.session) {
+            console.log(
+                "[Spatial] WebXR session already active"
+            );
 
-            const supported = await this.isSupported();
+            return true;
+        }
 
-            if (!supported) {
-                console.warn("[Spatial] WebXR immersive VR not supported");
-                return false;
-            }
+        const supported = await this.isSupported();
 
-            try {
-                this.session = await navigator.xr.requestSession(
+        if (!supported) {
+            console.warn(
+                "[Spatial] WebXR immersive VR not supported"
+            );
+
+            return false;
+        }
+
+        try {
+            this.session =
+                await navigator.xr.requestSession(
                     "immersive-vr",
                     {
                         optionalFeatures:
@@ -58,46 +67,85 @@ export class WebXRController {
                     }
                 );
 
-            this.session.addEventListener("end", () => {
-                console.log("[Spatial] WebXR session ended");
-
-                this.session = null;
-                this.referenceSpace = null;
-            });
-
-                this.referenceSpace =
-                    await this.session.requestReferenceSpace("local-floor");
-
-                    if (this.renderer) {
-                        await this.renderer.setupXR(this.session);
-                    }
-
-                    console.log("[Spatial] WebXR session started");
-
-                    this.session.requestAnimationFrame(this.onXRFrame);
-            
-
-                return true;
-                } catch (error) {
-                    console.warn(
-                        "[Spatial] WebXR session failed:",
-                        error
+            this.session.addEventListener(
+                "end",
+                () => {
+                    console.log(
+                        "[Spatial] WebXR session ended"
                     );
+
+                    this.session = null;
+                    this.referenceSpace = null;
+                }
+            );
+
+            this.referenceSpace =
+                await this.session.requestReferenceSpace(
+                    "local-floor"
+                );
+
+            /*
+             * Configure the WebXR rendering layer.
+             *
+             * setupXR() returns false if the SpatialRenderer
+             * does not have a valid WebGL context.
+             */
+            if (this.renderer) {
+                const xrReady =
+                    await this.renderer.setupXR(
+                        this.session
+                    );
+
+                if (!xrReady) {
+                    console.error(
+                        "[Spatial] WebXR renderer setup failed"
+                    );
+
+                    await this.session.end();
 
                     this.session = null;
                     this.referenceSpace = null;
 
                     return false;
                 }
-        }
-
-        updatePose(frame) {
-            if (!this.session || !this.referenceSpace || !frame) {
-                return this.pose;
             }
 
+            console.log(
+                "[Spatial] WebXR session started"
+            );
+
+            this.session.requestAnimationFrame(
+                this.onXRFrame
+            );
+
+            return true;
+
+        } catch (error) {
+            console.warn(
+                "[Spatial] WebXR session failed:",
+                error
+            );
+
+            this.session = null;
+            this.referenceSpace = null;
+
+            return false;
+        }
+    }
+
+    updatePose(frame) {
+        if (
+            !this.session ||
+            !this.referenceSpace ||
+            !frame
+        ) {
+            return this.pose;
+        }
+
         const viewerPose =
-            frame.getViewerPose(this.referenceSpace);
+            frame.getViewerPose(
+                this.referenceSpace
+            );
 
         if (!viewerPose) {
             return this.pose;
@@ -110,75 +158,112 @@ export class WebXRController {
             return this.pose;
         }
 
-        const position = transform.position;
+        const position =
+            transform.position;
 
         this.pose.x = position.x;
         this.pose.y = position.y;
         this.pose.z = position.z;
 
-        const orientation = transform.orientation;
+        const orientation =
+            transform.orientation;
 
         if (orientation) {
-            const { x, y, z, w } = orientation;
+            const {
+                x,
+                y,
+                z,
+                w
+            } = orientation;
 
-            this.pose.yaw = Math.atan2(
-                2 * (w * y + x * z),
-                1 - 2 * (y * y + z * z)
-            );
-
-            this.pose.pitch = Math.asin(
-                Math.max(
-                    -1,
-                    Math.min(
-                        1,
-                        2 * (w * x - z * y)
+            this.pose.yaw =
+                Math.atan2(
+                    2 * (
+                        w * y +
+                        x * z
+                    ),
+                    1 -
+                    2 * (
+                        y * y +
+                        z * z
                     )
-                )
-            );
+                );
 
-            this.pose.roll = Math.atan2(
-                2 * (w * z + x * y),
-                1 - 2 * (x * x + y * y)
-            );
+            this.pose.pitch =
+                Math.asin(
+                    Math.max(
+                        -1,
+                        Math.min(
+                            1,
+                            2 * (
+                                w * x -
+                                z * y
+                            )
+                        )
+                    )
+                );
+
+            this.pose.roll =
+                Math.atan2(
+                    2 * (
+                        w * z +
+                        x * y
+                    ),
+                    1 -
+                    2 * (
+                        x * x +
+                        y * y
+                    )
+                );
         }
 
         return this.pose;
     }
 
-        onXRFrame(timestamp, frame) {
-            if (!this.session) {
-                return;
-            }
+    onXRFrame(timestamp, frame) {
+        if (!this.session) {
+            return;
+        }
 
-            this.updatePose(frame);
+        this.updatePose(frame);
 
-            if (timestamp - this.lastPoseLogTime > 500) {
-                console.log("[Spatial 6DoF POSE]", {
+        if (
+            timestamp -
+            this.lastPoseLogTime >
+            500
+        ) {
+            console.log(
+                "[Spatial 6DoF POSE]",
+                {
                     x: this.pose.x,
                     y: this.pose.y,
                     z: this.pose.z,
                     yaw: this.pose.yaw,
                     pitch: this.pose.pitch,
                     roll: this.pose.roll
-                });
+                }
+            );
 
-                this.lastPoseLogTime = timestamp;
-            }
+            this.lastPoseLogTime =
+                timestamp;
+        }
 
-            if (this.renderer) {
-                this.renderer.renderXR(
-                    frame,
-                    this.referenceSpace
-                );
-            }
-
-            this.session.requestAnimationFrame(
-                this.onXRFrame
+        if (this.renderer) {
+            this.renderer.renderXR(
+                frame,
+                this.referenceSpace
             );
         }
 
+        this.session.requestAnimationFrame(
+            this.onXRFrame
+        );
+    }
+
     getPose() {
-        return { ...this.pose };
+        return {
+            ...this.pose
+        };
     }
 
     async stopSession() {
@@ -198,7 +283,9 @@ export class WebXRController {
         this.session = null;
         this.referenceSpace = null;
 
-        console.log("[Spatial] WebXR session stopped");
+        console.log(
+            "[Spatial] WebXR session stopped"
+        );
     }
 
     isActive() {
