@@ -156,20 +156,6 @@ const VideoRoom = () => {
   useEffect(() => {
     if (!spatialRendererRef.current) {
       spatialRendererRef.current = new SpatialRenderer();
-
-      const canvas = document.createElement("canvas");
-
-      canvas.style.position = "absolute";
-      canvas.style.inset = "0";
-      canvas.style.width = "100%";
-      canvas.style.height = "100%";
-      canvas.style.zIndex = "1";
-
-      if (vrContainerRef.current) {
-        vrContainerRef.current.appendChild(canvas);
-      }
-
-      spatialRendererRef.current.initialize(canvas);
     }
 
     if (!spatialXRRef.current) {
