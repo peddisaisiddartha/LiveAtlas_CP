@@ -87,9 +87,48 @@ export class DepthEngine {
                     );
                 }
 
+                const inputCanvas =
+                    document.createElement("canvas");
+
+                const inputWidth =
+                    source.videoWidth ||
+                    source.width ||
+                    this.width ||
+                    1280;
+
+                const inputHeight =
+                    source.videoHeight ||
+                    source.height ||
+                    this.height ||
+                    720;
+
+                inputCanvas.width = inputWidth;
+                inputCanvas.height = inputHeight;
+
+                const inputCtx =
+                    inputCanvas.getContext("2d", {
+                    willReadFrequently: true
+                });
+
+                if (!inputCtx) {
+                    console.warn(
+                        "[Spatial] Unable to create depth input canvas"
+                    );
+
+                    return null;
+                }
+
+                inputCtx.drawImage(
+                    source,
+                    0,
+                    0,
+                    inputWidth,
+                    inputHeight
+                );
+
                 const result =
                     await this.depthPipeline(
-                        source
+                        inputCanvas
                     );
 
                 if (
@@ -107,9 +146,7 @@ export class DepthEngine {
                     result.depth;
 
                 const canvas =
-                    document.createElement(
-                        "canvas"
-                    );
+                    document.createElement("canvas");
 
                 canvas.width =
                     depth.width;
@@ -118,9 +155,9 @@ export class DepthEngine {
                     depth.height;
 
                 const ctx =
-                    canvas.getContext(
-                        "2d"
-                    );
+                    canvas.getContext("2d", {
+                        willReadFrequently: true
+                    });
 
                 if (!ctx) {
                     return null;
@@ -138,13 +175,7 @@ export class DepthEngine {
                 const depthData =
                     depth.data;
 
-                let min =
-                    Infinity;
-
-                let max =
-                    -Infinity;
-
-                for (
+                 for (
                     let i = 0;
                     i < depthData.length;
                     i++
@@ -152,51 +183,13 @@ export class DepthEngine {
                     const value =
                         depthData[i];
 
-                    if (value < min) {
-                        min = value;
-                    }
-
-                    if (value > max) {
-                        max = value;
-                    }
-                }
-
-                const range =
-                    Math.max(
-                        max - min,
-                        0.0001
-                    );
-
-                for (
-                    let i = 0;
-                    i < depthData.length;
-                    i++
-                ) {
-                    const normalized =
-                        (
-                            depthData[i] -
-                            min
-                        ) / range;
-
-                    const value =
-                        Math.round(
-                            normalized * 255
-                        );
-
-                    const pixel =
+                        const pixel =
                         i * 4;
 
-                    data[pixel] =
-                        value;
-
-                    data[pixel + 1] =
-                        value;
-
-                    data[pixel + 2] =
-                        value;
-
-                    data[pixel + 3] =
-                        255;
+                    data[pixel] = value;
+                    data[pixel + 1] = value;
+                    data[pixel + 2] = value;
+                    data[pixel + 3] = 255;
                 }
 
                 ctx.putImageData(

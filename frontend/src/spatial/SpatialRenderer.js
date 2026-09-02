@@ -280,6 +280,16 @@ export class SpatialRenderer {
 
         gl.enable(gl.DEPTH_TEST);
 
+        // If the real LiveAtlas video arrived before WebGL
+        // initialization, create its GPU texture now.
+        if (this.videoSource) {
+            this.setVideoSource(this.videoSource);
+
+            console.log(
+                "[Spatial] Stored LiveAtlas video texture initialized after WebGL"
+            );
+        }
+
         console.log(
             "[Spatial] WebGL renderer initialized"
         );
@@ -557,7 +567,7 @@ export class SpatialRenderer {
             }
 
 
-            setVideoSource(video) {
+           setVideoSource(video) {
                 if (!video) {
                     console.warn(
                         "[Spatial] Invalid video source"
@@ -566,67 +576,69 @@ export class SpatialRenderer {
                     return false;
                 }
 
-            if (!this.gl) {
-                console.warn(
-                    "[Spatial] WebGL context missing for video source"
-                );
+                // Store the video even if WebGL is not ready yet.
+                // initialize() will create the GPU texture later.
+                this.videoSource = video;
 
-                return false;
+                    if (!this.gl) {
+                        console.log(
+                            "[Spatial] WebGL not ready — video source stored for later initialization"
+                        );
+
+                        return true;
+                    }
+
+                    const gl = this.gl;
+
+                    if (this.sceneTexture) {
+                        gl.deleteTexture(
+                            this.sceneTexture
+                        );
+                    }
+
+                    this.sceneTexture =
+                        gl.createTexture();
+
+                    gl.bindTexture(
+                        gl.TEXTURE_2D,
+                        this.sceneTexture
+                    );
+
+                    gl.texParameteri(
+                        gl.TEXTURE_2D,
+                        gl.TEXTURE_WRAP_S,
+                        gl.CLAMP_TO_EDGE
+                    );
+
+                    gl.texParameteri(
+                        gl.TEXTURE_2D,
+                        gl.TEXTURE_WRAP_T,
+                        gl.CLAMP_TO_EDGE
+                    );
+
+                    gl.texParameteri(
+                        gl.TEXTURE_2D,
+                        gl.TEXTURE_MIN_FILTER,
+                        gl.LINEAR
+                    );
+
+                    gl.texParameteri(
+                        gl.TEXTURE_2D,
+                        gl.TEXTURE_MAG_FILTER,
+                        gl.LINEAR
+                    );
+
+                    gl.bindTexture(
+                        gl.TEXTURE_2D,
+                        null
+                    );
+
+                    console.log(
+                        "[Spatial] Real LiveAtlas video texture created"
+                    );
+
+                    return true;
             }
-
-        this.videoSource = video;
-
-        const gl = this.gl;
-
-        if (this.sceneTexture) {
-            gl.deleteTexture(
-                this.sceneTexture
-            );
-        }
-
-        this.sceneTexture =
-            gl.createTexture();
-
-        gl.bindTexture(
-            gl.TEXTURE_2D,
-            this.sceneTexture
-        );
-
-        gl.texParameteri(
-            gl.TEXTURE_2D,
-            gl.TEXTURE_WRAP_S,
-            gl.CLAMP_TO_EDGE
-        );
-
-        gl.texParameteri(
-            gl.TEXTURE_2D,
-            gl.TEXTURE_WRAP_T,
-            gl.CLAMP_TO_EDGE
-        );
-
-        gl.texParameteri(
-            gl.TEXTURE_2D,
-            gl.TEXTURE_MIN_FILTER,
-            gl.LINEAR
-        );
-
-        gl.texParameteri(
-            gl.TEXTURE_2D,
-            gl.TEXTURE_MAG_FILTER,
-            gl.LINEAR
-        );
-
-        gl.bindTexture(
-            gl.TEXTURE_2D,
-            null
-        );
-
-        console.log(
-            "[Spatial] Real LiveAtlas video texture created"
-        );
-
-        return true;
-    }
 
         updateVideoTexture() {
         if (
