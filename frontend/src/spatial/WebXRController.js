@@ -16,12 +16,17 @@ export class WebXRController {
             roll: 0
         };
 
+        this.onSessionEnded = null;
         this.onXRFrame = this.onXRFrame.bind(this);
         this.lastPoseLogTime = 0;
     }
 
     setRenderer(renderer) {
         this.renderer = renderer;
+    }
+
+    setSessionEndedCallback(callback) {
+        this.onSessionEnded = callback;
     }
 
     async isSupported() {
@@ -76,6 +81,10 @@ export class WebXRController {
 
                     this.session = null;
                     this.referenceSpace = null;
+
+                    if (this.onSessionEnded) {
+                        this.onSessionEnded();
+                    }
                 }
             );
 

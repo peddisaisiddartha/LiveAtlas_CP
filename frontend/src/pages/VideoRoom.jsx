@@ -161,8 +161,14 @@ const VideoRoom = () => {
     if (!spatialXRRef.current) {
       spatialXRRef.current = new WebXRController();
 
-      spatialXRRef.current.setRenderer(spatialRendererRef.current);
+      spatialXRRef.current.setRenderer(
+        spatialRendererRef.current);
     }
+
+    spatialXRRef.current.setSessionEndedCallback(() => {
+      setIsImmersiveVR(false);
+      setShowControls(true);
+    });
 
     console.log("[Spatial] Renderer + WebXR initialized");
 
@@ -502,7 +508,7 @@ const VideoRoom = () => {
         depthEngineRef.current
           .estimate(video)
           .then((depthMap) => {
-            if (depthMap && depthMap.source && spatialRendererRef.current) {
+            if (depthMap?.source && spatialRendererRef.current) {
               spatialRendererRef.current.setDepthCanvas(depthMap.source);
 
               console.log("[Spatial] AI depth map attached to WebXR renderer");
@@ -513,14 +519,31 @@ const VideoRoom = () => {
           });
       }
 
+
+
       if (
         isImmersiveVR &&
         spatialXRRef.current &&
         !spatialXRRef.current.isActive()
       ) {
-        const spatialStarted = await spatialXRRef.current.startSession();
+        const spatialStarted =
+          await spatialXRRef.current.startSession();
 
-        console.log("[Spatial] Real-video WebXR session:", spatialStarted);
+        console.log(
+          "[Spatial] Real-video WebXR session:",
+          spatialStarted
+        );
+
+        if (!spatialStarted) {
+          console.warn(
+            "[Spatial] Immersive VR could not start. Returning to normal video mode."
+          );
+
+          setIsImmersiveVR(false);
+          setShowControls(true);
+
+          return;
+        }
       }
 
       if (!video || !vrContainerRef.current) {
@@ -545,7 +568,7 @@ const VideoRoom = () => {
 
         setShowControls(true);
 
-        stopImmersiveVR();
+
       }
     };
 

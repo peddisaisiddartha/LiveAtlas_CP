@@ -461,23 +461,7 @@ export class SpatialRenderer {
 
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
 
-    if (this.depthEngine && !this.depthEstimationRunning) {
-      this.depthEstimationRunning = true;
-
-      this.depthEngine
-        .estimate(video)
-        .then((depthMap) => {
-          if (depthMap?.source) {
-            this.setDepthCanvas(depthMap.source);
-          }
-        })
-        .catch((error) => {
-          console.warn("[Spatial] Live depth estimation failed:", error);
-        })
-        .finally(() => {
-          this.depthEstimationRunning = false;
-        });
-    }
+    
 
     gl.bindTexture(gl.TEXTURE_2D, null);
   }
