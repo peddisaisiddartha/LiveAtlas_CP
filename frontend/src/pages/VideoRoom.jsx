@@ -461,6 +461,7 @@ const VideoRoom = () => {
   }, [isVRMode]);
 
   useEffect(() => {
+    let cancelled = false;
     const runImmersiveVR = async () => {
       const video = remoteVideoRef.current;
 
@@ -505,18 +506,17 @@ const VideoRoom = () => {
       }
 
       if (isImmersiveVR && video && depthEngineRef.current) {
-        depthEngineRef.current
-          .estimate(video)
-          .then((depthMap) => {
-            if (depthMap?.source && spatialRendererRef.current) {
-              spatialRendererRef.current.setDepthCanvas(depthMap.source);
+        try {
+          const depthMap = await depthEngineRef.current.estimate(video);
 
-              console.log("[Spatial] AI depth map attached to WebXR renderer");
-            }
-          })
-          .catch((error) => {
-            console.error("[Spatial] AI depth integration failed:", error);
-          });
+          if (depthMap?.source && spatialRendererRef.current) {
+            spatialRendererRef.current.setDepthCanvas(depthMap.source);
+
+            console.log("[Spatial] AI depth map attached to WebXR renderer");
+          }
+        } catch (error) {
+          console.error("[Spatial] AI depth integration failed:", error);
+        }
       }
 
 
@@ -574,8 +574,13 @@ const VideoRoom = () => {
 
     runImmersiveVR();
 
+
     return () => {
-      stopImmersiveVR();
+      cancelled = true;
+
+      if (spatialXRRef.current) {
+        spatialXRRef.current.stopSession();
+      }
     };
   }, [isImmersiveVR]);
 

@@ -1,3 +1,5 @@
+// frontend/src/spatial/SpatialRenderer.js
+
 export class SpatialRenderer {
   constructor() {
     this.canvas = null;
@@ -5,18 +7,18 @@ export class SpatialRenderer {
 
     this.sceneCanvas = null;
     this.sceneTexture = null;
+    this.videoSource = null;
+    this.lastVideoTime = -1;
 
     this.depthEngine = null;
-    this.depthEstimationRunning = false;
-
     this.depthCanvas = null;
-    this.depthTexture = null;
 
     this.program = null;
     this.positionBuffer = null;
     this.uvBuffer = null;
     this.baseVertices = null;
     this.baseUVs = null;
+    this.vertexCount = 0;
 
     this.positionLocation = null;
     this.uvLocation = null;
@@ -24,12 +26,7 @@ export class SpatialRenderer {
     this.projectionLocation = null;
     this.viewLocation = null;
     this.modelLocation = null;
-
-    this.parallaxLocation = null;
-    this.headPositionLocation = null;
-
     this.textureLocation = null;
-    this.depthTextureLocation = null;
 
     this.width = 0;
     this.height = 0;
@@ -48,7 +45,9 @@ export class SpatialRenderer {
     this.gl = canvas.getContext("webgl", {
       xrCompatible: true,
       alpha: false,
-      antialias: true,
+      antialias: false,
+      depth: true,
+      stencil: false,
     });
 
     if (!this.gl) {
@@ -58,67 +57,38 @@ export class SpatialRenderer {
 
     const gl = this.gl;
 
-    /*
-     * Vertex shader
-     *
-     * The sphere remains the 360° viewing surface.
-     * XR projection and view matrices continue to control
-     * the actual headset view.
-     */
-
     const vertexShaderSource = `
-            attribute vec3 aPosition;
-            attribute vec2 aUV;
+      attribute vec3 aPosition;
+      attribute vec2 aUV;
 
-            uniform mat4 uProjection;
-            uniform mat4 uView;
-            uniform mat4 uModel;
+      uniform mat4 uProjection;
+      uniform mat4 uView;
+      uniform mat4 uModel;
 
-            varying vec2 vUV;
+      varying vec2 vUV;
 
-            void main() {
-                vUV = vec2(1.0 - aUV.x, aUV.y);
+      void main() {
+        vUV = aUV;
 
-                gl_Position =
-                    uProjection *
-                    uView *
-                    uModel *
-                    vec4(aPosition, 1.0);
-            }
-        `;
-
-    /*
-     * Fragment shader
-     *
-     * IMPORTANT:
-     *
-     * The previous implementation used one depth value
-     * for the entire scene.
-     *
-     * This version samples the depth map for EVERY fragment.
-     *
-     * White  = near
-     * Black  = far
-     *
-     * Near pixels receive stronger parallax.
-     * Far pixels receive weaker parallax.
-     */
+        gl_Position =
+          uProjection *
+          uView *
+          uModel *
+          vec4(aPosition, 1.0);
+      }
+    `;
 
     const fragmentShaderSource = `
-            precision mediump float;
+      precision mediump float;
 
-            uniform sampler2D uTexture;
+      uniform sampler2D uTexture;
 
-            varying vec2 vUV;
+      varying vec2 vUV;
 
-            void main() {
-                gl_FragColor =
-                texture2D(
-                    uTexture,
-                    vUV
-                );
-            }
-        `;
+      void main() {
+        gl_FragColor = texture2D(uTexture, vUV);
+      }
+    `;
 
     const vertexShader = this.createShader(
       gl.VERTEX_SHADER,
@@ -136,171 +106,179 @@ export class SpatialRenderer {
 
     this.program = this.createProgram(vertexShader, fragmentShader);
 
+    gl.deleteShader(vertexShader);
+    gl.deleteShader(fragmentShader);
+
     if (!this.program) {
       return false;
     }
 
-    /*
-     * Attribute locations
-     */
+    this.positionLocation = gl.getAttribLocation(
+      this.program,
+      "aPosition",
+    );
 
-    this.positionLocation = gl.getAttribLocation(this.program, "aPosition");
-
-    this.uvLocation = gl.getAttribLocation(this.program, "aUV");
-
-    /*
-     * Matrix uniforms
-     */
+    this.uvLocation = gl.getAttribLocation(
+      this.program,
+      "aUV",
+    );
 
     this.projectionLocation = gl.getUniformLocation(
       this.program,
       "uProjection",
     );
 
-    this.viewLocation = gl.getUniformLocation(this.program, "uView");
-
-    this.modelLocation = gl.getUniformLocation(this.program, "uModel");
-
-    /*
-     * Spatial uniforms
-     */
-
-    this.headPositionLocation = gl.getUniformLocation(
+    this.viewLocation = gl.getUniformLocation(
       this.program,
-      "uHeadPosition",
+      "uView",
     );
 
-    /*
-     * Texture uniforms
-     */
-
-    this.textureLocation = gl.getUniformLocation(this.program, "uTexture");
-
-    this.depthTextureLocation = gl.getUniformLocation(
+    this.modelLocation = gl.getUniformLocation(
       this.program,
-      "uDepthTexture",
+      "uModel",
     );
 
-    /*
-     * Create 360 sphere.
-     */
+    this.textureLocation = gl.getUniformLocation(
+      this.program,
+      "uTexture",
+    );
 
-    const sphereData = this.createSphere(40, 80);
+    const surfaceData = this.createSpatialSurface();
 
-    const sphereVertices = sphereData.vertices;
-
-    const sphereUVs = sphereData.uvs;
-
-    this.baseVertices = sphereVertices;
-    this.baseUVs = sphereUVs;
-
-    /*
-     * Position buffer
-     */
+    this.baseVertices = surfaceData.vertices;
+    this.baseUVs = surfaceData.uvs;
 
     this.positionBuffer = gl.createBuffer();
 
     gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer);
-
-    gl.bufferData(gl.ARRAY_BUFFER, sphereVertices, gl.STATIC_DRAW);
-
-    /*
-     * UV buffer
-     */
+    gl.bufferData(
+      gl.ARRAY_BUFFER,
+      this.baseVertices,
+      gl.DYNAMIC_DRAW,
+    );
 
     this.uvBuffer = gl.createBuffer();
 
     gl.bindBuffer(gl.ARRAY_BUFFER, this.uvBuffer);
+    gl.bufferData(
+      gl.ARRAY_BUFFER,
+      this.baseUVs,
+      gl.STATIC_DRAW,
+    );
 
-    gl.bufferData(gl.ARRAY_BUFFER, sphereUVs, gl.STATIC_DRAW);
+    this.vertexCount = this.baseVertices.length / 3;
 
-    this.vertexCount = sphereVertices.length / 3;
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
 
     gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LESS);
 
-    // If the real LiveAtlas video arrived before WebGL
-    // initialization, create its GPU texture now.
     if (this.videoSource) {
-      this.setVideoSource(this.videoSource);
-
-      console.log(
-        "[Spatial] Stored LiveAtlas video texture initialized after WebGL",
-      );
+      this.createVideoTexture();
     }
 
-    console.log("[Spatial] WebGL renderer initialized");
+    console.log("[Spatial] WebGL spatial renderer initialized");
 
     return true;
   }
 
-  createSphere(rows, columns) {
+  createSpatialSurface(rows = 40, columns = 80) {
     const vertices = [];
     const uvs = [];
 
-    for (let row = 0; row < rows; row++) {
-      const v0 = row / rows;
-      const v1 = (row + 1) / rows;
+    const width = 1.8;
+    const height = 3.2;
+    const centerY = 1.6;
+    const centerZ = -3.0;
 
-      const phi0 = Math.PI * v0;
+    for (let row = 0; row <= rows; row += 1) {
+      const v = row / rows;
+      const y = centerY + (0.5 - v) * height;
 
-      const phi1 = Math.PI * v1;
-
-      for (let column = 0; column < columns; column++) {
-        const u0 = column / columns;
-
-        const u1 = (column + 1) / columns;
-
-        const theta0 = u0 * Math.PI * 2;
-
-        const theta1 = u1 * Math.PI * 2;
-
-        const p00 = this.spherePoint(phi0, theta0);
-
-        const p10 = this.spherePoint(phi1, theta0);
-
-        const p11 = this.spherePoint(phi1, theta1);
-
-        const p01 = this.spherePoint(phi0, theta1);
+      for (let column = 0; column <= columns; column += 1) {
+        const u = column / columns;
+        const x = (u - 0.5) * width;
 
         vertices.push(
-          ...p00,
-          ...p10,
-          ...p11,
-
-          ...p00,
-          ...p11,
-          ...p01,
+          x,
+          y,
+          centerZ,
         );
 
         uvs.push(
-          u0,
-          v0,
-          u0,
-          v1,
-          u1,
-          v1,
+          u,
+          v,
+        );
+      }
+    }
 
-          u0,
-          v0,
-          u1,
-          v1,
-          u1,
-          v0,
+    const indexedVertices = [];
+    const indexedUVs = [];
+
+    for (let row = 0; row < rows; row += 1) {
+      for (let column = 0; column < columns; column += 1) {
+        const topLeft =
+          row * (columns + 1) + column;
+
+        const topRight = topLeft + 1;
+
+        const bottomLeft =
+          (row + 1) * (columns + 1) + column;
+
+        const bottomRight = bottomLeft + 1;
+
+        indexedVertices.push(
+          vertices[topLeft * 3],
+          vertices[topLeft * 3 + 1],
+          vertices[topLeft * 3 + 2],
+
+          vertices[bottomLeft * 3],
+          vertices[bottomLeft * 3 + 1],
+          vertices[bottomLeft * 3 + 2],
+
+          vertices[topRight * 3],
+          vertices[topRight * 3 + 1],
+          vertices[topRight * 3 + 2],
+
+          vertices[topRight * 3],
+          vertices[topRight * 3 + 1],
+          vertices[topRight * 3 + 2],
+
+          vertices[bottomLeft * 3],
+          vertices[bottomLeft * 3 + 1],
+          vertices[bottomLeft * 3 + 2],
+
+          vertices[bottomRight * 3],
+          vertices[bottomRight * 3 + 1],
+          vertices[bottomRight * 3 + 2],
+        );
+
+        indexedUVs.push(
+          uvs[topLeft * 2],
+          uvs[topLeft * 2 + 1],
+
+          uvs[bottomLeft * 2],
+          uvs[bottomLeft * 2 + 1],
+
+          uvs[topRight * 2],
+          uvs[topRight * 2 + 1],
+
+          uvs[topRight * 2],
+          uvs[topRight * 2 + 1],
+
+          uvs[bottomLeft * 2],
+          uvs[bottomLeft * 2 + 1],
+
+          uvs[bottomRight * 2],
+          uvs[bottomRight * 2 + 1],
         );
       }
     }
 
     return {
-      vertices: new Float32Array(vertices),
-
-      uvs: new Float32Array(uvs),
+      vertices: new Float32Array(indexedVertices),
+      uvs: new Float32Array(indexedUVs),
     };
-  }
-
-  spherePoint(phi, theta) {
-    const sinPhi = Math.sin(phi);
-
-    return [sinPhi * Math.cos(theta), Math.cos(phi), sinPhi * Math.sin(theta)];
   }
 
   createShader(type, source) {
@@ -308,12 +286,18 @@ export class SpatialRenderer {
 
     const shader = gl.createShader(type);
 
-    gl.shaderSource(shader, source);
+    if (!shader) {
+      return null;
+    }
 
+    gl.shaderSource(shader, source);
     gl.compileShader(shader);
 
     if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-      console.error("[Spatial] Shader error:", gl.getShaderInfoLog(shader));
+      console.error(
+        "[Spatial] Shader error:",
+        gl.getShaderInfoLog(shader),
+      );
 
       gl.deleteShader(shader);
 
@@ -328,14 +312,21 @@ export class SpatialRenderer {
 
     const program = gl.createProgram();
 
+    if (!program) {
+      return null;
+    }
+
     gl.attachShader(program, vertexShader);
-
     gl.attachShader(program, fragmentShader);
-
     gl.linkProgram(program);
 
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-      console.error("[Spatial] Program error:", gl.getProgramInfoLog(program));
+      console.error(
+        "[Spatial] Program error:",
+        gl.getProgramInfoLog(program),
+      );
+
+      gl.deleteProgram(program);
 
       return null;
     }
@@ -358,15 +349,39 @@ export class SpatialRenderer {
 
     this.sceneTexture = gl.createTexture();
 
-    gl.bindTexture(gl.TEXTURE_2D, this.sceneTexture);
+    gl.bindTexture(
+      gl.TEXTURE_2D,
+      this.sceneTexture,
+    );
 
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(
+      gl.TEXTURE_2D,
+      gl.TEXTURE_WRAP_S,
+      gl.CLAMP_TO_EDGE,
+    );
 
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(
+      gl.TEXTURE_2D,
+      gl.TEXTURE_WRAP_T,
+      gl.CLAMP_TO_EDGE,
+    );
 
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(
+      gl.TEXTURE_2D,
+      gl.TEXTURE_MIN_FILTER,
+      gl.LINEAR,
+    );
 
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(
+      gl.TEXTURE_2D,
+      gl.TEXTURE_MAG_FILTER,
+      gl.LINEAR,
+    );
+
+    gl.pixelStorei(
+      gl.UNPACK_FLIP_Y_WEBGL,
+      true,
+    );
 
     gl.texImage2D(
       gl.TEXTURE_2D,
@@ -377,9 +392,10 @@ export class SpatialRenderer {
       sceneCanvas,
     );
 
-    gl.bindTexture(gl.TEXTURE_2D, null);
-
-    console.log("[Spatial] Synthetic 360 texture loaded");
+    gl.bindTexture(
+      gl.TEXTURE_2D,
+      null,
+    );
 
     return true;
   }
@@ -387,13 +403,14 @@ export class SpatialRenderer {
   setDepthEngine(depthEngine) {
     if (!depthEngine) {
       console.warn("[Spatial] Invalid depth engine");
-
       return false;
     }
 
     this.depthEngine = depthEngine;
 
-    console.log("[Spatial] Depth engine attached to renderer");
+    console.log(
+      "[Spatial] Depth engine attached to renderer",
+    );
 
     return true;
   }
@@ -401,20 +418,28 @@ export class SpatialRenderer {
   setVideoSource(video) {
     if (!video) {
       console.warn("[Spatial] Invalid video source");
-
       return false;
     }
 
-    // Store the video even if WebGL is not ready yet.
-    // initialize() will create the GPU texture later.
     this.videoSource = video;
+    this.lastVideoTime = -1;
 
     if (!this.gl) {
       console.log(
-        "[Spatial] WebGL not ready — video source stored for later initialization",
+        "[Spatial] WebGL not ready; video source stored",
       );
 
       return true;
+    }
+
+    this.createVideoTexture();
+
+    return true;
+  }
+
+  createVideoTexture() {
+    if (!this.gl || !this.videoSource) {
+      return false;
     }
 
     const gl = this.gl;
@@ -425,79 +450,88 @@ export class SpatialRenderer {
 
     this.sceneTexture = gl.createTexture();
 
-    gl.bindTexture(gl.TEXTURE_2D, this.sceneTexture);
+    gl.bindTexture(
+      gl.TEXTURE_2D,
+      this.sceneTexture,
+    );
 
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(
+      gl.TEXTURE_2D,
+      gl.TEXTURE_WRAP_S,
+      gl.CLAMP_TO_EDGE,
+    );
 
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(
+      gl.TEXTURE_2D,
+      gl.TEXTURE_WRAP_T,
+      gl.CLAMP_TO_EDGE,
+    );
 
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(
+      gl.TEXTURE_2D,
+      gl.TEXTURE_MIN_FILTER,
+      gl.LINEAR,
+    );
 
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(
+      gl.TEXTURE_2D,
+      gl.TEXTURE_MAG_FILTER,
+      gl.LINEAR,
+    );
 
-    gl.bindTexture(gl.TEXTURE_2D, null);
+    gl.pixelStorei(
+      gl.UNPACK_FLIP_Y_WEBGL,
+      true,
+    );
 
-    console.log("[Spatial] Real LiveAtlas video texture created");
+    gl.bindTexture(
+      gl.TEXTURE_2D,
+      null,
+    );
+
+    console.log(
+      "[Spatial] Real LiveAtlas video texture created",
+    );
 
     return true;
   }
 
   updateVideoTexture() {
-    if (!this.gl || !this.videoSource || !this.sceneTexture) {
+    if (
+      !this.gl ||
+      !this.videoSource ||
+      !this.sceneTexture
+    ) {
       return;
     }
 
     const video = this.videoSource;
 
-    if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+    if (
+      video.readyState <
+      HTMLMediaElement.HAVE_CURRENT_DATA
+    ) {
+      return;
+    }
+
+    if (
+      Number.isFinite(video.currentTime) &&
+      video.currentTime === this.lastVideoTime
+    ) {
       return;
     }
 
     const gl = this.gl;
 
-    gl.bindTexture(gl.TEXTURE_2D, this.sceneTexture);
+    gl.bindTexture(
+      gl.TEXTURE_2D,
+      this.sceneTexture,
+    );
 
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
-
-    
-
-    gl.bindTexture(gl.TEXTURE_2D, null);
-  }
-
-  setDepthCanvas(depthCanvas) {
-    this.depthCanvas = depthCanvas;
-
-    if (!depthCanvas) {
-      console.warn("[Spatial] Depth canvas missing");
-
-      return false;
-    }
-
-    if (!this.gl) {
-      console.warn("[Spatial] WebGL context missing for depth texture");
-
-      return false;
-    }
-
-    const gl = this.gl;
-
-    if (this.depthTexture) {
-      gl.deleteTexture(this.depthTexture);
-    }
-
-    this.depthTexture = gl.createTexture();
-
-    gl.bindTexture(gl.TEXTURE_2D, this.depthTexture);
-
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.pixelStorei(
+      gl.UNPACK_FLIP_Y_WEBGL,
+      true,
+    );
 
     gl.texImage2D(
       gl.TEXTURE_2D,
@@ -505,17 +539,29 @@ export class SpatialRenderer {
       gl.RGBA,
       gl.RGBA,
       gl.UNSIGNED_BYTE,
-      depthCanvas,
+      video,
     );
 
-    gl.bindTexture(gl.TEXTURE_2D, null);
+    gl.bindTexture(
+      gl.TEXTURE_2D,
+      null,
+    );
+
+    this.lastVideoTime = video.currentTime;
+  }
+
+  setDepthCanvas(depthCanvas) {
+    if (!depthCanvas) {
+      console.warn("[Spatial] Depth canvas missing");
+      return false;
+    }
+
+    this.depthCanvas = depthCanvas;
 
     console.log(
       "[Spatial] Renderer depth canvas attached:",
       `${depthCanvas.width}x${depthCanvas.height}`,
     );
-
-    console.log("[Spatial] Depth texture uploaded to GPU");
 
     this.applyDepthToGeometry();
 
@@ -533,7 +579,12 @@ export class SpatialRenderer {
       return;
     }
 
-    const ctx = this.depthCanvas.getContext("2d");
+    const ctx = this.depthCanvas.getContext(
+      "2d",
+      {
+        willReadFrequently: true,
+      },
+    );
 
     if (!ctx) {
       return;
@@ -548,124 +599,114 @@ export class SpatialRenderer {
 
     const pixels = imageData.data;
 
-    const displacedVertices = new Float32Array(this.baseVertices.length);
+    const displacedVertices =
+      new Float32Array(
+        this.baseVertices.length,
+      );
 
-    const baseRadius = 10.0;
-    const depthScale = 4.5;
+    const baseZ = -3.0;
+    const depthScale = 0.8;
 
-    for (let i = 0; i < this.baseVertices.length; i += 3) {
+    const width = this.depthCanvas.width;
+    const height = this.depthCanvas.height;
+
+    for (
+      let i = 0;
+      i < this.baseVertices.length;
+      i += 3
+    ) {
       const vertexIndex = i / 3;
 
-      const u = this.baseUVs[vertexIndex * 2];
+      const u =
+        this.baseUVs[vertexIndex * 2];
 
-      const v = this.baseUVs[vertexIndex * 2 + 1];
-
-      const sampleU = 1.0 - u;
+      const v =
+        this.baseUVs[vertexIndex * 2 + 1];
 
       const px = Math.max(
         0,
         Math.min(
-          this.depthCanvas.width - 1,
-          Math.floor(sampleU * this.depthCanvas.width),
+          width - 1,
+          Math.floor(u * width),
         ),
       );
 
       const py = Math.max(
         0,
         Math.min(
-          this.depthCanvas.height - 1,
-          Math.floor(v * this.depthCanvas.height),
+          height - 1,
+          Math.floor(v * height),
         ),
       );
 
-      const pixelIndex = (py * this.depthCanvas.width + px) * 4;
+      const pixelIndex =
+        (py * width + px) * 4;
 
-      const depth = pixels[pixelIndex] / 255;
+      const depth =
+        pixels[pixelIndex] / 255;
 
-      const radius = baseRadius - depth * depthScale;
+      displacedVertices[i] =
+        this.baseVertices[i];
 
-      const x = this.baseVertices[i];
+      displacedVertices[i + 1] =
+        this.baseVertices[i + 1];
 
-      const y = this.baseVertices[i + 1];
-
-      const z = this.baseVertices[i + 2];
-
-      const length = Math.sqrt(x * x + y * y + z * z);
-
-      if (length > 0) {
-        const scale = radius / length;
-
-        displacedVertices[i] = x * scale;
-
-        displacedVertices[i + 1] = y * scale;
-
-        displacedVertices[i + 2] = z * scale;
-      } else {
-        displacedVertices[i] = x;
-        displacedVertices[i + 1] = y;
-        displacedVertices[i + 2] = z;
-      }
+      displacedVertices[i + 2] =
+        baseZ + depth * depthScale;
     }
 
     const gl = this.gl;
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer);
-
-    gl.bufferData(gl.ARRAY_BUFFER, displacedVertices, gl.STATIC_DRAW);
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, null);
-
-    console.log("[Spatial] Depth geometry generated");
-  }
-
-  getDepthAt(u, v) {
-    if (!this.depthCanvas) {
-      return 0;
-    }
-
-    const ctx = this.depthCanvas.getContext("2d");
-
-    if (!ctx) {
-      return 0;
-    }
-
-    const x = Math.max(
-      0,
-      Math.min(
-        this.depthCanvas.width - 1,
-        Math.floor(u * this.depthCanvas.width),
-      ),
+    gl.bindBuffer(
+      gl.ARRAY_BUFFER,
+      this.positionBuffer,
     );
 
-    const y = Math.max(
-      0,
-      Math.min(
-        this.depthCanvas.height - 1,
-        Math.floor(v * this.depthCanvas.height),
-      ),
+    gl.bufferData(
+      gl.ARRAY_BUFFER,
+      displacedVertices,
+      gl.STATIC_DRAW,
     );
 
-    const pixel = ctx.getImageData(x, y, 1, 1).data;
+    gl.bindBuffer(
+      gl.ARRAY_BUFFER,
+      null,
+    );
 
-    return pixel[0] / 255;
+    console.log(
+      "[Spatial] AI depth geometry generated",
+    );
   }
 
   async setupXR(session) {
     if (!this.gl) {
-      console.error("[Spatial] WebGL context missing");
+      console.error(
+        "[Spatial] WebGL context missing",
+      );
 
       return false;
     }
 
     await this.gl.makeXRCompatible();
 
-    const glLayer = new XRWebGLLayer(session, this.gl);
+    const glLayer = new XRWebGLLayer(
+      session,
+      this.gl,
+      {
+        alpha: false,
+        antialias: false,
+        depth: true,
+        stencil: false,
+      },
+    );
 
     session.updateRenderState({
       baseLayer: glLayer,
     });
 
-    console.log("[Spatial] XRWebGLLayer configured");
+    console.log(
+      "[Spatial] XRWebGLLayer configured",
+    );
 
     return true;
   }
@@ -677,13 +718,17 @@ export class SpatialRenderer {
 
     const session = frame.session;
 
-    const pose = frame.getViewerPose(referenceSpace);
+    const pose =
+      frame.getViewerPose(
+        referenceSpace,
+      );
 
     if (!pose) {
       return;
     }
 
-    const layer = session.renderState.baseLayer;
+    const layer =
+      session.renderState.baseLayer;
 
     if (!layer) {
       return;
@@ -691,197 +736,185 @@ export class SpatialRenderer {
 
     const gl = this.gl;
 
-    gl.disable(gl.CULL_FACE);
+    gl.bindFramebuffer(
+      gl.FRAMEBUFFER,
+      layer.framebuffer,
+    );
 
-    gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffer);
+    gl.enable(gl.DEPTH_TEST);
 
-    gl.clearColor(0.03, 0.03, 0.03, 1.0);
+    gl.clearColor(
+      0,
+      0,
+      0,
+      1,
+    );
 
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.clear(
+      gl.COLOR_BUFFER_BIT |
+      gl.DEPTH_BUFFER_BIT,
+    );
 
     this.updateVideoTexture();
 
     for (const view of pose.views) {
-      const viewport = layer.getViewport(view);
+      const viewport =
+        layer.getViewport(view);
 
-      gl.viewport(viewport.x, viewport.y, viewport.width, viewport.height);
+      if (!viewport) {
+        continue;
+      }
 
-      /*
-       * IMPORTANT:
-       *
-       * We pass the actual XR viewer position
-       * into drawSphere().
-       *
-       * This is the 6DoF position that will drive
-       * depth-dependent parallax.
-       */
+      gl.viewport(
+        viewport.x,
+        viewport.y,
+        viewport.width,
+        viewport.height,
+      );
 
-      const viewerPosition = view.transform.position;
-
-      this.drawSphere(
+      this.drawSpatialSurface(
         view.projectionMatrix,
         view.transform.inverse.matrix,
-        viewerPosition,
       );
     }
   }
 
-  drawSphere(
+  drawSpatialSurface(
     projectionMatrix,
     viewMatrix,
-    viewerPosition = {
-      x: 0,
-      y: 0,
-      z: 0,
-    },
   ) {
     const gl = this.gl;
 
-    if (!gl) {
+    if (
+      !gl ||
+      !this.program ||
+      !this.sceneTexture ||
+      !this.positionBuffer ||
+      !this.uvBuffer
+    ) {
       return;
-    }
-
-    if (!this.sceneTexture) {
-      return;
-    }
-
-    /*
-     * Depth is optional during startup.
-     *
-     * The LiveAtlas video must render immediately.
-     * Once the AI depth map is available,
-     * applyDepthToGeometry() has already updated
-     * the sphere geometry.
-     */
-
-    const centerDepth = this.getDepthAt(0.5, 0.5);
-
-    if (this.debug) {
-      console.log("[Spatial Parallax MVP]", {
-        centerDepth,
-        headX: viewerPosition.x,
-        headY: viewerPosition.y,
-        headZ: viewerPosition.z,
-        depthReady: !!this.depthTexture,
-      });
-
-      this.debug = false;
     }
 
     gl.useProgram(this.program);
 
-    /*
-     * Position buffer
-     */
+    gl.bindBuffer(
+      gl.ARRAY_BUFFER,
+      this.positionBuffer,
+    );
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer);
+    gl.enableVertexAttribArray(
+      this.positionLocation,
+    );
 
-    gl.enableVertexAttribArray(this.positionLocation);
+    gl.vertexAttribPointer(
+      this.positionLocation,
+      3,
+      gl.FLOAT,
+      false,
+      0,
+      0,
+    );
 
-    gl.vertexAttribPointer(this.positionLocation, 3, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(
+      gl.ARRAY_BUFFER,
+      this.uvBuffer,
+    );
 
-    /*
-     * UV buffer
-     */
+    gl.enableVertexAttribArray(
+      this.uvLocation,
+    );
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.uvBuffer);
+    gl.vertexAttribPointer(
+      this.uvLocation,
+      2,
+      gl.FLOAT,
+      false,
+      0,
+      0,
+    );
 
-    gl.enableVertexAttribArray(this.uvLocation);
+    const modelMatrix =
+      new Float32Array([
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1,
+      ]);
 
-    gl.vertexAttribPointer(this.uvLocation, 2, gl.FLOAT, false, 0, 0);
+    gl.uniformMatrix4fv(
+      this.projectionLocation,
+      false,
+      projectionMatrix,
+    );
 
-    /*
-     * Model matrix.
-     *
-     * Keep identity because the XR view matrix
-     * already represents the viewer's actual
-     * head position and orientation.
-     */
+    gl.uniformMatrix4fv(
+      this.viewLocation,
+      false,
+      viewMatrix,
+    );
 
-    const modelMatrix = new Float32Array([
-      1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1,
-    ]);
+    gl.uniformMatrix4fv(
+      this.modelLocation,
+      false,
+      modelMatrix,
+    );
 
-    /*
-     * XR projection matrix
-     */
+    gl.activeTexture(
+      gl.TEXTURE0,
+    );
 
-    gl.uniformMatrix4fv(this.projectionLocation, false, projectionMatrix);
+    gl.bindTexture(
+      gl.TEXTURE_2D,
+      this.sceneTexture,
+    );
 
-    /*
-     * XR view matrix
-     */
+    gl.uniform1i(
+      this.textureLocation,
+      0,
+    );
 
-    gl.uniformMatrix4fv(this.viewLocation, false, viewMatrix);
+    gl.drawArrays(
+      gl.TRIANGLES,
+      0,
+      this.vertexCount,
+    );
 
-    /*
-     * Model matrix
-     */
-
-    gl.uniformMatrix4fv(this.modelLocation, false, modelMatrix);
-
-    /*
-     * 6DoF viewer position.
-     *
-     * The uniform may be inactive in the current
-     * shader, in which case WebGL simply ignores it.
-     */
-
-    if (this.headPositionLocation) {
-      gl.uniform3f(
-        this.headPositionLocation,
-        viewerPosition.x || 0,
-        viewerPosition.y || 0,
-        viewerPosition.z || 0,
-      );
-    }
-
-    /*
-     * Scene video texture → texture unit 0
-     */
-
-    gl.activeTexture(gl.TEXTURE0);
-
-    gl.bindTexture(gl.TEXTURE_2D, this.sceneTexture);
-
-    gl.uniform1i(this.textureLocation, 0);
-
-    /*
-     * Depth texture → texture unit 1
-     *
-     * Only bind it when AI depth has already
-     * produced a texture.
-     */
-
-    if (this.depthTexture && this.depthTextureLocation) {
-      gl.activeTexture(gl.TEXTURE1);
-
-      gl.bindTexture(gl.TEXTURE_2D, this.depthTexture);
-
-      gl.uniform1i(this.depthTextureLocation, 1);
-    }
-
-    /*
-     * Draw the 360° sphere.
-     */
-
-    gl.drawArrays(gl.TRIANGLES, 0, this.vertexCount);
+    gl.bindTexture(
+      gl.TEXTURE_2D,
+      null,
+    );
   }
 
-  render(pose = {}) {
+  render() {
     if (!this.gl) {
       return;
     }
 
     const gl = this.gl;
 
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.bindFramebuffer(
+      gl.FRAMEBUFFER,
+      null,
+    );
 
-    gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+    gl.viewport(
+      0,
+      0,
+      this.canvas.width,
+      this.canvas.height,
+    );
 
-    gl.clearColor(0.03, 0.03, 0.03, 1.0);
+    gl.clearColor(
+      0.03,
+      0.03,
+      0.03,
+      1,
+    );
 
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.clear(
+      gl.COLOR_BUFFER_BIT |
+      gl.DEPTH_BUFFER_BIT,
+    );
   }
 
   resize() {
@@ -889,22 +922,48 @@ export class SpatialRenderer {
       return;
     }
 
-    this.width = window.innerWidth;
+    this.width =
+      window.innerWidth;
 
-    this.height = window.innerHeight;
+    this.height =
+      window.innerHeight;
 
-    this.canvas.width = this.width;
+    this.canvas.width =
+      this.width;
 
-    this.canvas.height = this.height;
+    this.canvas.height =
+      this.height;
   }
 
   destroy() {
-    if (this.gl && this.sceneTexture) {
-      this.gl.deleteTexture(this.sceneTexture);
+    if (!this.gl) {
+      return;
     }
 
-    if (this.gl && this.depthTexture) {
-      this.gl.deleteTexture(this.depthTexture);
+    const gl = this.gl;
+
+    if (this.sceneTexture) {
+      gl.deleteTexture(
+        this.sceneTexture,
+      );
+    }
+
+    if (this.positionBuffer) {
+      gl.deleteBuffer(
+        this.positionBuffer,
+      );
+    }
+
+    if (this.uvBuffer) {
+      gl.deleteBuffer(
+        this.uvBuffer,
+      );
+    }
+
+    if (this.program) {
+      gl.deleteProgram(
+        this.program,
+      );
     }
 
     this.canvas = null;
@@ -915,9 +974,18 @@ export class SpatialRenderer {
     this.uvBuffer = null;
 
     this.sceneTexture = null;
-    this.depthTexture = null;
+    this.depthCanvas = null;
+    this.videoSource = null;
 
-    console.log("[Spatial] WebGL renderer destroyed");
+    this.baseVertices = null;
+    this.baseUVs = null;
+
+    this.vertexCount = 0;
+    this.lastVideoTime = -1;
+
+    console.log(
+      "[Spatial] WebGL renderer destroyed",
+    );
   }
 }
 
