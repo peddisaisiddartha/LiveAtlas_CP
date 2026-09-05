@@ -505,17 +505,28 @@ const VideoRoom = () => {
         console.log("[Spatial] AI DepthEngine attached to live video");
       }
 
-      if (isImmersiveVR && video && depthEngineRef.current) {
-        try {
-          const depthMap = await depthEngineRef.current.estimate(video);
+      if (
+        isImmersiveVR &&
+        spatialXRRef.current &&
+        !spatialXRRef.current.isActive()
+      ) {
+        const spatialStarted =
+          await spatialXRRef.current.startSession();
 
-          if (depthMap?.source && spatialRendererRef.current) {
-            spatialRendererRef.current.setDepthCanvas(depthMap.source);
+        console.log(
+          "[Spatial] Real-video WebXR session:",
+          spatialStarted
+        );
 
-            console.log("[Spatial] AI depth map attached to WebXR renderer");
-          }
-        } catch (error) {
-          console.error("[Spatial] AI depth integration failed:", error);
+        if (!spatialStarted) {
+          console.warn(
+            "[Spatial] Immersive VR could not start. Returning to normal video mode."
+          );
+
+          setIsImmersiveVR(false);
+          setShowControls(true);
+
+          return;
         }
       }
 
