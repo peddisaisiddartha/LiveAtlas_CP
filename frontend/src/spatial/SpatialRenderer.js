@@ -189,7 +189,7 @@ export class SpatialRenderer {
     const width = 8.533;
     const height = 4.8;
     const centerY = 1.6;
-    const centerZ = -3.0;
+    const centerZ = -2.5;
 
     for (let row = 0; row <= rows; row += 1) {
       const v = row / rows;
