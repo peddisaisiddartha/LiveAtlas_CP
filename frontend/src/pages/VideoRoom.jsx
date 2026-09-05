@@ -148,6 +148,7 @@ const VideoRoom = () => {
   const vrContainerRef = useRef(null);
   const ws = useRef(null);
   const peerConnection = useRef(null);
+  const pendingIceCandidatesRef = useRef([]);
   const networkEngineRef = useRef(null);
   const iceRestartTimerRef = useRef(null);
   const communicationStatusTimerRef = useRef(null);
@@ -505,30 +506,6 @@ const VideoRoom = () => {
         console.log("[Spatial] AI DepthEngine attached to live video");
       }
 
-      if (
-        isImmersiveVR &&
-        spatialXRRef.current &&
-        !spatialXRRef.current.isActive()
-      ) {
-        const spatialStarted =
-          await spatialXRRef.current.startSession();
-
-        console.log(
-          "[Spatial] Real-video WebXR session:",
-          spatialStarted
-        );
-
-        if (!spatialStarted) {
-          console.warn(
-            "[Spatial] Immersive VR could not start. Returning to normal video mode."
-          );
-
-          setIsImmersiveVR(false);
-          setShowControls(true);
-
-          return;
-        }
-      }
 
 
 
@@ -746,7 +723,7 @@ const VideoRoom = () => {
 
         console.warn("Waiting before ICE restart...");
 
-        iceRestartTimerRef.current = setTimeout(() => {
+        iceRestartTimerRef.current = setTimeout(async () => {
           iceRestartTimerRef.current = null;
 
           const pc = peerConnection.current;
@@ -760,7 +737,36 @@ const VideoRoom = () => {
             ws.current.readyState === WebSocket.OPEN
           ) {
             console.log("Restarting ICE...");
-            pc.restartIce();
+
+            try {
+              pc.restartIce();
+
+              if (pc.signalingState !== "stable") {
+                console.warn(
+                  "ICE restart prepared, waiting for stable signaling state.",
+                );
+                return;
+              }
+
+              const restartOffer = await pc.createOffer({
+                iceRestart: true,
+                offerToReceiveAudio: true,
+                offerToReceiveVideo: true,
+              });
+
+              await pc.setLocalDescription(restartOffer);
+
+              ws.current.send(
+                JSON.stringify({
+                  type: "offer",
+                  offer: restartOffer,
+                }),
+              );
+
+              console.log("ICE restart offer sent.");
+            } catch (error) {
+              console.error("ICE restart failed:", error);
+            }
           } else {
             console.log(
               "ICE restart skipped - connection or signaling not ready",
@@ -918,33 +924,85 @@ const VideoRoom = () => {
     };
   };
 
-  /* ── ORIGINAL handleSignalMessage (unchanged) ── */
+  /* ── ORIGINAL handleSignalMessage (changed) ── */
   const handleSignalMessage = async (data) => {
     console.log("Signal received:", data.type);
+
     if (!peerConnection.current) return;
 
-    if (data.type === "offer") {
-      await peerConnection.current.setRemoteDescription(
-        new RTCSessionDescription(data.offer),
-      );
-      const answer = await peerConnection.current.createAnswer();
-      await peerConnection.current.setLocalDescription(answer);
-      ws.current.send(JSON.stringify({ type: "answer", answer }));
-    } else if (data.type === "answer") {
-      await peerConnection.current.setRemoteDescription(
-        new RTCSessionDescription(data.answer),
-      );
-    } else if (data.type === "candidate") {
-      if (peerConnection.current.remoteDescription) {
+    const pc = peerConnection.current;
+
+    const flushPendingIceCandidates = async () => {
+      if (
+        !pc.remoteDescription ||
+        pendingIceCandidatesRef.current.length === 0
+      ) {
+        return;
+      }
+
+      const pendingCandidates =
+        pendingIceCandidatesRef.current.splice(0);
+
+      for (const candidate of pendingCandidates) {
         try {
-          await peerConnection.current.addIceCandidate(
-            new RTCIceCandidate(data.candidate),
+          await pc.addIceCandidate(
+            new RTCIceCandidate(candidate)
           );
-        } catch (err) {
-          console.error("ICE error:", err);
+        } catch (error) {
+          console.error("Queued ICE error:", error);
         }
-      } else {
-        console.log("Skipping ICE - remoteDescription not set yet");
+      }
+    };
+
+    if (data.type === "offer") {
+      await pc.setRemoteDescription(
+        new RTCSessionDescription(data.offer)
+      );
+
+      await flushPendingIceCandidates();
+
+      const answer = await pc.createAnswer();
+
+      await pc.setLocalDescription(answer);
+
+      if (ws.current?.readyState === WebSocket.OPEN) {
+        ws.current.send(
+          JSON.stringify({
+            type: "answer",
+            answer,
+          })
+        );
+      }
+    } else if (data.type === "answer") {
+      await pc.setRemoteDescription(
+        new RTCSessionDescription(data.answer)
+      );
+
+      await flushPendingIceCandidates();
+    } else if (data.type === "candidate") {
+      if (
+        data.candidate === null ||
+        data.candidate === undefined
+      ) {
+        return;
+      }
+
+      if (!pc.remoteDescription) {
+        pendingIceCandidatesRef.current.push(data.candidate);
+
+        console.log(
+          "Queued ICE candidate until remoteDescription is set."
+        );
+
+        return;
+      }
+
+      try {
+        await pc.addIceCandidate(
+          new RTCIceCandidate(data.candidate)
+        );
+      } catch (error) {
+        console.error("ICE error:", error);
       }
     }
   };
