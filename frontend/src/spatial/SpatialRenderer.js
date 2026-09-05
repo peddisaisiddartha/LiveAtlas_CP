@@ -186,8 +186,8 @@ export class SpatialRenderer {
     const vertices = [];
     const uvs = [];
 
-    const width = 1.8;
-    const height = 3.2;
+    const width = 8.533;
+    const height = 4.8;
     const centerY = 1.6;
     const centerZ = -3.0;
 
