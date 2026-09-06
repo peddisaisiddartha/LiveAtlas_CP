@@ -73,13 +73,14 @@ export class EncoderController {
                 networkPriority: "high"
             };
 
-            
+
 
             params.degradationPreference = plan.degradationPreference;
 
             await sender.setParameters(params);
+            this.applied = true;
 
-            
+
             this.lastPlan = plan;
             this.lastError = null;
             this.lastResult = {
@@ -107,6 +108,105 @@ export class EncoderController {
             };
 
             console.warn("[Encoder] Startup preference failed:", error);
+
+            return this.lastResult;
+        }
+    }
+
+
+
+    async applyProfile(peerConnection, profile) {
+        if (!peerConnection || !profile) {
+            return {
+                applied: false,
+                reason: "Peer connection or profile unavailable",
+                timestamp: Date.now()
+            };
+        }
+
+        const sender = this.getVideoSender(peerConnection);
+
+        if (!sender || !sender.track) {
+            this.lastResult = {
+                applied: false,
+                reason: "No video sender available",
+                timestamp: Date.now()
+            };
+
+            return this.lastResult;
+        }
+
+        try {
+            const params = sender.getParameters();
+
+            params.encodings = this.prepareEncodings(params.encodings);
+
+            params.encodings[0] = {
+                ...params.encodings[0],
+                active: true,
+                maxBitrate: profile.bitrate,
+                maxFramerate: profile.fps,
+                scaleResolutionDownBy:
+                    profile.width >= 1280
+                        ? 1
+                        : profile.width >= 960
+                            ? 1.333333
+                            : 2,
+                priority: "high",
+                networkPriority: "high"
+            };
+
+            params.degradationPreference = "maintain-resolution";
+
+            await sender.setParameters(params);
+
+            this.lastPlan = {
+                targetWidth: profile.width,
+                targetHeight: profile.height,
+                maxBitrate: profile.bitrate,
+                maxFramerate: profile.fps,
+                scaleResolutionDownBy:
+                    params.encodings[0].scaleResolutionDownBy,
+                degradationPreference: params.degradationPreference,
+                policy: `ADAPTIVE_${profile.name}`,
+                allowBrowserAdaptation: true,
+                preserveResolution: profile.width >= 1280,
+                verifyEncoderResolution: true
+            };
+
+            this.applied = true;
+            this.lastError = null;
+
+            this.lastResult = {
+                applied: true,
+                reason: `Adaptive ${profile.name} profile applied`,
+                plan: this.lastPlan,
+                timestamp: Date.now()
+            };
+
+            console.log(
+                `[Encoder] Adaptive profile applied: ` +
+                `${profile.width}x${profile.height}, ` +
+                `${Math.round(profile.bitrate / 1000)} kbps, ` +
+                `${profile.fps} fps`
+            );
+
+            return this.lastResult;
+        } catch (error) {
+            this.lastError = error;
+
+            this.lastResult = {
+                applied: false,
+                reason:
+                    error?.message ||
+                    "Failed to apply adaptive encoder profile",
+                timestamp: Date.now()
+            };
+
+            console.warn(
+                "[Encoder] Adaptive profile failed:",
+                error
+            );
 
             return this.lastResult;
         }
@@ -205,32 +305,32 @@ export class EncoderController {
 
     verifyEncoderState(trackSettings = {}) {
 
-    const width = Number(trackSettings.width || 0);
-    const height = Number(trackSettings.height || 0);
+        const width = Number(trackSettings.width || 0);
+        const height = Number(trackSettings.height || 0);
 
-    return {
+        return {
 
-        captureIsHd:
-            width >= 1280 &&
-            height >= 720,
+            captureIsHd:
+                width >= 1280 &&
+                height >= 720,
 
-        captureWidth: width,
+            captureWidth: width,
 
-        captureHeight: height,
+            captureHeight: height,
 
-        expectedWidth:
-            this.lastPlan?.targetWidth ?? width,
+            expectedWidth:
+                this.lastPlan?.targetWidth ?? width,
 
-        expectedHeight:
-            this.lastPlan?.targetHeight ?? height,
+            expectedHeight:
+                this.lastPlan?.targetHeight ?? height,
 
-        matchesPlan:
-            width === (this.lastPlan?.targetWidth ?? width) &&
-            height === (this.lastPlan?.targetHeight ?? height)
+            matchesPlan:
+                width === (this.lastPlan?.targetWidth ?? width) &&
+                height === (this.lastPlan?.targetHeight ?? height)
 
-    };
+        };
 
-}
+    }
 
     reset() {
         this.applied = false;

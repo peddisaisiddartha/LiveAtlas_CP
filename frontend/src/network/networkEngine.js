@@ -32,6 +32,7 @@ export class NetworkEngine {
         this.interval = null;
 
         this.currentProfile = "HIGH";
+        this.tickInProgress = false;
         this.lastStats = null;
         this.lastDiagnostics = null;
         this.lastEncoderResult = null;
@@ -92,34 +93,61 @@ export class NetworkEngine {
         }
     }
 
-    tick() {
-        if (!this.started || !this.peerConnection) {
+    async tick() {
+        if (!this.started || !this.peerConnection || this.tickInProgress) {
             return;
         }
 
-        const stats = this.telemetry.getStats();
+        this.tickInProgress = true;
 
-        if (!stats || stats.timestamp === undefined) {
-            return;
+        try {
+            const stats = this.telemetry.getStats();
+
+            if (!stats || stats.timestamp === undefined) {
+                return;
+            }
+
+            this.refreshRuntimeSystems();
+
+            this.lastStats = this.enrichStats(stats);
+
+            const adaptiveDecision = this.adaptiveController.update(this.lastStats);
+
+            if (
+                adaptiveDecision?.recommendation?.encoderAction === "APPLY_PROFILE"
+            ) {
+                const profile = this.adaptiveController.getCurrentProfile();
+
+                if (
+                    profile?.name &&
+                    profile.name !== this.currentProfile
+                ) {
+                    this.lastEncoderResult =
+                        await this.encoderController.applyProfile(
+                            this.peerConnection,
+                            profile
+                        );
+
+                    if (this.lastEncoderResult?.applied) {
+                        this.currentProfile = profile.name;
+                    }
+                }
+            }
+
+            this.lastDiagnostics = {
+                timestamp: Date.now(),
+                engineVersion: this.options.engineVersion,
+                profile: this.currentProfile,
+                telemetry: this.lastStats,
+                adaptive: this.adaptiveController.getDiagnostics(),
+                encoder: this.encoderController.getDiagnostics(),
+                connection: this.connectionGuardian.getDiagnostics?.() || null,
+                resource: this.resourceMonitor.getDiagnostics?.() || null,
+                device: this.deviceCapabilityManager.getDiagnostics?.() || null
+            };
+        } finally {
+            this.tickInProgress = false;
         }
-
-        this.refreshRuntimeSystems();
-
-        this.lastStats = this.enrichStats(stats);
-
-        this.adaptiveController.update(this.lastStats);
-
-        this.lastDiagnostics = {
-            timestamp: Date.now(),
-            engineVersion: this.options.engineVersion,
-            profile: this.currentProfile,
-            telemetry: this.lastStats,
-            adaptive: this.adaptiveController.getDiagnostics(),
-            encoder: this.encoderController.getDiagnostics(),
-            connection: this.connectionGuardian.getDiagnostics?.() || null,
-            resource: this.resourceMonitor.getDiagnostics?.() || null,
-            device: this.deviceCapabilityManager.getDiagnostics?.() || null
-        };
     }
 
     enrichStats(stats) {
@@ -257,17 +285,11 @@ export class NetworkEngine {
     }
 
     getCurrentProfile() {
-        return {
-            name: "HIGH",
-            width: 1280,
-            height: 720,
-            fps: 30,
-            bitrate: 3800000
-        };
+        return this.adaptiveController.getCurrentProfile();
     }
 
     getCurrentProfileName() {
-        return "HIGH";
+        return this.adaptiveController.getCurrentProfileName();
     }
 
     getLastStats() {

@@ -263,7 +263,7 @@ export class AdaptiveController {
                     telemetry.transmission?.rtt
                 ),
                 telemetry.rttMs !== undefined ||
-                    telemetry.transmission?.rttMs !== undefined
+                telemetry.transmission?.rttMs !== undefined
             ),
 
             jitterMs: this.toMilliseconds(
@@ -274,7 +274,7 @@ export class AdaptiveController {
                     telemetry.reception?.jitter
                 ),
                 telemetry.jitterMs !== undefined ||
-                    telemetry.reception?.jitterMs !== undefined
+                telemetry.reception?.jitterMs !== undefined
             ),
 
             packetLoss: this.toRatio(
@@ -286,19 +286,19 @@ export class AdaptiveController {
 
             qualityLimitation: String(
                 telemetry.qualityLimitation ||
-                    telemetry.encoding?.qualityLimitation ||
-                    telemetry.encoding?.qualityLimitationReason ||
-                    "none"
+                telemetry.encoding?.qualityLimitation ||
+                telemetry.encoding?.qualityLimitationReason ||
+                "none"
             ).toLowerCase(),
 
             encoderLimitedByCpu: Boolean(
                 telemetry.encoderLimitedByCpu ||
-                    telemetry.encoding?.limitedByCpu
+                telemetry.encoding?.limitedByCpu
             ),
 
             encoderLimitedByBandwidth: Boolean(
                 telemetry.encoderLimitedByBandwidth ||
-                    telemetry.encoding?.limitedByBandwidth
+                telemetry.encoding?.limitedByBandwidth
             ),
 
             connectionState:
@@ -410,25 +410,49 @@ export class AdaptiveController {
 
         const estimateUnderstatesThroughput =
             averageActualBitrate > 1500000 &&
-        (
-            averageAvailableBitrate === 0 ||
-            averageActualBitrate > averageAvailableBitrate * 1.5
-        );
+            (
+                averageAvailableBitrate === 0 ||
+                averageActualBitrate > averageAvailableBitrate * 1.5
+            );
 
         const hasSustainedVideoThroughput =
             averageActualBitrate >= this.options.healthyBitrate;
 
+        const latestSample = samples[samples.length - 1];
+
+        const latestPacketLossConstrained =
+            latestSample.packetLoss > this.options.healthyPacketLoss;
+
+        const latestRttConstrained =
+            latestSample.rttMs > this.options.healthyRttMs;
+
+        const latestJitterConstrained =
+            latestSample.jitterMs > this.options.healthyJitterMs;
+
+        const latestBitrateConstrained =
+            latestSample.actualBitrate > 0 &&
+            latestSample.actualBitrate < this.options.healthyBitrate * 0.5;
+
+        const recentDegradation =
+            latestPacketLossConstrained ||
+            latestRttConstrained ||
+            latestJitterConstrained ||
+            latestBitrateConstrained;
+
         const stable =
+            !recentDegradation &&
             healthySampleRatio >= 0.75 &&
-        (
-            hasSustainedVideoThroughput ||
-            estimateUnderstatesThroughput
-        );
+            (
+                hasSustainedVideoThroughput ||
+                estimateUnderstatesThroughput
+            );
 
         let state = "OBSERVING";
 
         if (samples.length < this.options.minimumSamplesForDecision) {
             state = "OBSERVING";
+        } else if (recentDegradation && healthySampleRatio < 0.75) {
+            state = "CONSTRAINED";
         } else if (stable) {
             state = "HEALTHY";
         } else if (healthySampleRatio >= 0.5) {
@@ -448,6 +472,7 @@ export class AdaptiveController {
             averageAvailableBitrate,
             estimateUnderstatesThroughput,
             hasSustainedVideoThroughput,
+            recentDegradation,
         };
     }
 
@@ -579,8 +604,8 @@ export class AdaptiveController {
             browser,
             recommendation: {
                 encoderAction: this.profileChanged
-                ? "APPLY_PROFILE"
-                : "NO_PARAMETER_CHANGE",
+                    ? "APPLY_PROFILE"
+                    : "NO_PARAMETER_CHANGE",
                 networkAction: "NO_ACTION",
                 browserAction: "ALLOW_NATIVE_ADAPTATION",
                 applyProfile: this.profileChanged
@@ -671,47 +696,47 @@ export class AdaptiveController {
 
     selectProfile(pipeline, network, browser) {
 
-    // Preserve HD whenever possible.
-    if (
-        pipeline.state === "HD_PRESERVED" &&
-        network.stable
-    ) {
+        // Preserve HD whenever possible.
+        if (
+            pipeline.state === "HD_PRESERVED" &&
+            network.stable
+        ) {
+            return this.profiles.HIGH;
+        }
+
+        // Browser is temporarily conservative.
+        // Don't immediately downgrade.
+        if (
+            browser.likelyConservative &&
+            network.stable
+        ) {
+            return this.currentProfile;
+        }
+
+        // CPU limitation is real.
+        if (
+            browser.cpuLimited
+        ) {
+            return this.profiles.MEDIUM;
+        }
+
+        // Genuine network congestion.
+        if (
+            network.state === "CONSTRAINED"
+        ) {
+            return this.profiles.LOW;
+        }
+
+        // Variable network.
+        if (
+            network.state === "VARIABLE"
+        ) {
+            return this.profiles.MEDIUM;
+        }
+
         return this.profiles.HIGH;
+
     }
-
-    // Browser is temporarily conservative.
-    // Don't immediately downgrade.
-    if (
-        browser.likelyConservative &&
-        network.stable
-    ) {
-        return this.currentProfile;
-    }
-
-    // CPU limitation is real.
-    if (
-        browser.cpuLimited
-    ) {
-        return this.profiles.MEDIUM;
-    }
-
-    // Genuine network congestion.
-    if (
-        network.state === "CONSTRAINED"
-    ) {
-        return this.profiles.LOW;
-    }
-
-    // Variable network.
-    if (
-        network.state === "VARIABLE"
-    ) {
-        return this.profiles.MEDIUM;
-    }
-
-    return this.profiles.HIGH;
-
-}
 }
 
 export default AdaptiveController;
