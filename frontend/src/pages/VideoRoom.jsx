@@ -650,7 +650,17 @@ const VideoRoom = () => {
           credential: "9n2CI75lIUpwOsnx",
         },
         {
+          urls: "turn:standard.relay.metered.ca:80?transport=tcp",
+          username: "3f8759bd068204338517a31d",
+          credential: "9n2CI75lIUpwOsnx",
+        },
+        {
           urls: "turn:standard.relay.metered.ca:443",
+          username: "3f8759bd068204338517a31d",
+          credential: "9n2CI75lIUpwOsnx",
+        },
+        {
+          urls: "turns:standard.relay.metered.ca:443?transport=tcp",
           username: "3f8759bd068204338517a31d",
           credential: "9n2CI75lIUpwOsnx",
         },
@@ -939,403 +949,403 @@ const VideoRoom = () => {
   };
 
 
-    /* ── ORIGINAL handleSignalMessage (changed) ── */
-    const handleSignalMessage = async (data) => {
-      console.log("Signal received:", data.type);
+  /* ── ORIGINAL handleSignalMessage (changed) ── */
+  const handleSignalMessage = async (data) => {
+    console.log("Signal received:", data.type);
 
-      if (!peerConnection.current) return;
+    if (!peerConnection.current) return;
 
-      const pc = peerConnection.current;
+    const pc = peerConnection.current;
 
-      const flushPendingIceCandidates = async () => {
-        if (
-          !pc.remoteDescription ||
-          pendingIceCandidatesRef.current.length === 0
-        ) {
-          return;
-        }
+    const flushPendingIceCandidates = async () => {
+      if (
+        !pc.remoteDescription ||
+        pendingIceCandidatesRef.current.length === 0
+      ) {
+        return;
+      }
 
-        const pendingCandidates =
-          pendingIceCandidatesRef.current.splice(0);
+      const pendingCandidates =
+        pendingIceCandidatesRef.current.splice(0);
 
-        for (const candidate of pendingCandidates) {
-          try {
-            await pc.addIceCandidate(
-              new RTCIceCandidate(candidate)
-            );
-          } catch (error) {
-            console.error("Queued ICE error:", error);
-          }
-        }
-      };
-
-      if (data.type === "offer") {
-        await pc.setRemoteDescription(
-          new RTCSessionDescription(data.offer)
-        );
-
-        await flushPendingIceCandidates();
-
-        const answer = await pc.createAnswer();
-
-        await pc.setLocalDescription(answer);
-
-        if (ws.current?.readyState === WebSocket.OPEN) {
-          ws.current.send(
-            JSON.stringify({
-              type: "answer",
-              answer,
-            })
-          );
-        }
-      } else if (data.type === "answer") {
-        await pc.setRemoteDescription(
-          new RTCSessionDescription(data.answer)
-        );
-
-        await flushPendingIceCandidates();
-      } else if (data.type === "candidate") {
-        if (
-          data.candidate === null ||
-          data.candidate === undefined
-        ) {
-          return;
-        }
-
-        if (!pc.remoteDescription) {
-          pendingIceCandidatesRef.current.push(data.candidate);
-
-          console.log(
-            "Queued ICE candidate until remoteDescription is set."
-          );
-
-          return;
-        }
-
+      for (const candidate of pendingCandidates) {
         try {
           await pc.addIceCandidate(
-            new RTCIceCandidate(data.candidate)
+            new RTCIceCandidate(candidate)
           );
         } catch (error) {
-          console.error("ICE error:", error);
+          console.error("Queued ICE error:", error);
         }
       }
     };
 
-    /* ── ORIGINAL toggles (unchanged) ── */
-    const toggleAudio = () => {
-      const stream = localVideoRef.current?.srcObject;
-      if (!stream) return;
-      const track = stream.getAudioTracks()[0];
-      track.enabled = !track.enabled;
-      setIsAudioOn(track.enabled);
-    };
+    if (data.type === "offer") {
+      await pc.setRemoteDescription(
+        new RTCSessionDescription(data.offer)
+      );
 
-    const toggleVideo = () => {
-      const stream = localVideoRef.current?.srcObject;
-      if (!stream) return;
-      const track = stream.getVideoTracks()[0];
-      track.enabled = !track.enabled;
-      setIsVideoOn(track.enabled);
-    };
+      await flushPendingIceCandidates();
 
-    /* ── ORIGINAL endCall (unchanged) ── */
-    const endCall = async () => {
-      const dbId = roomID.split("_")[1];
+      const answer = await pc.createAnswer();
+
+      await pc.setLocalDescription(answer);
+
+      if (ws.current?.readyState === WebSocket.OPEN) {
+        ws.current.send(
+          JSON.stringify({
+            type: "answer",
+            answer,
+          })
+        );
+      }
+    } else if (data.type === "answer") {
+      await pc.setRemoteDescription(
+        new RTCSessionDescription(data.answer)
+      );
+
+      await flushPendingIceCandidates();
+    } else if (data.type === "candidate") {
+      if (
+        data.candidate === null ||
+        data.candidate === undefined
+      ) {
+        return;
+      }
+
+      if (!pc.remoteDescription) {
+        pendingIceCandidatesRef.current.push(data.candidate);
+
+        console.log(
+          "Queued ICE candidate until remoteDescription is set."
+        );
+
+        return;
+      }
+
       try {
-        await fetch(`https://liveatlas-cp.onrender.com/api/end-tour/${dbId}/`, {
-          method: "POST",
-        });
-      } catch (err) {
-        console.error(err);
+        await pc.addIceCandidate(
+          new RTCIceCandidate(data.candidate)
+        );
+      } catch (error) {
+        console.error("ICE error:", error);
       }
-      if (localVideoRef.current?.srcObject) {
-        localVideoRef.current.srcObject
-          .getTracks()
-          .forEach((track) => track.stop());
-      }
-      if (ws.current) ws.current.close();
-      disposeVR();
-      stopImmersiveVR();
-      navigate("/");
-    };
+    }
+  };
 
-    /* ── ORIGINAL toggleFullScreen (unchanged) ── */
-    const toggleFullScreen = async () => {
-      if (!document.fullscreenElement) {
-        const element = document.querySelector(".room-container");
-        if (element.requestFullscreen) await element.requestFullscreen();
-        setIsFullScreen(true);
-      } else {
-        if (document.exitFullscreen) await document.exitFullscreen();
-        setIsFullScreen(false);
-      }
-    };
+  /* ── ORIGINAL toggles (unchanged) ── */
+  const toggleAudio = () => {
+    const stream = localVideoRef.current?.srcObject;
+    if (!stream) return;
+    const track = stream.getAudioTracks()[0];
+    track.enabled = !track.enabled;
+    setIsAudioOn(track.enabled);
+  };
 
-    /* ── ORIGINAL toggleVRMode (unchanged) ── */
-    const toggleVRMode = () => {
-      if (!isVRMode) {
-        setIsImmersiveVR(false);
-      }
+  const toggleVideo = () => {
+    const stream = localVideoRef.current?.srcObject;
+    if (!stream) return;
+    const track = stream.getVideoTracks()[0];
+    track.enabled = !track.enabled;
+    setIsVideoOn(track.enabled);
+  };
 
-      console.log("VR TOGGLED:", !isVRMode);
+  /* ── ORIGINAL endCall (unchanged) ── */
+  const endCall = async () => {
+    const dbId = roomID.split("_")[1];
+    try {
+      await fetch(`https://liveatlas-cp.onrender.com/api/end-tour/${dbId}/`, {
+        method: "POST",
+      });
+    } catch (err) {
+      console.error(err);
+    }
+    if (localVideoRef.current?.srcObject) {
+      localVideoRef.current.srcObject
+        .getTracks()
+        .forEach((track) => track.stop());
+    }
+    if (ws.current) ws.current.close();
+    disposeVR();
+    stopImmersiveVR();
+    navigate("/");
+  };
 
-      setIsVRMode((prev) => !prev);
-    };
+  /* ── ORIGINAL toggleFullScreen (unchanged) ── */
+  const toggleFullScreen = async () => {
+    if (!document.fullscreenElement) {
+      const element = document.querySelector(".room-container");
+      if (element.requestFullscreen) await element.requestFullscreen();
+      setIsFullScreen(true);
+    } else {
+      if (document.exitFullscreen) await document.exitFullscreen();
+      setIsFullScreen(false);
+    }
+  };
 
-    /* ── ORIGINAL handleAskAI (unchanged) ── */
-    const handleAskAI = async () => {
-      if (!aiQuestion || aiLoading) return;
-      setAILoading(true);
-      try {
-        const answer = await askAI(aiQuestion);
-        setAIAnswer(answer);
-      } catch (err) {
-        console.error(err);
-        setAIAnswer("AI error occurred");
-      }
-      setAILoading(false);
-    };
+  /* ── ORIGINAL toggleVRMode (unchanged) ── */
+  const toggleVRMode = () => {
+    if (!isVRMode) {
+      setIsImmersiveVR(false);
+    }
 
-    /* ── ORIGINAL JSX (100% unchanged) ── */
-    return (
-      <div
-        className={`room-container ${isFullScreen ? "fullscreen-mode" : ""}`}
-        onClick={() => {
-          if (isFullScreen) setShowControls(true);
-        }}
-        style={{ position: "relative" }}
-      >
-        {guideLocation && (
-          <div
-            style={{
-              position: "absolute",
-              top: "80px",
-              left: "20px",
-              background: "rgba(0,0,0,0.6)",
-              padding: "8px",
-              borderRadius: "6px",
-              color: "white",
-              fontSize: "12px",
-              zIndex: 10,
-            }}
-          >
-            📍{" "}
-            {placeName
-              ? placeName
-              : `${guideLocation.lat.toFixed(4)}, ${guideLocation.lon.toFixed(4)}`}
-          </div>
-        )}
+    console.log("VR TOGGLED:", !isVRMode);
 
-        {isReconnecting && (
-          <div className="reconnect-banner">Reconnecting...</div>
-        )}
+    setIsVRMode((prev) => !prev);
+  };
 
-        <CommunicationStatus
-          visible={!isFullScreen && !isVRMode && !isImmersiveVR}
+  /* ── ORIGINAL handleAskAI (unchanged) ── */
+  const handleAskAI = async () => {
+    if (!aiQuestion || aiLoading) return;
+    setAILoading(true);
+    try {
+      const answer = await askAI(aiQuestion);
+      setAIAnswer(answer);
+    } catch (err) {
+      console.error(err);
+      setAIAnswer("AI error occurred");
+    }
+    setAILoading(false);
+  };
 
-          connected={communicationStatus.connected}
-          quality={communicationStatus.quality}
-          latency={communicationStatus.latency}
-          jitterBufferDelay={communicationStatus.jitterBufferDelay}
-          video={communicationStatus.video}
-
-          actualBitrate={communicationStatus.actualBitrate}
-          availableBitrate={communicationStatus.availableBitrate}
-
-          captureWidth={communicationStatus.captureWidth}
-          captureHeight={communicationStatus.captureHeight}
-
-          encodedWidth={communicationStatus.encodedWidth}
-          encodedHeight={communicationStatus.encodedHeight}
-
-          receivedWidth={communicationStatus.receivedWidth}
-          receivedHeight={communicationStatus.receivedHeight}
-        />
-
-        {!isFullScreen && (
-          <div className="room-header">
-            <FaGlobeAmericas size={28} color="#0EA5E9" />
-            <span className="brand-text">
-              Live<span style={{ color: "#0EA5E9" }}>Atlas</span>
-            </span>
-          </div>
-        )}
-
-        <div
-          className="video-grid"
-          style={{
-            opacity: isVRMode || isImmersiveVR ? 0 : 1,
-            pointerEvents: isVRMode || isImmersiveVR ? "none" : "auto",
-            position: "relative",
-            zIndex: 1,
-          }}
-        >
-          {showLocalVideo && !isFullScreen && (
-            <div className="video-wrapper local">
-              <video ref={localVideoRef} autoPlay playsInline muted />
-              <div className="name-tag">You</div>
-            </div>
-          )}
-
-          <div className="video-wrapper remote">
-            <video
-              ref={remoteVideoRef}
-              autoPlay
-              playsInline
-              onWaiting={() => setIsReconnecting(true)}
-              onPlaying={() => setIsReconnecting(false)}
-            />
-            <div className="name-tag">Live Feed</div>
-            <div
-              style={{
-                position: "absolute",
-                top: "10px",
-                right: "10px",
-                background: connectionQuality === "good" ? "green" : "red",
-                color: "white",
-                padding: "4px 8px",
-                borderRadius: "6px",
-                fontSize: "12px",
-              }}
-            >
-              {connectionQuality}
-            </div>
-          </div>
-        </div>
-
-        {(isVRMode || isImmersiveVR) && (
-          <div
-            ref={vrContainerRef}
-            style={{
-              position: "absolute",
-              inset: 0,
-              backgroundColor: "black",
-              zIndex: 0,
-            }}
-          />
-        )}
-
+  /* ── ORIGINAL JSX (100% unchanged) ── */
+  return (
+    <div
+      className={`room-container ${isFullScreen ? "fullscreen-mode" : ""}`}
+      onClick={() => {
+        if (isFullScreen) setShowControls(true);
+      }}
+      style={{ position: "relative" }}
+    >
+      {guideLocation && (
         <div
           style={{
             position: "absolute",
+            top: "80px",
+            left: "20px",
+            background: "rgba(0,0,0,0.6)",
+            padding: "8px",
+            borderRadius: "6px",
+            color: "white",
+            fontSize: "12px",
+            zIndex: 10,
+          }}
+        >
+          📍{" "}
+          {placeName
+            ? placeName
+            : `${guideLocation.lat.toFixed(4)}, ${guideLocation.lon.toFixed(4)}`}
+        </div>
+      )}
+
+      {isReconnecting && (
+        <div className="reconnect-banner">Reconnecting...</div>
+      )}
+
+      <CommunicationStatus
+        visible={!isFullScreen && !isVRMode && !isImmersiveVR}
+
+        connected={communicationStatus.connected}
+        quality={communicationStatus.quality}
+        latency={communicationStatus.latency}
+        jitterBufferDelay={communicationStatus.jitterBufferDelay}
+        video={communicationStatus.video}
+
+        actualBitrate={communicationStatus.actualBitrate}
+        availableBitrate={communicationStatus.availableBitrate}
+
+        captureWidth={communicationStatus.captureWidth}
+        captureHeight={communicationStatus.captureHeight}
+
+        encodedWidth={communicationStatus.encodedWidth}
+        encodedHeight={communicationStatus.encodedHeight}
+
+        receivedWidth={communicationStatus.receivedWidth}
+        receivedHeight={communicationStatus.receivedHeight}
+      />
+
+      {!isFullScreen && (
+        <div className="room-header">
+          <FaGlobeAmericas size={28} color="#0EA5E9" />
+          <span className="brand-text">
+            Live<span style={{ color: "#0EA5E9" }}>Atlas</span>
+          </span>
+        </div>
+      )}
+
+      <div
+        className="video-grid"
+        style={{
+          opacity: isVRMode || isImmersiveVR ? 0 : 1,
+          pointerEvents: isVRMode || isImmersiveVR ? "none" : "auto",
+          position: "relative",
+          zIndex: 1,
+        }}
+      >
+        {showLocalVideo && !isFullScreen && (
+          <div className="video-wrapper local">
+            <video ref={localVideoRef} autoPlay playsInline muted />
+            <div className="name-tag">You</div>
+          </div>
+        )}
+
+        <div className="video-wrapper remote">
+          <video
+            ref={remoteVideoRef}
+            autoPlay
+            playsInline
+            onWaiting={() => setIsReconnecting(true)}
+            onPlaying={() => setIsReconnecting(false)}
+          />
+          <div className="name-tag">Live Feed</div>
+          <div
+            style={{
+              position: "absolute",
+              top: "10px",
+              right: "10px",
+              background: connectionQuality === "good" ? "green" : "red",
+              color: "white",
+              padding: "4px 8px",
+              borderRadius: "6px",
+              fontSize: "12px",
+            }}
+          >
+            {connectionQuality}
+          </div>
+        </div>
+      </div>
+
+      {(isVRMode || isImmersiveVR) && (
+        <div
+          ref={vrContainerRef}
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundColor: "black",
+            zIndex: 0,
+          }}
+        />
+      )}
+
+      <div
+        style={{
+          position: "absolute",
+          right: "20px",
+          bottom: "120px",
+          zIndex: 9999,
+          background: "rgba(0,0,0,0.7)",
+          padding: "10px",
+          borderRadius: "8px",
+          color: "white",
+          width: "260px",
+        }}
+      >
+        <input
+          type="text"
+          placeholder="Ask AI about this place..."
+          value={aiQuestion}
+          onChange={(e) => setAIQuestion(e.target.value)}
+          style={{ width: "100%", padding: "6px" }}
+        />
+        <button
+          onClick={handleAskAI}
+          style={{ marginTop: "6px", width: "100%" }}
+        >
+          Ask
+        </button>
+        {aiLoading && <p>Thinking...</p>}
+        {aiAnswer && <p style={{ marginTop: "8px" }}>{aiAnswer}</p>}
+      </div>
+
+      {!isFullScreen && (
+        <div
+          style={{
+            position: "absolute",
+            top: "120px",
             right: "20px",
-            bottom: "120px",
-            zIndex: 9999,
+            zIndex: 1000,
             background: "rgba(0,0,0,0.7)",
             padding: "10px",
             borderRadius: "8px",
             color: "white",
-            width: "260px",
           }}
         >
-          <input
-            type="text"
-            placeholder="Ask AI about this place..."
-            value={aiQuestion}
-            onChange={(e) => setAIQuestion(e.target.value)}
-            style={{ width: "100%", padding: "6px" }}
-          />
-          <button
-            onClick={handleAskAI}
-            style={{ marginTop: "6px", width: "100%" }}
-          >
-            Ask
-          </button>
-          {aiLoading && <p>Thinking...</p>}
-          {aiAnswer && <p style={{ marginTop: "8px" }}>{aiAnswer}</p>}
-        </div>
-
-        {!isFullScreen && (
-          <div
-            style={{
-              position: "absolute",
-              top: "120px",
-              right: "20px",
-              zIndex: 1000,
-              background: "rgba(0,0,0,0.7)",
-              padding: "10px",
-              borderRadius: "8px",
-              color: "white",
+          <p>Change Intent</p>
+          <select
+            value={selectedIntent}
+            onChange={async (e) => {
+              const newIntent = e.target.value;
+              setSelectedIntent(newIntent);
+              await supabase
+                .from("session_intents")
+                .delete()
+                .eq("room_id", roomID);
+              const { error } = await supabase
+                .from("session_intents")
+                .insert([{ room_id: roomID, intent: newIntent }]);
+              console.log("Intent Updated:", newIntent, error);
             }}
+            style={{ width: "100%", padding: "5px" }}
           >
-            <p>Change Intent</p>
-            <select
-              value={selectedIntent}
-              onChange={async (e) => {
-                const newIntent = e.target.value;
-                setSelectedIntent(newIntent);
-                await supabase
-                  .from("session_intents")
-                  .delete()
-                  .eq("room_id", roomID);
-                const { error } = await supabase
-                  .from("session_intents")
-                  .insert([{ room_id: roomID, intent: newIntent }]);
-                console.log("Intent Updated:", newIntent, error);
-              }}
-              style={{ width: "100%", padding: "5px" }}
-            >
-              <option value="Explore">Explore</option>
-              <option value="Talk">Talk</option>
-              <option value="Learn">Learn</option>
-              <option value="Experience">Experience</option>
-            </select>
-          </div>
-        )}
-
-        <div
-          className={`controls-bar ${isFullScreen && !showControls ? "controls-hidden" : ""}`}
-        >
-          {!isFullScreen && (
-            <>
-              <button onClick={toggleAudio}>
-                {isAudioOn ? <FaMicrophone /> : <FaMicrophoneSlash />}
-              </button>
-              <button onClick={toggleVideo}>
-                {isVideoOn ? <FaVideo /> : <FaVideoSlash />}
-              </button>
-              <button onClick={() => setShowLocalVideo((prev) => !prev)}>
-                {showLocalVideo ? "Hide Cam" : "Show Cam"}
-              </button>
-              <button onClick={endCall}>
-                <FaPhoneSlash />
-              </button>
-              <button onClick={switchCamera}>
-                <FaSyncAlt />
-              </button>
-              <button onClick={toggleVRMode}>
-                {isVRMode ? "Exit VR" : "VR"}
-              </button>
-
-              <button
-                onClick={() => {
-                  if (!isImmersiveVR) {
-                    setIsVRMode(false);
-                  }
-
-                  setIsImmersiveVR((prev) => !prev);
-                }}
-                style={{
-                  background: isImmersiveVR ? "#0EA5E9" : "rgba(0,0,0,0.6)",
-                  color: "white",
-                  border: "none",
-                  padding: "10px 14px",
-                  borderRadius: "10px",
-                  cursor: "pointer",
-                  fontWeight: "600",
-                }}
-              >
-                {isImmersiveVR ? "Exit Immersive" : "Immersive VR"}
-              </button>
-            </>
-          )}
-          <button onClick={toggleFullScreen}>
-            {isFullScreen ? <FaCompress /> : <FaExpand />}
-          </button>
+            <option value="Explore">Explore</option>
+            <option value="Talk">Talk</option>
+            <option value="Learn">Learn</option>
+            <option value="Experience">Experience</option>
+          </select>
         </div>
-      </div>
-    );
-  };
+      )}
 
-  export default VideoRoom;
+      <div
+        className={`controls-bar ${isFullScreen && !showControls ? "controls-hidden" : ""}`}
+      >
+        {!isFullScreen && (
+          <>
+            <button onClick={toggleAudio}>
+              {isAudioOn ? <FaMicrophone /> : <FaMicrophoneSlash />}
+            </button>
+            <button onClick={toggleVideo}>
+              {isVideoOn ? <FaVideo /> : <FaVideoSlash />}
+            </button>
+            <button onClick={() => setShowLocalVideo((prev) => !prev)}>
+              {showLocalVideo ? "Hide Cam" : "Show Cam"}
+            </button>
+            <button onClick={endCall}>
+              <FaPhoneSlash />
+            </button>
+            <button onClick={switchCamera}>
+              <FaSyncAlt />
+            </button>
+            <button onClick={toggleVRMode}>
+              {isVRMode ? "Exit VR" : "VR"}
+            </button>
+
+            <button
+              onClick={() => {
+                if (!isImmersiveVR) {
+                  setIsVRMode(false);
+                }
+
+                setIsImmersiveVR((prev) => !prev);
+              }}
+              style={{
+                background: isImmersiveVR ? "#0EA5E9" : "rgba(0,0,0,0.6)",
+                color: "white",
+                border: "none",
+                padding: "10px 14px",
+                borderRadius: "10px",
+                cursor: "pointer",
+                fontWeight: "600",
+              }}
+            >
+              {isImmersiveVR ? "Exit Immersive" : "Immersive VR"}
+            </button>
+          </>
+        )}
+        <button onClick={toggleFullScreen}>
+          {isFullScreen ? <FaCompress /> : <FaExpand />}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default VideoRoom;
