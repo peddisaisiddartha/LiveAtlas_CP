@@ -159,7 +159,7 @@ export class Telemetry {
                 jitterBufferDelay: 0,
                 jitterBufferEmittedCount: 0,
                 averageJitterBufferDelay: 0,
-                
+
             },
 
             decoding: {
@@ -355,8 +355,8 @@ export class Telemetry {
         if (telemetry.reception.jitterBufferEmittedCount > 0) {
 
             telemetry.reception.averageJitterBufferDelay =
-            telemetry.reception.jitterBufferDelay /
-            telemetry.reception.jitterBufferEmittedCount;
+                telemetry.reception.jitterBufferDelay /
+                telemetry.reception.jitterBufferEmittedCount;
 
         }
 
@@ -433,39 +433,13 @@ export class Telemetry {
             telemetry.transmission.rtt ||
             this.number(pair.currentRoundTripTime);
 
-        const bitratePair = candidates.pairs
-            .filter((candidatePair) =>
-                this.number(candidatePair.availableOutgoingBitrate) > 0
-            )
-            .sort((a, b) => {
-                const score = (candidatePair) => {
-                    let value = 0;
+        const estimatedBitrate = this.number(pair.availableOutgoingBitrate);
 
-                    if (candidatePair.state === "succeeded") {
-                        value += 2;
-                    }
-
-                    if (candidatePair.selected) {
-                        value += 4;
-                    }
-
-                    if (candidatePair.nominated) {
-                        value += 3;
-                    }
-
-                    return value;
-                };
-
-                return score(b) - score(a);
-            })[0];
-
-        const estimatedBitrate = this.number(
-            bitratePair?.availableOutgoingBitrate
-        );
+        candidates.availableOutgoingBitrate = estimatedBitrate;
 
         if (estimatedBitrate > 0) {
             telemetry.transmission.availableOutgoingBitrate =
-            estimatedBitrate;
+                estimatedBitrate;
         }
 
         const local = candidates.local.get(pair.localCandidateId);
@@ -697,7 +671,7 @@ export class Telemetry {
         const bitrate = Math.round((bytesDelta * 8) / timeDelta);
 
         return bitrate > 0 ? bitrate : 0;
-    } 
+    }
 
     packetLoss(report, key) {
         const previous = this.previous.get(key);
