@@ -207,7 +207,7 @@ export class SpatialRenderer {
 
         uvs.push(
           u,
-          v,
+          1 - v,
         );
       }
     }
@@ -835,9 +835,9 @@ export class SpatialRenderer {
 
     const modelMatrix =
       new Float32Array([
-        1, 0, 0, 0,
+        0, 0, -1, 0,
         0, 1, 0, 0,
-        0, 0, 1, 0,
+        1, 0, 0, 0,
         0, 0, 0, 1,
       ]);
 
