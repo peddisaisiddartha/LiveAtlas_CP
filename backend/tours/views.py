@@ -105,19 +105,18 @@ def get_turn_credentials(request):
     if request.method != "GET":
         return JsonResponse({"error": "Only GET allowed"}, status=405)
 
-    account_id = os.getenv("CLOUDFLARE_ACCOUNT_ID")
     key_id = os.getenv("CLOUDFLARE_TURN_KEY_ID")
     api_token = os.getenv("CLOUDFLARE_TURN_API_TOKEN")
 
-    if not account_id or not key_id or not api_token:
+    if not key_id or not api_token:
         return JsonResponse(
             {"error": "Cloudflare TURN configuration is missing"},
             status=500,
         )
 
     url = (
-        f"https://api.cloudflare.com/client/v4/accounts/"
-        f"{account_id}/calls/turn/credentials"
+        f"https://rtc.live.cloudflare.com/v1/turn/keys/"
+        f"{key_id}/credentials/generate-ice-servers"
     )
 
     response = requests.post(
@@ -126,10 +125,7 @@ def get_turn_credentials(request):
             "Authorization": f"Bearer {api_token}",
             "Content-Type": "application/json",
         },
-        json={
-            "ttl": 3600,
-            "key_id": key_id,
-        },
+        json={"ttl": 86400},
         timeout=10,
     )
 
