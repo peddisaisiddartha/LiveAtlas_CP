@@ -669,48 +669,91 @@ const VideoRoom = () => {
       encodedInsertableStreams: false,
     });
 
-    /* ORIGINAL ICE state handler — quality thresholds upgraded */
     peerConnection.current.oniceconnectionstatechange = async () => {
-      const state = peerConnection.current.iceConnectionState;
+      const pc = peerConnection.current;
 
-      const stats = await peerConnection.current.getStats();
+      if (!pc) return;
 
-      stats.forEach(async (report) => {
-        if (report.type === "candidate-pair" && report.state === "succeeded") {
-          const stats = await peerConnection.current.getStats();
+      const state = pc.iceConnectionState;
 
-          let candidates = {};
+      try {
+        const stats = await pc.getStats();
 
-          stats.forEach((report) => {
-            if (
-              report.type === "local-candidate" ||
-              report.type === "remote-candidate"
-            ) {
-              candidates[report.id] = report;
-            }
+        const candidates = new Map();
+        const candidatePairs = [];
+
+        stats.forEach((report) => {
+          if (
+            report.type === "local-candidate" ||
+            report.type === "remote-candidate"
+          ) {
+            candidates.set(report.id, report);
+          }
+        });
+
+        stats.forEach((report) => {
+          if (
+            report.type === "candidate-pair" &&
+            report.state === "succeeded"
+          ) {
+            const local = candidates.get(report.localCandidateId);
+            const remote = candidates.get(report.remoteCandidateId);
+
+            candidatePairs.push({
+              nominated: report.nominated === true,
+              priority: report.priority,
+              localType: local?.candidateType,
+              localProtocol: local?.protocol,
+              remoteType: remote?.candidateType,
+              remoteProtocol: remote?.protocol,
+              rtt: report.currentRoundTripTime,
+              availableOutgoingBitrate:
+                report.availableOutgoingBitrate,
+              bytesSent: report.bytesSent,
+              bytesReceived: report.bytesReceived,
+            });
+          }
+        });
+
+        candidatePairs.sort(
+          (a, b) => (b.priority || 0) - (a.priority || 0),
+        );
+
+        const nominatedPair =
+          candidatePairs.find((pair) => pair.nominated) ||
+          candidatePairs[0];
+
+        if (nominatedPair) {
+          const usesRelay =
+            nominatedPair.localType === "relay" ||
+            nominatedPair.remoteType === "relay";
+
+          const usesDirectPath =
+            nominatedPair.localType === "host" ||
+            nominatedPair.localType === "srflx" ||
+            nominatedPair.localType === "prflx" ||
+            nominatedPair.remoteType === "host" ||
+            nominatedPair.remoteType === "srflx" ||
+            nominatedPair.remoteType === "prflx";
+
+          console.log("[ICE SELECTED PATH]", {
+            state,
+            transport: usesRelay ? "TURN_RELAY" : "P2P_DIRECT",
+            localType: nominatedPair.localType,
+            localProtocol: nominatedPair.localProtocol,
+            remoteType: nominatedPair.remoteType,
+            remoteProtocol: nominatedPair.remoteProtocol,
+            priority: nominatedPair.priority,
+            rtt: nominatedPair.rtt,
+            availableOutgoingBitrate:
+              nominatedPair.availableOutgoingBitrate,
           });
 
-          stats.forEach((report) => {
-            if (
-              report.type === "candidate-pair" &&
-              report.state === "succeeded" &&
-              report.nominated === true
-            ) {
-              const local = candidates[report.localCandidateId];
-              const remote = candidates[report.remoteCandidateId];
-
-              console.log("[ICE PATH]", {
-                localType: local?.candidateType,
-                localProtocol: local?.protocol,
-                remoteType: remote?.candidateType,
-                remoteProtocol: remote?.protocol,
-                rtt: report.currentRoundTripTime,
-                availableOutgoingBitrate: report.availableOutgoingBitrate,
-              });
-            }
-          });
+          console.log("[ICE CANDIDATE PAIRS]", candidatePairs);
         }
-      });
+      } catch (error) {
+        console.error("[ICE STATS] Failed to inspect candidate pairs:", error);
+      }
 
       if (state === "connected" || state === "completed") {
         setConnectionQuality("good");
@@ -734,35 +777,35 @@ const VideoRoom = () => {
         iceRestartTimerRef.current = setTimeout(async () => {
           iceRestartTimerRef.current = null;
 
-          const pc = peerConnection.current;
+          const currentPc = peerConnection.current;
 
           if (
-            pc &&
-            (pc.iceConnectionState === "disconnected" ||
-              pc.iceConnectionState === "failed") &&
-            pc.restartIce &&
+            currentPc &&
+            (currentPc.iceConnectionState === "disconnected" ||
+              currentPc.iceConnectionState === "failed") &&
+            currentPc.restartIce &&
             ws.current &&
             ws.current.readyState === WebSocket.OPEN
           ) {
             console.log("Restarting ICE...");
 
             try {
-              pc.restartIce();
+              currentPc.restartIce();
 
-              if (pc.signalingState !== "stable") {
+              if (currentPc.signalingState !== "stable") {
                 console.warn(
                   "ICE restart prepared, waiting for stable signaling state.",
                 );
                 return;
               }
 
-              const restartOffer = await pc.createOffer({
+              const restartOffer = await currentPc.createOffer({
                 iceRestart: true,
                 offerToReceiveAudio: true,
                 offerToReceiveVideo: true,
               });
 
-              await pc.setLocalDescription(restartOffer);
+              await currentPc.setLocalDescription(restartOffer);
 
               ws.current.send(
                 JSON.stringify({
@@ -786,7 +829,6 @@ const VideoRoom = () => {
       if (state === "closed") {
         console.log("ICE connection closed");
       }
-      // sender.setParameters(params);
     };
 
     /* ORIGINAL track hints (unchanged) */
