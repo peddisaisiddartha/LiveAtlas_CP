@@ -639,32 +639,30 @@ const VideoRoom = () => {
     audioContext.resume();
     checkMicLevel();
 
+    const turnResponse = await fetch(
+      "https://liveatlas-cp.onrender.com/api/turn-credentials/",
+    );
+
+    if (!turnResponse.ok) {
+      throw new Error(
+        `Failed to fetch Cloudflare TURN credentials: ${turnResponse.status}`,
+      );
+    }
+
+    const turnConfig = await turnResponse.json();
+
+    if (
+      !turnConfig.iceServers ||
+      !Array.isArray(turnConfig.iceServers) ||
+      turnConfig.iceServers.length === 0
+    ) {
+      throw new Error("Cloudflare TURN response contains no ICE servers");
+    }
+
+    console.log("[TURN] Cloudflare ICE servers loaded");
+
     peerConnection.current = new RTCPeerConnection({
-      iceServers: [
-        {
-          urls: "stun:stun.relay.metered.ca:80",
-        },
-        {
-          urls: "turn:standard.relay.metered.ca:80",
-          username: "3f8759bd068204338517a31d",
-          credential: "9n2CI75lIUpwOsnx",
-        },
-        {
-          urls: "turn:standard.relay.metered.ca:80?transport=tcp",
-          username: "3f8759bd068204338517a31d",
-          credential: "9n2CI75lIUpwOsnx",
-        },
-        {
-          urls: "turn:standard.relay.metered.ca:443",
-          username: "3f8759bd068204338517a31d",
-          credential: "9n2CI75lIUpwOsnx",
-        },
-        {
-          urls: "turns:standard.relay.metered.ca:443?transport=tcp",
-          username: "3f8759bd068204338517a31d",
-          credential: "9n2CI75lIUpwOsnx",
-        },
-      ],
+      iceServers: turnConfig.iceServers,
       iceCandidatePoolSize: 10,
       bundlePolicy: "max-bundle",
       rtcpMuxPolicy: "require",
