@@ -4,6 +4,8 @@ from django.contrib.auth.models import User
 from .models import Tour
 import json
 import cloudinary.uploader
+import os
+import requests
 
 
 def get_tours(request):
@@ -98,3 +100,46 @@ def create_admin_once(request):
             password="admin123"
         )
     return JsonResponse({"status": "Admin created"})
+
+def get_turn_credentials(request):
+    if request.method != "GET":
+        return JsonResponse({"error": "Only GET allowed"}, status=405)
+
+    account_id = os.getenv("CLOUDFLARE_ACCOUNT_ID")
+    key_id = os.getenv("CLOUDFLARE_TURN_KEY_ID")
+    api_token = os.getenv("CLOUDFLARE_TURN_API_TOKEN")
+
+    if not account_id or not key_id or not api_token:
+        return JsonResponse(
+            {"error": "Cloudflare TURN configuration is missing"},
+            status=500,
+        )
+
+    url = (
+        f"https://api.cloudflare.com/client/v4/accounts/"
+        f"{account_id}/calls/turn/credentials"
+    )
+
+    response = requests.post(
+        url,
+        headers={
+            "Authorization": f"Bearer {api_token}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "ttl": 3600,
+            "key_id": key_id,
+        },
+        timeout=10,
+    )
+
+    if not response.ok:
+        return JsonResponse(
+            {
+                "error": "Failed to generate TURN credentials",
+                "details": response.text,
+            },
+            status=response.status_code,
+        )
+
+    return JsonResponse(response.json())

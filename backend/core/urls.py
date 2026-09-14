@@ -16,6 +16,7 @@ urlpatterns = [
     path('api/tours/', views.get_tours),
     path('api/create-tour/', views.create_tour),
     path('api/end-tour/<int:tour_id>/', views.end_tour),
+    path('api/turn-credentials/', views.get_turn_credentials),
     path('create-admin-once/', views.create_admin_once),
 ]
 
