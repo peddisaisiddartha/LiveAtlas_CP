@@ -92,6 +92,40 @@ function preferHighQualityCodecs(sdp, kind) {
   return lines.join("\r\n");
 }
 
+function inspectWebRTCFeedback(sdp, label) {
+  if (!sdp) {
+    console.log(`[WEBRTC SDP] ${label}: no SDP available`);
+    return;
+  }
+
+  const lines = sdp.split("\r\n");
+
+  const feedback = lines.filter(
+    (line) =>
+      line.startsWith("a=rtcp-fb:") &&
+      /nack|pli|fir|ccm|transport-cc/i.test(line),
+  );
+
+  const rtx = lines.filter(
+    (line) =>
+      line.startsWith("a=rtpmap:") &&
+      /\brtx\/\d+/i.test(line),
+  );
+
+  const fec = lines.filter(
+    (line) =>
+      line.startsWith("a=rtpmap:") &&
+      /\b(red|ulpfec|flexfec-\d+)\//i.test(line),
+  );
+
+  console.log(`[WEBRTC SDP] ${label}`, {
+    nack: feedback.filter((line) => /\bnack\b/i.test(line)),
+    rtx,
+    fec,
+    allVideoFeedback: feedback,
+  });
+}
+
 /* ═══════════════════════════════════════════════════════
    MAIN COMPONENT — ALL ORIGINAL LOGIC PRESERVED
 ═══════════════════════════════════════════════════════ */
@@ -977,6 +1011,11 @@ const VideoRoom = () => {
 
       await peerConnection.current.setLocalDescription(optimizedOffer);
 
+      inspectWebRTCFeedback(
+        peerConnection.current.localDescription?.sdp,
+        "LOCAL OFFER",
+      );
+
       ws.current.send(
         JSON.stringify({
           type: "offer",
@@ -1043,8 +1082,14 @@ const VideoRoom = () => {
         new RTCSessionDescription(data.answer)
       );
 
+      inspectWebRTCFeedback(
+        pc.remoteDescription?.sdp,
+        "REMOTE ANSWER",
+      );
+
       await flushPendingIceCandidates();
-    } else if (data.type === "candidate") {
+    }
+    else if (data.type === "candidate") {
       if (
         data.candidate === null ||
         data.candidate === undefined
