@@ -695,8 +695,7 @@ export class AdaptiveController {
     }
 
     selectProfile(pipeline, network, browser) {
-
-        // Preserve HD whenever possible.
+        // Preserve HD whenever the pipeline and network are genuinely healthy.
         if (
             pipeline.state === "HD_PRESERVED" &&
             network.stable
@@ -705,7 +704,7 @@ export class AdaptiveController {
         }
 
         // Browser is temporarily conservative.
-        // Don't immediately downgrade.
+        // Do not fight Chrome's native recovery with a manual downgrade.
         if (
             browser.likelyConservative &&
             network.stable
@@ -714,28 +713,39 @@ export class AdaptiveController {
         }
 
         // CPU limitation is real.
-        if (
-            browser.cpuLimited
-        ) {
+        if (browser.cpuLimited) {
             return this.profiles.MEDIUM;
         }
 
-        // Genuine network congestion.
-        if (
-            network.state === "CONSTRAINED"
-        ) {
+        /*
+         * Require stronger evidence before entering LOW.
+         *
+         * A few lost packets or a short period of variable transport
+         * should not immediately force 640x360. WebRTC/RTX can recover
+         * transient loss without requiring an encoder downgrade.
+         *
+         * LOW is now reserved for:
+         * - genuinely constrained network state
+         * - less than half of the analysis samples being healthy
+         */
+        const severeNetworkPressure =
+            network.state === "CONSTRAINED" &&
+            network.recentDegradation &&
+            network.healthySampleRatio < 0.5;
+
+        if (severeNetworkPressure) {
             return this.profiles.LOW;
         }
 
-        // Variable network.
+        // Variable or moderately constrained networks stay at MEDIUM.
         if (
-            network.state === "VARIABLE"
+            network.state === "VARIABLE" ||
+            network.state === "CONSTRAINED"
         ) {
             return this.profiles.MEDIUM;
         }
 
         return this.profiles.HIGH;
-
     }
 }
 
