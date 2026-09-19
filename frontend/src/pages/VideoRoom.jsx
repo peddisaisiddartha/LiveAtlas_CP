@@ -139,14 +139,13 @@ async function inspectWebRTCReliability(pc) {
     stats.forEach((report) => {
       if (report.type === "outbound-rtp" && report.kind === "video") {
         outbound.push({
-          ssrc: report.ssrc,
           packetsSent: report.packetsSent || 0,
-          bytesSent: report.bytesSent || 0,
+          packetsLost: report.packetsLost || 0,
           retransmittedPacketsSent:
             report.retransmittedPacketsSent || 0,
           retransmittedBytesSent:
             report.retransmittedBytesSent || 0,
-          packetsLost: report.packetsLost || 0,
+          bytesSent: report.bytesSent || 0,
           framesEncoded: report.framesEncoded || 0,
           frameWidth: report.frameWidth || 0,
           frameHeight: report.frameHeight || 0,
@@ -155,11 +154,10 @@ async function inspectWebRTCReliability(pc) {
 
       if (report.type === "inbound-rtp" && report.kind === "video") {
         inbound.push({
-          ssrc: report.ssrc,
           packetsReceived: report.packetsReceived || 0,
           packetsLost: report.packetsLost || 0,
           bytesReceived: report.bytesReceived || 0,
-          jitter: report.jitter || 0,
+          jitterMs: Math.round((report.jitter || 0) * 1000),
           framesDecoded: report.framesDecoded || 0,
           frameWidth: report.frameWidth || 0,
           frameHeight: report.frameHeight || 0,
@@ -168,20 +166,25 @@ async function inspectWebRTCReliability(pc) {
 
       if (report.type === "remote-inbound-rtp" && report.kind === "video") {
         remoteInbound.push({
-          ssrc: report.ssrc,
           packetsReceived: report.packetsReceived || 0,
           packetsLost: report.packetsLost || 0,
-          jitter: report.jitter || 0,
-          roundTripTime: report.roundTripTime || 0,
           fractionLost: report.fractionLost || 0,
+          jitterMs: Math.round((report.jitter || 0) * 1000),
+          roundTripTimeMs: Math.round(
+            (report.roundTripTime || 0) * 1000,
+          ),
         });
       }
     });
 
+    const videoOutbound = outbound[0];
+    const videoInbound = inbound[0];
+    const videoRemoteInbound = remoteInbound[0];
+
     console.log("[WEBRTC RELIABILITY]", {
-      outbound,
-      inbound,
-      remoteInbound,
+      outbound: videoOutbound || null,
+      inbound: videoInbound || null,
+      remoteInbound: videoRemoteInbound || null,
     });
   } catch (error) {
     console.error(
