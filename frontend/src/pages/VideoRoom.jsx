@@ -126,6 +126,71 @@ function inspectWebRTCFeedback(sdp, label) {
   });
 }
 
+async function inspectWebRTCReliability(pc) {
+  if (!pc) return;
+
+  try {
+    const stats = await pc.getStats();
+
+    const outbound = [];
+    const inbound = [];
+    const remoteInbound = [];
+
+    stats.forEach((report) => {
+      if (report.type === "outbound-rtp" && report.kind === "video") {
+        outbound.push({
+          ssrc: report.ssrc,
+          packetsSent: report.packetsSent || 0,
+          bytesSent: report.bytesSent || 0,
+          retransmittedPacketsSent:
+            report.retransmittedPacketsSent || 0,
+          retransmittedBytesSent:
+            report.retransmittedBytesSent || 0,
+          packetsLost: report.packetsLost || 0,
+          framesEncoded: report.framesEncoded || 0,
+          frameWidth: report.frameWidth || 0,
+          frameHeight: report.frameHeight || 0,
+        });
+      }
+
+      if (report.type === "inbound-rtp" && report.kind === "video") {
+        inbound.push({
+          ssrc: report.ssrc,
+          packetsReceived: report.packetsReceived || 0,
+          packetsLost: report.packetsLost || 0,
+          bytesReceived: report.bytesReceived || 0,
+          jitter: report.jitter || 0,
+          framesDecoded: report.framesDecoded || 0,
+          frameWidth: report.frameWidth || 0,
+          frameHeight: report.frameHeight || 0,
+        });
+      }
+
+      if (report.type === "remote-inbound-rtp" && report.kind === "video") {
+        remoteInbound.push({
+          ssrc: report.ssrc,
+          packetsReceived: report.packetsReceived || 0,
+          packetsLost: report.packetsLost || 0,
+          jitter: report.jitter || 0,
+          roundTripTime: report.roundTripTime || 0,
+          fractionLost: report.fractionLost || 0,
+        });
+      }
+    });
+
+    console.log("[WEBRTC RELIABILITY]", {
+      outbound,
+      inbound,
+      remoteInbound,
+    });
+  } catch (error) {
+    console.error(
+      "[WEBRTC RELIABILITY] Stats inspection failed:",
+      error,
+    );
+  }
+}
+
 /* ═══════════════════════════════════════════════════════
    MAIN COMPONENT — ALL ORIGINAL LOGIC PRESERVED
 ═══════════════════════════════════════════════════════ */
@@ -894,6 +959,8 @@ const VideoRoom = () => {
       if (!networkEngineRef.current) return;
 
       const diagnostics = networkEngineRef.current.getDiagnostics();
+
+      inspectWebRTCReliability(peerConnection.current);
 
       const guardian = networkEngineRef.current.connectionGuardian;
 
