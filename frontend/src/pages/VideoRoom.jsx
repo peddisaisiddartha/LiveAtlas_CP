@@ -502,13 +502,68 @@ const VideoRoom = () => {
   useEffect(() => {
     let cancelled = false;
     let depthLoopTimer = null;
+
     const runImmersiveVR = async () => {
       const video = remoteVideoRef.current;
 
+      if (!isImmersiveVR) {
+        setShowControls(true);
+
+        if (depthEngineRef.current) {
+          depthEngineRef.current.reset();
+        }
+
+        if (spatialXRRef.current) {
+          spatialXRRef.current.stopSession();
+        }
+
+        return;
+      }
+
+      if (!video || !vrContainerRef.current) {
+        console.log(
+          "[Spatial] Immersive VR skipped: video or container missing"
+        );
+        return;
+      }
+
+      /*
+       * START WEBXR FIRST.
+       * Nothing AI-related is created before this succeeds.
+       */
       if (
-        isImmersiveVR &&
-        vrContainerRef.current &&
-        spatialRendererRef.current
+        spatialXRRef.current &&
+        !spatialXRRef.current.isActive()
+      ) {
+        const spatialStarted =
+          await spatialXRRef.current.startSession();
+
+        console.log(
+          "[Spatial] Real-video WebXR session:",
+          spatialStarted
+        );
+
+        if (!spatialStarted) {
+          console.warn(
+            "[Spatial] WebXR session unavailable. AI depth will not start."
+          );
+
+          setIsImmersiveVR(false);
+          setShowControls(true);
+
+          return;
+        }
+      }
+
+      if (cancelled) return;
+
+      /*
+       * WebXR is confirmed active.
+       * Now create the renderer.
+       */
+      if (
+        spatialRendererRef.current &&
+        vrContainerRef.current
       ) {
         const renderer =
           spatialRendererRef.current;
@@ -542,132 +597,88 @@ const VideoRoom = () => {
             "[Spatial] Existing WebGL canvas reattached"
           );
         }
+
+        renderer.setVideoSource(video);
       }
 
-      if (isImmersiveVR && video && spatialRendererRef.current) {
-        spatialRendererRef.current.setVideoSource(video);
+      if (cancelled) return;
 
-        console.log("[Spatial] Real LiveAtlas video attached to renderer");
-      }
-
-      if (isImmersiveVR && video && !depthEngineRef.current) {
+      /*
+       * WebXR is active.
+       * Renderer is ready.
+       * NOW create AI depth engine.
+       */
+      if (!depthEngineRef.current) {
         depthEngineRef.current = new DepthEngine();
 
         depthEngineRef.current.initialize(
           video.videoWidth || 1280,
-          video.videoHeight || 720,
+          video.videoHeight || 720
         );
 
-        spatialRendererRef.current.setDepthEngine(depthEngineRef.current);
-
-        console.log("[Spatial] AI DepthEngine attached to live video");
-      }
-
-      if (
-        isImmersiveVR &&
-        depthEngineRef.current
-      ) {
-        depthEngineRef.current.cancelled = false;
-      }
-
-      if (
-        isImmersiveVR &&
-        video &&
-        depthEngineRef.current &&
-        spatialRendererRef.current
-      ) {
-        const depthLoop = async () => {
-          if (
-            cancelled ||
-            !depthEngineRef.current
-          ) {
-            return;
-          }
-
-          const depthMap =
-            await depthEngineRef.current.estimate(video);
-
-          if (
-            cancelled ||
-            !depthEngineRef.current
-          ) {
-            return;
-          }
-
-          if (
-            depthMap?.source &&
-            spatialRendererRef.current
-          ) {
-            spatialRendererRef.current.setDepthCanvas(
-              depthMap.source
-            );
-          }
-
-          if (!cancelled) {
-            depthLoopTimer =
-              setTimeout(depthLoop, 1000);
-          }
-        };
-
-        depthLoop();
-      }
-
-
-
-
-      if (
-        isImmersiveVR &&
-        spatialXRRef.current &&
-        !spatialXRRef.current.isActive()
-      ) {
-        const spatialStarted =
-          await spatialXRRef.current.startSession();
+        spatialRendererRef.current?.setDepthEngine(
+          depthEngineRef.current
+        );
 
         console.log(
-          "[Spatial] Real-video WebXR session:",
-          spatialStarted
+          "[Spatial] AI DepthEngine attached to live video"
         );
+      }
 
-        if (!spatialStarted) {
-          console.warn(
-            "[Spatial] Immersive VR could not start. Returning to normal video mode."
-          );
+      depthEngineRef.current.cancelled = false;
 
-          setIsImmersiveVR(false);
-          setShowControls(true);
-
+      /*
+       * Run depth inference only while this immersive
+       * session is still alive.
+       */
+      const depthLoop = async () => {
+        if (
+          cancelled ||
+          !depthEngineRef.current ||
+          !spatialXRRef.current?.isActive()
+        ) {
           return;
         }
-      }
 
-      if (!video || !vrContainerRef.current) {
-        console.log("Immersive VR skipped: missing video or container");
-        return;
-      }
+        const depthMap =
+          await depthEngineRef.current.estimate(video);
 
-      if (isImmersiveVR) {
-        console.log("Starting Immersive VR...");
+        if (
+          cancelled ||
+          !depthEngineRef.current ||
+          !spatialXRRef.current?.isActive()
+        ) {
+          return;
+        }
 
-        setShowControls(false);
+        if (
+          depthMap?.source &&
+          spatialRendererRef.current
+        ) {
+          spatialRendererRef.current.setDepthCanvas(
+            depthMap.source
+          );
+        }
 
-        const spatialVideo = video;
+        if (
+          !cancelled &&
+          spatialXRRef.current?.isActive()
+        ) {
+          depthLoopTimer =
+            setTimeout(depthLoop, 1000);
+        }
+      };
 
-        console.log(
-          "[Spatial] Real LiveAtlas video connected:",
-          !!spatialVideo,
-          spatialVideo?.readyState,
-        );
-      } else {
-        console.log("Stopping Immersive VR...");
+      depthLoop();
 
-        setShowControls(true);
+      setShowControls(false);
 
-
-      }
+      console.log(
+        "[Spatial] Immersive VR fully started"
+      );
     };
 
     runImmersiveVR();
-
 
     return () => {
       cancelled = true;
