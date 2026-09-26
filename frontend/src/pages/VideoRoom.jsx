@@ -508,22 +508,40 @@ const VideoRoom = () => {
       if (
         isImmersiveVR &&
         vrContainerRef.current &&
-        spatialRendererRef.current &&
-        !spatialRendererRef.current.gl
+        spatialRendererRef.current
       ) {
-        const canvas = document.createElement("canvas");
+        const renderer =
+          spatialRendererRef.current;
 
-        canvas.style.position = "absolute";
-        canvas.style.inset = "0";
-        canvas.style.width = "100%";
-        canvas.style.height = "100%";
-        canvas.style.zIndex = "1";
+        if (!renderer.canvas) {
+          const canvas =
+            document.createElement("canvas");
 
-        vrContainerRef.current.appendChild(canvas);
+          canvas.style.position = "absolute";
+          canvas.style.inset = "0";
+          canvas.style.width = "100%";
+          canvas.style.height = "100%";
+          canvas.style.zIndex = "1";
 
-        spatialRendererRef.current.initialize(canvas);
+          vrContainerRef.current.appendChild(canvas);
 
-        console.log("[Spatial] Production WebGL renderer initialized");
+          renderer.initialize(canvas);
+
+          console.log(
+            "[Spatial] Production WebGL renderer initialized"
+          );
+        } else if (
+          renderer.canvas.parentElement !==
+          vrContainerRef.current
+        ) {
+          vrContainerRef.current.appendChild(
+            renderer.canvas
+          );
+
+          console.log(
+            "[Spatial] Existing WebGL canvas reattached"
+          );
+        }
       }
 
       if (isImmersiveVR && video && spatialRendererRef.current) {
@@ -936,7 +954,7 @@ const VideoRoom = () => {
 
       const diagnostics = networkEngineRef.current.getDiagnostics();
 
-      
+
 
       const guardian = networkEngineRef.current.connectionGuardian;
       const telemetry = networkEngineRef.current.telemetry.getStats();
