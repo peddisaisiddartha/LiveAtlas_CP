@@ -4,6 +4,8 @@ export class DepthEngine {
         this.depthMap = null;
         this.width = 0;
         this.height = 0;
+        this.smoothedDepth = null;
+        this.depthSmoothing = 0.75;
     }
 
     initialize(width = 0, height = 0) {
@@ -145,6 +147,40 @@ export class DepthEngine {
             const depth =
                 result.depth;
 
+            const depthData =
+                depth.data;
+
+            if (!depthData || !depth.width || !depth.height) {
+                console.warn(
+                    "[Spatial] Invalid AI depth data"
+                );
+
+                return null;
+            }
+
+            if (
+                !this.smoothedDepth ||
+                this.smoothedDepth.length !== depthData.length
+            ) {
+                this.smoothedDepth =
+                    new Float32Array(depthData.length);
+
+                this.smoothedDepth.set(depthData);
+            } else {
+                const smoothing =
+                    this.depthSmoothing;
+
+                for (
+                    let i = 0;
+                    i < depthData.length;
+                    i++
+                ) {
+                    this.smoothedDepth[i] =
+                        this.smoothedDepth[i] * smoothing +
+                        depthData[i] * (1 - smoothing);
+                }
+            }
+
             const canvas =
                 document.createElement("canvas");
 
@@ -172,28 +208,27 @@ export class DepthEngine {
             const data =
                 imageData.data;
 
-            const depthData =
-                depth.data;
 
-            let depthMin = Infinity;
-            let depthMax = -Infinity;
+            const sortedDepth =
+                Array.from(this.smoothedDepth).sort(
+                    (a, b) => a - b
+                );
 
-            for (
-                let i = 0;
-                i < depthData.length;
-                i++
-            ) {
-                const value =
-                    depthData[i];
+            const lowIndex =
+                Math.floor(
+                    sortedDepth.length * 0.02
+                );
 
-                if (value < depthMin) {
-                    depthMin = value;
-                }
+            const highIndex =
+                Math.floor(
+                    sortedDepth.length * 0.98
+                );
 
-                if (value > depthMax) {
-                    depthMax = value;
-                }
-            }
+            const depthMin =
+                sortedDepth[lowIndex];
+
+            const depthMax =
+                sortedDepth[highIndex];
 
             const depthRange =
                 Math.max(
@@ -203,18 +238,30 @@ export class DepthEngine {
 
             for (
                 let i = 0;
-                i < depthData.length;
+                i < this.smoothedDepth.length;
                 i++
             ) {
                 const normalized =
-                    (
-                        depthData[i] -
-                        depthMin
-                    ) / depthRange;
+                    Math.max(
+                        0,
+                        Math.min(
+                            1,
+                            (
+                                this.smoothedDepth[i] -
+                                depthMin
+                            ) / depthRange
+                        )
+                    );
+
+                const enhanced =
+                    Math.pow(
+                        normalized,
+                        0.75
+                    );
 
                 const value =
                     Math.round(
-                        normalized * 255
+                        enhanced * 255
                     );
 
                 const pixel =
@@ -338,6 +385,7 @@ export class DepthEngine {
 
     reset() {
         this.depthMap = null;
+        this.smoothedDepth = null;
     }
 
     destroy() {

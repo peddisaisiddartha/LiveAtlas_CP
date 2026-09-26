@@ -126,73 +126,7 @@ function inspectWebRTCFeedback(sdp, label) {
   });
 }
 
-async function inspectWebRTCReliability(pc) {
-  if (!pc) return;
 
-  try {
-    const stats = await pc.getStats();
-
-    const outbound = [];
-    const inbound = [];
-    const remoteInbound = [];
-
-    stats.forEach((report) => {
-      if (report.type === "outbound-rtp" && report.kind === "video") {
-        outbound.push({
-          packetsSent: report.packetsSent || 0,
-          packetsLost: report.packetsLost || 0,
-          retransmittedPacketsSent:
-            report.retransmittedPacketsSent || 0,
-          retransmittedBytesSent:
-            report.retransmittedBytesSent || 0,
-          bytesSent: report.bytesSent || 0,
-          framesEncoded: report.framesEncoded || 0,
-          frameWidth: report.frameWidth || 0,
-          frameHeight: report.frameHeight || 0,
-        });
-      }
-
-      if (report.type === "inbound-rtp" && report.kind === "video") {
-        inbound.push({
-          packetsReceived: report.packetsReceived || 0,
-          packetsLost: report.packetsLost || 0,
-          bytesReceived: report.bytesReceived || 0,
-          jitterMs: Math.round((report.jitter || 0) * 1000),
-          framesDecoded: report.framesDecoded || 0,
-          frameWidth: report.frameWidth || 0,
-          frameHeight: report.frameHeight || 0,
-        });
-      }
-
-      if (report.type === "remote-inbound-rtp" && report.kind === "video") {
-        remoteInbound.push({
-          packetsReceived: report.packetsReceived || 0,
-          packetsLost: report.packetsLost || 0,
-          fractionLost: report.fractionLost || 0,
-          jitterMs: Math.round((report.jitter || 0) * 1000),
-          roundTripTimeMs: Math.round(
-            (report.roundTripTime || 0) * 1000,
-          ),
-        });
-      }
-    });
-
-    const videoOutbound = outbound[0];
-    const videoInbound = inbound[0];
-    const videoRemoteInbound = remoteInbound[0];
-
-    console.log("[WEBRTC RELIABILITY]", {
-      outbound: videoOutbound || null,
-      inbound: videoInbound || null,
-      remoteInbound: videoRemoteInbound || null,
-    });
-  } catch (error) {
-    console.error(
-      "[WEBRTC RELIABILITY] Stats inspection failed:",
-      error,
-    );
-  }
-}
 
 /* ═══════════════════════════════════════════════════════
    MAIN COMPONENT — ALL ORIGINAL LOGIC PRESERVED
@@ -567,6 +501,7 @@ const VideoRoom = () => {
 
   useEffect(() => {
     let cancelled = false;
+    let depthLoopTimer = null;
     const runImmersiveVR = async () => {
       const video = remoteVideoRef.current;
 
@@ -608,6 +543,37 @@ const VideoRoom = () => {
         spatialRendererRef.current.setDepthEngine(depthEngineRef.current);
 
         console.log("[Spatial] AI DepthEngine attached to live video");
+      }
+
+      if (
+        isImmersiveVR &&
+        video &&
+        depthEngineRef.current &&
+        spatialRendererRef.current
+      ) {
+        const depthLoop = async () => {
+          if (cancelled) {
+            return;
+          }
+
+          const depthMap =
+            await depthEngineRef.current.estimate(video);
+
+          if (
+            !cancelled &&
+            depthMap?.source
+          ) {
+            spatialRendererRef.current.setDepthCanvas(
+              depthMap.source
+            );
+          }
+
+          if (!cancelled) {
+            depthLoopTimer = setTimeout(depthLoop, 250);
+          }
+        };
+
+        depthLoop();
       }
 
 
@@ -669,6 +635,11 @@ const VideoRoom = () => {
 
     return () => {
       cancelled = true;
+
+      if (depthLoopTimer) {
+        clearTimeout(depthLoopTimer);
+        depthLoopTimer = null;
+      }
 
       if (spatialXRRef.current) {
         spatialXRRef.current.stopSession();
@@ -965,7 +936,7 @@ const VideoRoom = () => {
 
       const diagnostics = networkEngineRef.current.getDiagnostics();
 
-      inspectWebRTCReliability(peerConnection.current);
+      
 
       const guardian = networkEngineRef.current.connectionGuardian;
       const telemetry = networkEngineRef.current.telemetry.getStats();

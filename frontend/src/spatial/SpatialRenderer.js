@@ -605,7 +605,7 @@ export class SpatialRenderer {
       );
 
     const baseZ = -3.0;
-    const depthScale = 0.8;
+    const depthScale = 1.6;
 
     const width = this.depthCanvas.width;
     const height = this.depthCanvas.height;
@@ -642,8 +642,14 @@ export class SpatialRenderer {
       const pixelIndex =
         (py * width + px) * 4;
 
-      const depth =
+      const rawDepth =
         pixels[pixelIndex] / 255;
+
+      const depth =
+        Math.pow(
+          rawDepth,
+          0.75
+        );
 
       displacedVertices[i] =
         this.baseVertices[i];
