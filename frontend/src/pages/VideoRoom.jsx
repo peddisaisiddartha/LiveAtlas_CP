@@ -565,12 +565,22 @@ const VideoRoom = () => {
 
       if (
         isImmersiveVR &&
+        depthEngineRef.current
+      ) {
+        depthEngineRef.current.cancelled = false;
+      }
+
+      if (
+        isImmersiveVR &&
         video &&
         depthEngineRef.current &&
         spatialRendererRef.current
       ) {
         const depthLoop = async () => {
-          if (cancelled) {
+          if (
+            cancelled ||
+            !depthEngineRef.current
+          ) {
             return;
           }
 
@@ -578,8 +588,15 @@ const VideoRoom = () => {
             await depthEngineRef.current.estimate(video);
 
           if (
-            !cancelled &&
-            depthMap?.source
+            cancelled ||
+            !depthEngineRef.current
+          ) {
+            return;
+          }
+
+          if (
+            depthMap?.source &&
+            spatialRendererRef.current
           ) {
             spatialRendererRef.current.setDepthCanvas(
               depthMap.source
@@ -587,7 +604,8 @@ const VideoRoom = () => {
           }
 
           if (!cancelled) {
-            depthLoopTimer = setTimeout(depthLoop, 1000);
+            depthLoopTimer =
+              setTimeout(depthLoop, 1000);
           }
         };
 
@@ -657,6 +675,10 @@ const VideoRoom = () => {
       if (depthLoopTimer) {
         clearTimeout(depthLoopTimer);
         depthLoopTimer = null;
+      }
+
+      if (depthEngineRef.current) {
+        depthEngineRef.current.reset();
       }
 
       if (spatialXRRef.current) {

@@ -6,11 +6,15 @@ export class DepthEngine {
         this.height = 0;
         this.smoothedDepth = null;
         this.depthSmoothing = 0.75;
+        this.cancelled = false;
+        this.depthPipeline = null;
+        this.inferenceRunning = false;
     }
 
     initialize(width = 0, height = 0) {
         this.width = width;
         this.height = height;
+        this.cancelled = false;
 
         console.log(
             "[Spatial] Depth engine initialized:",
@@ -22,10 +26,7 @@ export class DepthEngine {
 
     setDepthSource(source) {
         if (!source) {
-            console.warn(
-                "[Spatial] Invalid depth source"
-            );
-
+            console.warn("[Spatial] Invalid depth source");
             return false;
         }
 
@@ -40,22 +41,15 @@ export class DepthEngine {
         this.width = source.width;
         this.height = source.height;
 
-        console.log(
-            "[Spatial] Synthetic depth source attached:",
-            `${source.width}x${source.height}`
-        );
-
-        console.log(
-            "[Spatial] Depth map ready:",
-            this.depthMap
-        );
-
         return true;
     }
 
-
     async estimate(source) {
-        if (!source) {
+        if (
+            this.cancelled ||
+            this.inferenceRunning ||
+            !source
+        ) {
             return null;
         }
 
@@ -67,6 +61,8 @@ export class DepthEngine {
             return null;
         }
 
+        this.inferenceRunning = true;
+
         try {
             if (!this.depthPipeline) {
                 console.log(
@@ -74,9 +70,11 @@ export class DepthEngine {
                 );
 
                 const { pipeline } =
-                    await import(
-                        "@huggingface/transformers"
-                    );
+                    await import("@huggingface/transformers");
+
+                if (this.cancelled) {
+                    return null;
+                }
 
                 this.depthPipeline =
                     await pipeline(
@@ -84,28 +82,31 @@ export class DepthEngine {
                         "onnx-community/depth-anything-v2-small"
                     );
 
+                if (this.cancelled) {
+                    return null;
+                }
+
                 console.log(
                     "[Spatial] Depth-estimation model ready"
                 );
             }
 
+            if (this.cancelled) {
+                return null;
+            }
+
+
             const inputCanvas =
                 document.createElement("canvas");
 
-            const inputWidth =
-                source.videoWidth ||
-                source.width ||
-                this.width ||
-                1280;
+            const inputWidth = 640;
+            const inputHeight = 360;
 
-            const inputHeight =
-                source.videoHeight ||
-                source.height ||
-                this.height ||
-                720;
+            inputCanvas.width =
+                inputWidth;
 
-            inputCanvas.width = inputWidth;
-            inputCanvas.height = inputHeight;
+            inputCanvas.height =
+                inputHeight;
 
             const inputCtx =
                 inputCanvas.getContext("2d", {
@@ -113,10 +114,6 @@ export class DepthEngine {
                 });
 
             if (!inputCtx) {
-                console.warn(
-                    "[Spatial] Unable to create depth input canvas"
-                );
-
                 return null;
             }
 
@@ -128,19 +125,23 @@ export class DepthEngine {
                 inputHeight
             );
 
+            if (this.cancelled) {
+                return null;
+            }
+
             const result =
                 await this.depthPipeline(
                     inputCanvas
                 );
 
+            if (this.cancelled) {
+                return null;
+            }
+
             if (
                 !result ||
                 !result.depth
             ) {
-                console.warn(
-                    "[Spatial] Depth estimation returned no depth map"
-                );
-
                 return null;
             }
 
@@ -150,22 +151,31 @@ export class DepthEngine {
             const depthData =
                 depth.data;
 
-            if (!depthData || !depth.width || !depth.height) {
-                console.warn(
-                    "[Spatial] Invalid AI depth data"
-                );
+            if (
+                !depthData ||
+                !depth.width ||
+                !depth.height
+            ) {
+                return null;
+            }
 
+            if (this.cancelled) {
                 return null;
             }
 
             if (
                 !this.smoothedDepth ||
-                this.smoothedDepth.length !== depthData.length
+                this.smoothedDepth.length !==
+                depthData.length
             ) {
                 this.smoothedDepth =
-                    new Float32Array(depthData.length);
+                    new Float32Array(
+                        depthData.length
+                    );
 
-                this.smoothedDepth.set(depthData);
+                this.smoothedDepth.set(
+                    depthData
+                );
             } else {
                 const smoothing =
                     this.depthSmoothing;
@@ -176,9 +186,15 @@ export class DepthEngine {
                     i++
                 ) {
                     this.smoothedDepth[i] =
-                        this.smoothedDepth[i] * smoothing +
-                        depthData[i] * (1 - smoothing);
+                        this.smoothedDepth[i] *
+                        smoothing +
+                        depthData[i] *
+                        (1 - smoothing);
                 }
+            }
+
+            if (this.cancelled) {
+                return null;
             }
 
             const canvas =
@@ -208,11 +224,14 @@ export class DepthEngine {
             const data =
                 imageData.data;
 
-
             const sortedDepth =
-                Array.from(this.smoothedDepth).sort(
-                    (a, b) => a - b
+                Array.from(
+                    this.smoothedDepth
                 );
+
+            sortedDepth.sort(
+                (a, b) => a - b
+            );
 
             const lowIndex =
                 Math.floor(
@@ -241,6 +260,10 @@ export class DepthEngine {
                 i < this.smoothedDepth.length;
                 i++
             ) {
+                if (this.cancelled) {
+                    return null;
+                }
+
                 const normalized =
                     Math.max(
                         0,
@@ -249,7 +272,8 @@ export class DepthEngine {
                             (
                                 this.smoothedDepth[i] -
                                 depthMin
-                            ) / depthRange
+                            ) /
+                            depthRange
                         )
                     );
 
@@ -278,6 +302,10 @@ export class DepthEngine {
 
                 data[pixel + 3] =
                     255;
+            }
+
+            if (this.cancelled) {
+                return null;
             }
 
             ctx.putImageData(
@@ -310,12 +338,17 @@ export class DepthEngine {
             return this.depthMap;
 
         } catch (error) {
-            console.error(
-                "[Spatial] Depth estimation failed:",
-                error
-            );
+            if (!this.cancelled) {
+                console.error(
+                    "[Spatial] Depth estimation failed:",
+                    error
+                );
+            }
 
             return null;
+
+        } finally {
+            this.inferenceRunning = false;
         }
     }
 
@@ -323,8 +356,16 @@ export class DepthEngine {
         return this.depthMap;
     }
 
-    getParallaxOffset(x, y, movementX, movementY) {
-        if (!this.depthMap || !this.depthMap.source) {
+    getParallaxOffset(
+        x,
+        y,
+        movementX,
+        movementY
+    ) {
+        if (
+            !this.depthMap ||
+            !this.depthMap.source
+        ) {
             return {
                 x: 0,
                 y: 0
@@ -349,7 +390,9 @@ export class DepthEngine {
                 0,
                 Math.min(
                     canvas.width - 1,
-                    Math.floor(x * canvas.width)
+                    Math.floor(
+                        x * canvas.width
+                    )
                 )
             );
 
@@ -358,7 +401,9 @@ export class DepthEngine {
                 0,
                 Math.min(
                     canvas.height - 1,
-                    Math.floor(y * canvas.height)
+                    Math.floor(
+                        y * canvas.height
+                    )
                 )
             );
 
@@ -384,17 +429,19 @@ export class DepthEngine {
     }
 
     reset() {
+        this.cancelled = true;
         this.depthMap = null;
         this.smoothedDepth = null;
     }
 
     destroy() {
         this.reset();
-
         this.width = 0;
         this.height = 0;
 
-        console.log("[Spatial] Depth engine destroyed");
+        console.log(
+            "[Spatial] Depth engine destroyed"
+        );
     }
 }
 
