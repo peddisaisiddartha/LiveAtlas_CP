@@ -255,6 +255,8 @@ const VideoRoom = () => {
   const iceRestartTimerRef = useRef(null);
   const communicationStatusTimerRef = useRef(null);
   const browserControllerRef = useRef(null);
+  const badNetworkSinceRef = useRef(null);
+  const lastAutomaticIceRestartRef = useRef(0);
 
   useEffect(() => {
     if (!spatialRendererRef.current) {
@@ -958,22 +960,24 @@ const VideoRoom = () => {
 
     await networkEngineRef.current.start();
 
-    communicationStatusTimerRef.current = setInterval(() => {
-      if (!networkEngineRef.current) return;
+    communicationStatusTimerRef.current = setInterval(async () => {
+      if (!networkEngineRef.current || !peerConnection.current) return;
 
       const diagnostics = networkEngineRef.current.getDiagnostics();
 
       inspectWebRTCReliability(peerConnection.current);
 
       const guardian = networkEngineRef.current.connectionGuardian;
-
       const telemetry = networkEngineRef.current.telemetry.getStats();
 
       const browserReview =
         browserControllerRef.current?.reviewTelemetry(telemetry);
 
       if (browserReview?.recommendation?.action === "ENCODER_STUCK_LOW") {
-        console.log("[BrowserController]", browserReview.recommendation.reason);
+        console.log(
+          "[BrowserController]",
+          browserReview.recommendation.reason,
+        );
       }
 
       const profileName =
@@ -991,9 +995,12 @@ const VideoRoom = () => {
               ? "Good"
               : "Basic",
 
-        latency: telemetry?.rtt ? Math.round(telemetry.rtt * 1000) : "--",
+        latency: telemetry?.rtt
+          ? Math.round(telemetry.rtt * 1000)
+          : "--",
 
-        jitterBufferDelay: telemetry?.reception?.averageJitterBufferDelay || 0,
+        jitterBufferDelay:
+          telemetry?.reception?.averageJitterBufferDelay || 0,
 
         video: profileName === "HIGH" ? "HD" : "SD",
 
@@ -1006,17 +1013,117 @@ const VideoRoom = () => {
         captureHeight: telemetry?.captureHeight || 0,
 
         encodedWidth:
-          telemetry?.encodedWidth || telemetry?.encodedFrameWidth || 0,
+          telemetry?.encodedWidth ||
+          telemetry?.encodedFrameWidth ||
+          0,
 
         encodedHeight:
-          telemetry?.encodedHeight || telemetry?.encodedFrameHeight || 0,
+          telemetry?.encodedHeight ||
+          telemetry?.encodedFrameHeight ||
+          0,
 
         receivedWidth:
-          telemetry?.receivedWidth || telemetry?.receivedFrameWidth || 0,
+          telemetry?.receivedWidth ||
+          telemetry?.receivedFrameWidth ||
+          0,
 
         receivedHeight:
-          telemetry?.receivedHeight || telemetry?.receivedFrameHeight || 0,
+          telemetry?.receivedHeight ||
+          telemetry?.receivedFrameHeight ||
+          0,
       });
+
+      const rttMs = Number(telemetry?.rtt || 0) * 1000;
+
+      const jitterMs = Number(
+        telemetry?.reception?.jitterMs ||
+        telemetry?.jitter ||
+        0
+      );
+
+      const severeNetworkCondition =
+        rttMs >= 400 ||
+        jitterMs >= 200;
+
+      const pc = peerConnection.current;
+
+      if (
+        severeNetworkCondition &&
+        (pc.iceConnectionState === "connected" ||
+          pc.iceConnectionState === "completed")
+      ) {
+        if (!badNetworkSinceRef.current) {
+          badNetworkSinceRef.current = Date.now();
+
+          console.warn(
+            "[ICE RECOVERY] Severe network degradation detected",
+            {
+              rttMs: Math.round(rttMs),
+              jitterMs: Math.round(jitterMs),
+            },
+          );
+        }
+
+        const badNetworkDuration =
+          Date.now() - badNetworkSinceRef.current;
+
+        const restartCooldown =
+          Date.now() - lastAutomaticIceRestartRef.current;
+
+        if (
+          badNetworkDuration >= 5000 &&
+          restartCooldown >= 30000 &&
+          !iceRestartTimerRef.current &&
+          ws.current?.readyState === WebSocket.OPEN &&
+          pc.signalingState === "stable"
+        ) {
+          lastAutomaticIceRestartRef.current = Date.now();
+
+          console.warn(
+            "[ICE RECOVERY] Sustained severe network degradation. Restarting ICE.",
+            {
+              rttMs: Math.round(rttMs),
+              jitterMs: Math.round(jitterMs),
+            },
+          );
+
+          try {
+            pc.restartIce();
+
+            const restartOffer = await pc.createOffer({
+              iceRestart: true,
+              offerToReceiveAudio: true,
+              offerToReceiveVideo: true,
+            });
+
+            await pc.setLocalDescription(restartOffer);
+
+            ws.current.send(
+              JSON.stringify({
+                type: "offer",
+                offer: restartOffer,
+              }),
+            );
+
+            console.log(
+              "[ICE RECOVERY] Automatic ICE restart offer sent.",
+            );
+          } catch (error) {
+            console.error(
+              "[ICE RECOVERY] Automatic ICE restart failed:",
+              error,
+            );
+          }
+        }
+      } else {
+        if (badNetworkSinceRef.current) {
+          console.log(
+            "[ICE RECOVERY] Network recovered before ICE restart.",
+          );
+        }
+
+        badNetworkSinceRef.current = null;
+      }
     }, 1000);
 
     window.liveAtlasNetwork = networkEngineRef.current;
