@@ -264,6 +264,13 @@ export class WebXRController {
             );
         }
 
+        if (
+            !this.session ||
+            this.session !== frame.session
+        ) {
+            return;
+        }
+
         this.session.requestAnimationFrame(
             this.onXRFrame
         );
@@ -276,21 +283,23 @@ export class WebXRController {
     }
 
     async stopSession() {
-        if (!this.session) {
+        const session = this.session;
+
+        if (!session) {
             return;
         }
 
+        this.session = null;
+        this.referenceSpace = null;
+
         try {
-            await this.session.end();
+            await session.end();
         } catch (error) {
             console.warn(
                 "[Spatial] Failed to end WebXR session:",
                 error
             );
         }
-
-        this.session = null;
-        this.referenceSpace = null;
 
         console.log(
             "[Spatial] WebXR session stopped"

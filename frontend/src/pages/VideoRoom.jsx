@@ -587,7 +587,7 @@ const VideoRoom = () => {
           }
 
           if (!cancelled) {
-            depthLoopTimer = setTimeout(depthLoop, 250);
+            depthLoopTimer = setTimeout(depthLoop, 1000);
           }
         };
 
