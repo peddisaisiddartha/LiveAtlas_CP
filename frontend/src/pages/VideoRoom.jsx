@@ -527,33 +527,7 @@ const VideoRoom = () => {
         return;
       }
 
-      /*
-       * START WEBXR FIRST.
-       * Nothing AI-related is created before this succeeds.
-       */
-      if (
-        spatialXRRef.current &&
-        !spatialXRRef.current.isActive()
-      ) {
-        const spatialStarted =
-          await spatialXRRef.current.startSession();
 
-        console.log(
-          "[Spatial] Real-video WebXR session:",
-          spatialStarted
-        );
-
-        if (!spatialStarted) {
-          console.warn(
-            "[Spatial] WebXR session unavailable. AI depth will not start."
-          );
-
-          setIsImmersiveVR(false);
-          setShowControls(true);
-
-          return;
-        }
-      }
 
       if (cancelled) return;
 
@@ -601,75 +575,33 @@ const VideoRoom = () => {
         renderer.setVideoSource(video);
       }
 
-      if (cancelled) return;
 
-      /*
-       * WebXR is active.
-       * Renderer is ready.
-       * NOW create AI depth engine.
-       */
-      if (!depthEngineRef.current) {
-        depthEngineRef.current = new DepthEngine();
-
-        depthEngineRef.current.initialize(
-          video.videoWidth || 1280,
-          video.videoHeight || 720
-        );
-
-        spatialRendererRef.current?.setDepthEngine(
-          depthEngineRef.current
-        );
+      if (
+        spatialXRRef.current &&
+        !spatialXRRef.current.isActive()
+      ) {
+        const spatialStarted =
+          await spatialXRRef.current.startSession();
 
         console.log(
-          "[Spatial] AI DepthEngine attached to live video"
+          "[Spatial] Real-video WebXR session:",
+          spatialStarted
         );
+
+        if (!spatialStarted) {
+          console.warn(
+            "[Spatial] WebXR session unavailable. AI depth will not start."
+          );
+
+          setIsImmersiveVR(false);
+          setShowControls(true);
+
+          return;
+        }
       }
 
-      depthEngineRef.current.cancelled = false;
+      if (cancelled) return;
 
-      /*
-       * Run depth inference only while this immersive
-       * session is still alive.
-       */
-      const depthLoop = async () => {
-        if (
-          cancelled ||
-          !depthEngineRef.current ||
-          !spatialXRRef.current?.isActive()
-        ) {
-          return;
-        }
-
-        const depthMap =
-          await depthEngineRef.current.estimate(video);
-
-        if (
-          cancelled ||
-          !depthEngineRef.current ||
-          !spatialXRRef.current?.isActive()
-        ) {
-          return;
-        }
-
-        if (
-          depthMap?.source &&
-          spatialRendererRef.current
-        ) {
-          spatialRendererRef.current.setDepthCanvas(
-            depthMap.source
-          );
-        }
-
-        if (
-          !cancelled &&
-          spatialXRRef.current?.isActive()
-        ) {
-          depthLoopTimer =
-            setTimeout(depthLoop, 1000);
-        }
-      };
-
-      depthLoop();
 
       setShowControls(false);
 
