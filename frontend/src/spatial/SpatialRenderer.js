@@ -172,6 +172,7 @@ export class SpatialRenderer {
 
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LESS);
+    gl.disable(gl.CULL_FACE);
 
     if (this.videoSource) {
       this.createVideoTexture();
@@ -182,27 +183,44 @@ export class SpatialRenderer {
     return true;
   }
 
-  createSpatialSurface(rows = 40, columns = 80) {
+  createSpatialSurface(rows = 40, columns = 160) {
     const vertices = [];
     const uvs = [];
 
     const width = 12.8;
-    const height = 7.2;
+    const height = 7.0;
     const centerY = 1.6;
     const centerZ = -2.5;
 
     for (let row = 0; row <= rows; row += 1) {
       const v = row / rows;
-      const y = centerY + (0.5 - v) * height;
+      const verticalCurveRadius = 8.0;
+      const verticalCurveAngle =
+        (v - 0.5) * (height / verticalCurveRadius);
+
+      const y =
+        centerY +
+        Math.sin(verticalCurveAngle) * verticalCurveRadius;
 
       for (let column = 0; column <= columns; column += 1) {
         const u = column / columns;
-        const x = (u - 0.5) * width;
+
+        const curveRadius = 5.0;
+        const curveAngle =
+          (u - 0.5) * (width / curveRadius);
+
+        const x =
+          Math.sin(curveAngle) * curveRadius;
+
+        const z =
+          centerZ +
+          Math.cos(curveAngle) * curveRadius -
+          curveRadius;
 
         vertices.push(
           x,
           y,
-          centerZ,
+          z,
         );
 
         uvs.push(
@@ -443,6 +461,11 @@ export class SpatialRenderer {
     }
 
     const gl = this.gl;
+
+    gl.pixelStorei(
+      gl.UNPACK_COLORSPACE_CONVERSION_WEBGL,
+      gl.NONE,
+    );
 
     if (this.sceneTexture) {
       gl.deleteTexture(this.sceneTexture);
