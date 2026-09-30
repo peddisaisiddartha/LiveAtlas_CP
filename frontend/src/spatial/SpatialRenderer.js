@@ -226,7 +226,7 @@ export class SpatialRenderer {
 
         uvs.push(
           u,
-          1 - v,
+          v
         );
       }
     }
