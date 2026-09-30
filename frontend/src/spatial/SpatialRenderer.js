@@ -186,8 +186,8 @@ export class SpatialRenderer {
     const vertices = [];
     const uvs = [];
 
-    const width = 8.533;
-    const height = 4.8;
+    const width = 12.8;
+    const height = 7.2;
     const centerY = 1.6;
     const centerZ = -2.5;
 
@@ -841,10 +841,10 @@ export class SpatialRenderer {
 
     const modelMatrix =
       new Float32Array([
-        0, 0, -1, 0,
-        0, 1, 0, 0,
         1, 0, 0, 0,
-        0, 0, 0, 1,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1
       ]);
 
     gl.uniformMatrix4fv(
