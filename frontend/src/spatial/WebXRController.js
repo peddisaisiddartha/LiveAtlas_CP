@@ -289,6 +289,10 @@ export class WebXRController {
             return;
         }
 
+        if (this.renderer) {
+            this.renderer.parallaxOrigin = null;
+        }
+
         this.session = null;
         this.referenceSpace = null;
 

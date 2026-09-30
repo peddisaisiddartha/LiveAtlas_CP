@@ -32,6 +32,7 @@ export class SpatialRenderer {
     this.height = 0;
 
     this.debug = true;
+    this.parallaxOrigin = null;
   }
 
   initialize(canvas) {
@@ -586,7 +587,9 @@ export class SpatialRenderer {
       `${depthCanvas.width}x${depthCanvas.height}`,
     );
 
-    this.applyDepthToGeometry();
+    requestAnimationFrame(() => {
+      this.applyDepthToGeometry();
+    });
 
     return true;
   }
@@ -627,8 +630,7 @@ export class SpatialRenderer {
         this.baseVertices.length,
       );
 
-    const baseZ = -3.0;
-    const depthScale = 1.6;
+    const depthScale = 0.35;
 
     const width = this.depthCanvas.width;
     const height = this.depthCanvas.height;
@@ -671,8 +673,11 @@ export class SpatialRenderer {
       const depth =
         Math.pow(
           rawDepth,
-          0.75
+          0.75,
         );
+
+      const depthOffset =
+        (depth - 0.5) * depthScale;
 
       displacedVertices[i] =
         this.baseVertices[i];
@@ -681,7 +686,8 @@ export class SpatialRenderer {
         this.baseVertices[i + 1];
 
       displacedVertices[i + 2] =
-        baseZ + depth * depthScale;
+        this.baseVertices[i + 2] +
+        depthOffset;
     }
 
     const gl = this.gl;
@@ -694,7 +700,7 @@ export class SpatialRenderer {
     gl.bufferData(
       gl.ARRAY_BUFFER,
       displacedVertices,
-      gl.STATIC_DRAW,
+      gl.DYNAMIC_DRAW,
     );
 
     gl.bindBuffer(
@@ -756,6 +762,14 @@ export class SpatialRenderer {
       return;
     }
 
+    if (!this.parallaxOrigin) {
+      this.parallaxOrigin = {
+        x: pose.transform.position.x,
+        y: pose.transform.position.y,
+        z: pose.transform.position.z,
+      };
+    }
+
     const layer =
       session.renderState.baseLayer;
 
@@ -787,12 +801,8 @@ export class SpatialRenderer {
     this.updateVideoTexture();
 
     for (const view of pose.views) {
-      const viewport =
-        layer.getViewport(view);
-
-      if (!viewport) {
-        continue;
-      }
+      const viewport = layer.getViewport(view);
+      if (!viewport) continue;
 
       gl.viewport(
         viewport.x,
@@ -804,6 +814,11 @@ export class SpatialRenderer {
       this.drawSpatialSurface(
         view.projectionMatrix,
         view.transform.inverse.matrix,
+        {
+          x: view.transform.position.x - this.parallaxOrigin.x,
+          y: view.transform.position.y - this.parallaxOrigin.y,
+          z: view.transform.position.z - this.parallaxOrigin.z,
+        },
       );
     }
   }
@@ -811,6 +826,7 @@ export class SpatialRenderer {
   drawSpatialSurface(
     projectionMatrix,
     viewMatrix,
+    viewPosition,
   ) {
     const gl = this.gl;
 
@@ -867,7 +883,7 @@ export class SpatialRenderer {
         1, 0, 0, 0,
         0, 1, 0, 0,
         0, 0, 1, 0,
-        0, 0, 0, 1
+        0, 0, 0, 1,
       ]);
 
     gl.uniformMatrix4fv(
@@ -1011,6 +1027,7 @@ export class SpatialRenderer {
 
     this.vertexCount = 0;
     this.lastVideoTime = -1;
+    this.parallaxOrigin = null;
 
     console.log(
       "[Spatial] WebGL renderer destroyed",

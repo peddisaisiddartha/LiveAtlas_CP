@@ -137,6 +137,9 @@ const VideoRoom = () => {
   const spatialXRRef = useRef(null);
 
   const depthEngineRef = useRef(null);
+  const depthStartedRef = useRef(false);
+
+
 
   const { roomID } = useParams();
   const navigate = useNavigate();
@@ -508,6 +511,7 @@ const VideoRoom = () => {
 
       if (!isImmersiveVR) {
         setShowControls(true);
+        depthStartedRef.current = false;
 
         if (depthEngineRef.current) {
           depthEngineRef.current.reset();
@@ -525,6 +529,10 @@ const VideoRoom = () => {
           "[Spatial] Immersive VR skipped: video or container missing"
         );
         return;
+      }
+
+      if (depthEngineRef.current) {
+        depthEngineRef.current.initialize(640, 360);
       }
 
 
@@ -602,6 +610,50 @@ const VideoRoom = () => {
 
       if (cancelled) return;
 
+
+      if (
+        !cancelled &&
+        depthEngineRef.current &&
+        !depthStartedRef.current
+      ) {
+        depthStartedRef.current = true;
+
+        const runDepth = async () => {
+          if (
+            cancelled ||
+            !depthEngineRef.current ||
+            !depthStartedRef.current
+          ) {
+            return;
+          }
+
+          const depthMap =
+            depthEngineRef.current
+              ? await depthEngineRef.current.estimate(video)
+              : null;
+
+          if (
+            !cancelled &&
+            depthMap &&
+            depthMap.source &&
+            spatialRendererRef.current
+          ) {
+            spatialRendererRef.current.setDepthCanvas(
+              depthMap.source
+            );
+          }
+
+          if (
+            !cancelled &&
+            depthEngineRef.current &&
+            depthStartedRef.current
+          ) {
+            depthLoopTimer = setTimeout(runDepth, 1500);
+          }
+        };
+
+        runDepth();
+      }
 
       setShowControls(false);
 

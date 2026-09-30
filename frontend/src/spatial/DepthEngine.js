@@ -16,6 +16,10 @@ export class DepthEngine {
         this.height = height;
         this.cancelled = false;
 
+        this.depthMap = null;
+        this.smoothedDepth = null;
+        this.inferenceRunning = false;
+
         console.log(
             "[Spatial] Depth engine initialized:",
             `${width}x${height}`
@@ -95,12 +99,18 @@ export class DepthEngine {
                 return null;
             }
 
+            if (
+                source.videoWidth === 0 ||
+                source.videoHeight === 0
+            ) {
+                return null;
+            }
 
             const inputCanvas =
                 document.createElement("canvas");
 
-            const inputWidth = 640;
-            const inputHeight = 360;
+            const inputWidth = 384;
+            const inputHeight = 216;
 
             inputCanvas.width =
                 inputWidth;
@@ -432,6 +442,7 @@ export class DepthEngine {
         this.cancelled = true;
         this.depthMap = null;
         this.smoothedDepth = null;
+        this.inferenceRunning = false;
     }
 
     destroy() {
