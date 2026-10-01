@@ -630,7 +630,13 @@ export class SpatialRenderer {
         this.baseVertices.length,
       );
 
-    const depthScale = 0.35;
+
+    const previousVertices =
+      this.depthDisplacedVertices;
+
+    const geometrySmoothing = 0.65;
+
+    const depthScale = 0.65;
 
     const width = this.depthCanvas.width;
     const height = this.depthCanvas.height;
@@ -670,25 +676,110 @@ export class SpatialRenderer {
       const rawDepth =
         pixels[pixelIndex] / 255;
 
+      const centeredDepth =
+        (rawDepth - 0.5) * 1.6 + 0.5;
+
       const depth =
         Math.pow(
-          rawDepth,
+          Math.max(
+            0,
+            Math.min(
+              1,
+              centeredDepth,
+            ),
+          ),
           0.75,
         );
 
       const depthOffset =
         (depth - 0.5) * depthScale;
 
-      displacedVertices[i] =
+      const baseX =
         this.baseVertices[i];
 
-      displacedVertices[i + 1] =
+      const baseY =
         this.baseVertices[i + 1];
 
-      displacedVertices[i + 2] =
-        this.baseVertices[i + 2] +
-        depthOffset;
+      const baseZ =
+        this.baseVertices[i + 2];
+
+      const curveRadius = 5.0;
+
+      const curveCenterZ =
+        -2.5 - curveRadius;
+
+      const radialX =
+        baseX;
+
+      const radialZ =
+        baseZ - curveCenterZ;
+
+      const radialLength =
+        Math.sqrt(
+          radialX * radialX +
+          radialZ * radialZ
+        );
+
+      const normalX =
+        radialLength > 0
+          ? radialX / radialLength
+          : 0;
+
+      const normalZ =
+        radialLength > 0
+          ? radialZ / radialLength
+          : 1;
+
+      displacedVertices[i] =
+        baseX +
+        normalX * depthOffset;
+
+      displacedVertices[i + 1] =
+        baseY;
+
+      const targetX =
+        baseX +
+        normalX * depthOffset;
+
+      const targetY =
+        baseY;
+
+      const targetZ =
+        baseZ +
+        normalZ * depthOffset;
+
+      if (previousVertices) {
+        displacedVertices[i] =
+          previousVertices[i] *
+          geometrySmoothing +
+          targetX *
+          (1 - geometrySmoothing);
+
+        displacedVertices[i + 1] =
+          previousVertices[i + 1] *
+          geometrySmoothing +
+          targetY *
+          (1 - geometrySmoothing);
+
+        displacedVertices[i + 2] =
+          previousVertices[i + 2] *
+          geometrySmoothing +
+          targetZ *
+          (1 - geometrySmoothing);
+      } else {
+        displacedVertices[i] =
+          targetX;
+
+        displacedVertices[i + 1] =
+          targetY;
+
+        displacedVertices[i + 2] =
+          targetZ;
+      }
     }
+
+    this.depthDisplacedVertices =
+      displacedVertices;
 
     const gl = this.gl;
 
