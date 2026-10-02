@@ -60,6 +60,7 @@ export class Telemetry {
 
         const candidates = {
             activePair: null,
+            selectedPairId: null,
             pairs: [],
             local: new Map(),
             remote: new Map()
@@ -84,6 +85,11 @@ export class Telemetry {
 
             if (report.type === "remote-inbound-rtp") {
                 this.readRemoteInboundVideo(report, telemetry);
+            }
+
+            if (report.type === "transport") {
+                candidates.selectedPairId =
+                    report.selectedCandidatePairId || null;
             }
 
             if (report.type === "candidate-pair") {
@@ -133,6 +139,8 @@ export class Telemetry {
 
             transmission: {
                 rtt: 0,
+                pathRtt: 0,
+                mediaRtt: 0,
                 jitter: 0,
                 packetLoss: 0,
                 availableOutgoingBitrate: 0,
@@ -384,8 +392,7 @@ export class Telemetry {
             this.number(report.totalFreezesDuration);
 
         telemetry.transmission.jitter = telemetry.reception.jitter;
-        telemetry.transmission.packetLoss =
-            this.packetLoss(report, "inbound");
+        
 
         this.store(report, "inbound", [
             "timestamp",
@@ -402,11 +409,17 @@ export class Telemetry {
         }
 
         if (report.roundTripTime !== undefined) {
-            telemetry.transmission.rtt = this.number(report.roundTripTime);
+            telemetry.transmission.mediaRtt =
+                this.number(report.roundTripTime);
         }
 
         if (report.jitter !== undefined) {
             telemetry.transmission.jitter = this.number(report.jitter);
+        }
+
+        if (report.fractionLost !== undefined) {
+            telemetry.transmission.packetLoss =
+                this.number(report.fractionLost);
         }
     }
 
@@ -417,7 +430,17 @@ export class Telemetry {
             return;
         }
 
-        if (report.selected || report.nominated || !candidates.activePair) {
+        if (
+            candidates.selectedPairId === report.id ||
+            (
+                !candidates.selectedPairId &&
+                (
+                    report.selected ||
+                    report.nominated ||
+                    !candidates.activePair
+                )
+            )
+        ) {
             candidates.activePair = report;
         }
     }
@@ -429,9 +452,11 @@ export class Telemetry {
             return;
         }
 
-        telemetry.transmission.rtt =
-            telemetry.transmission.rtt ||
+        telemetry.transmission.pathRtt =
             this.number(pair.currentRoundTripTime);
+
+        telemetry.transmission.rtt =
+            telemetry.transmission.pathRtt;
 
         const estimatedBitrate = this.number(pair.availableOutgoingBitrate);
 
@@ -528,6 +553,11 @@ export class Telemetry {
             telemetry.rendering.framesDropped;
 
         telemetry.rtt = telemetry.transmission.rtt;
+        telemetry.pathRtt =
+            telemetry.transmission.pathRtt;
+
+        telemetry.mediaRtt =
+            telemetry.transmission.mediaRtt;
         telemetry.jitter = telemetry.transmission.jitter;
         telemetry.packetLoss = telemetry.transmission.packetLoss;
 

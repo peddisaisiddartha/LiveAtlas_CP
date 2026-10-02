@@ -887,6 +887,7 @@ const VideoRoom = () => {
 
       if (state === "connected" || state === "completed") {
         setConnectionQuality("good");
+        badNetworkSinceRef.current = null;
 
         if (iceRestartTimerRef.current) {
           clearTimeout(iceRestartTimerRef.current);
@@ -977,10 +978,9 @@ const VideoRoom = () => {
       engineVersion: "BROWSER_COOPERATIVE_PRESENTATION",
       encoder: {
         maxBitrate: 3800000,
-        minBitrate: 1200000,
         maxFramerate: 30,
         scaleResolutionDownBy: 1,
-        degradationPreference: "maintain-resolution",
+        degradationPreference: "balanced",
       },
     });
 
@@ -1059,7 +1059,11 @@ const VideoRoom = () => {
           0,
       });
 
-      const rttMs = Number(telemetry?.rtt || 0) * 1000;
+      const rttMs = Number(
+        telemetry?.pathRtt ??
+        telemetry?.transmission?.pathRtt ??
+        0
+      ) * 1000;
 
       const jitterMs = Number(
         telemetry?.reception?.jitterMs ||
@@ -1074,9 +1078,8 @@ const VideoRoom = () => {
       const pc = peerConnection.current;
 
       if (
-        severeNetworkCondition &&
-        (pc.iceConnectionState === "connected" ||
-          pc.iceConnectionState === "completed")
+        pc.iceConnectionState === "disconnected" ||
+        pc.iceConnectionState === "failed"
       ) {
         if (!badNetworkSinceRef.current) {
           badNetworkSinceRef.current = Date.now();

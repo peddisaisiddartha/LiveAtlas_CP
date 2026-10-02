@@ -111,28 +111,7 @@ export class NetworkEngine {
 
             this.lastStats = this.enrichStats(stats);
 
-            const adaptiveDecision = this.adaptiveController.update(this.lastStats);
-
-            if (
-                adaptiveDecision?.recommendation?.encoderAction === "APPLY_PROFILE"
-            ) {
-                const profile = this.adaptiveController.getCurrentProfile();
-
-                if (
-                    profile?.name &&
-                    profile.name !== this.currentProfile
-                ) {
-                    this.lastEncoderResult =
-                        await this.encoderController.applyProfile(
-                            this.peerConnection,
-                            profile
-                        );
-
-                    if (this.lastEncoderResult?.applied) {
-                        this.currentProfile = profile.name;
-                    }
-                }
-            }
+            this.adaptiveController.update(this.lastStats);
 
             this.lastDiagnostics = {
                 timestamp: Date.now(),
