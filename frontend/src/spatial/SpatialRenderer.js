@@ -12,6 +12,8 @@ export class SpatialRenderer {
 
     this.depthEngine = null;
     this.depthCanvas = null;
+    this.depthDisplacedVertices = null;
+    this.depthPreviousVertices = null;
 
     this.program = null;
     this.positionBuffer = null;
@@ -581,6 +583,8 @@ export class SpatialRenderer {
     }
 
     this.depthCanvas = depthCanvas;
+    this.depthDisplacedVertices = null;
+    this.depthPreviousVertices = null;
 
     console.log(
       "[Spatial] Renderer depth canvas attached:",
@@ -626,17 +630,22 @@ export class SpatialRenderer {
     const pixels = imageData.data;
 
     const displacedVertices =
+      this.depthDisplacedVertices ||
       new Float32Array(
         this.baseVertices.length,
       );
 
 
+    this.depthDisplacedVertices =
+      displacedVertices;
+
+
     const previousVertices =
-      this.depthDisplacedVertices;
+      this.depthPreviousVertices;
 
-    const geometrySmoothing = 0.65;
+    const geometrySmoothing = 0.80;
 
-    const depthScale = 0.65;
+    const depthScale = 0.70;
 
     const width = this.depthCanvas.width;
     const height = this.depthCanvas.height;
@@ -679,16 +688,22 @@ export class SpatialRenderer {
       const centeredDepth =
         (rawDepth - 0.5) * 1.6 + 0.5;
 
+      const depthBias =
+        0.03;
+
+      const clampedDepth =
+        Math.max(
+          0,
+          Math.min(
+            1,
+            centeredDepth + depthBias,
+          ),
+        );
+
       const depth =
         Math.pow(
-          Math.max(
-            0,
-            Math.min(
-              1,
-              centeredDepth,
-            ),
-          ),
-          0.75,
+          clampedDepth,
+          0.65,
         );
 
       const depthOffset =
@@ -777,6 +792,17 @@ export class SpatialRenderer {
           targetZ;
       }
     }
+
+    if (!this.depthPreviousVertices) {
+      this.depthPreviousVertices =
+        new Float32Array(
+          displacedVertices.length,
+        );
+    }
+
+    this.depthPreviousVertices.set(
+      displacedVertices,
+    );
 
     this.depthDisplacedVertices =
       displacedVertices;
@@ -1111,6 +1137,8 @@ export class SpatialRenderer {
 
     this.sceneTexture = null;
     this.depthCanvas = null;
+    this.depthDisplacedVertices = null;
+    this.depthPreviousVertices = null;
     this.videoSource = null;
 
     this.baseVertices = null;

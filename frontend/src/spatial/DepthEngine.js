@@ -9,12 +9,14 @@ export class DepthEngine {
         this.cancelled = false;
         this.depthPipeline = null;
         this.inferenceRunning = false;
+        this.generation = 0;
     }
 
     initialize(width = 0, height = 0) {
         this.width = width;
         this.height = height;
         this.cancelled = false;
+        this.generation += 1;
 
         this.depthMap = null;
         this.smoothedDepth = null;
@@ -66,6 +68,7 @@ export class DepthEngine {
         }
 
         this.inferenceRunning = true;
+        const generation = this.generation;
 
         try {
             if (!this.depthPipeline) {
@@ -144,7 +147,10 @@ export class DepthEngine {
                     inputCanvas
                 );
 
-            if (this.cancelled) {
+            if (
+                this.cancelled ||
+                generation !== this.generation
+            ) {
                 return null;
             }
 
@@ -358,7 +364,9 @@ export class DepthEngine {
             return null;
 
         } finally {
-            this.inferenceRunning = false;
+            if (generation === this.generation) {
+                this.inferenceRunning = false;
+            }
         }
     }
 
@@ -440,9 +448,9 @@ export class DepthEngine {
 
     reset() {
         this.cancelled = true;
+        this.generation += 1;
         this.depthMap = null;
         this.smoothedDepth = null;
-        this.inferenceRunning = false;
     }
 
     destroy() {

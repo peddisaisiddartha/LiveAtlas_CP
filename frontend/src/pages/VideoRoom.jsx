@@ -200,6 +200,10 @@ const VideoRoom = () => {
       spatialRendererRef.current = new SpatialRenderer();
     }
 
+    if (!depthEngineRef.current) {
+      depthEngineRef.current = new DepthEngine();
+    }
+
     if (!spatialXRRef.current) {
       spatialXRRef.current = new WebXRController();
 
@@ -223,8 +227,13 @@ const VideoRoom = () => {
         spatialRendererRef.current.destroy();
       }
 
+      if (depthEngineRef.current) {
+        depthEngineRef.current.destroy();
+      }
+
       spatialXRRef.current = null;
       spatialRendererRef.current = null;
+      depthEngineRef.current = null;
     };
   }, []);
 
@@ -627,10 +636,21 @@ const VideoRoom = () => {
             return;
           }
 
-          const depthMap =
-            depthEngineRef.current
-              ? await depthEngineRef.current.estimate(video)
-              : null;
+          let depthMap = null;
+
+          try {
+            depthMap =
+              depthEngineRef.current
+                ? await depthEngineRef.current.estimate(video)
+                : null;
+          } catch (error) {
+            if (!cancelled) {
+              console.error(
+                "[Spatial] Depth loop failed:",
+                error
+              );
+            }
+          }
 
           if (
             !cancelled &&
