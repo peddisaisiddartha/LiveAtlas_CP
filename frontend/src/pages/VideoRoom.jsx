@@ -668,7 +668,7 @@ const VideoRoom = () => {
             depthEngineRef.current &&
             depthStartedRef.current
           ) {
-            depthLoopTimer = setTimeout(runDepth, 1500);
+            depthLoopTimer = setTimeout(runDepth, 5000);
           }
         };
 

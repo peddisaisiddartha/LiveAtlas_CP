@@ -86,7 +86,10 @@ export class DepthEngine {
                 this.depthPipeline =
                     await pipeline(
                         "depth-estimation",
-                        "onnx-community/depth-anything-v2-small"
+                        "onnx-community/depth-anything-v2-small",
+                        {
+                            dtype: "q4f16",
+                        }
                     );
 
                 if (this.cancelled) {
@@ -240,30 +243,25 @@ export class DepthEngine {
             const data =
                 imageData.data;
 
-            const sortedDepth =
-                Array.from(
-                    this.smoothedDepth
-                );
+            let depthMin = Infinity;
+            let depthMax = -Infinity;
 
-            sortedDepth.sort(
-                (a, b) => a - b
-            );
+            for (
+                let i = 0;
+                i < this.smoothedDepth.length;
+                i++
+            ) {
+                const value =
+                    this.smoothedDepth[i];
 
-            const lowIndex =
-                Math.floor(
-                    sortedDepth.length * 0.02
-                );
+                if (value < depthMin) {
+                    depthMin = value;
+                }
 
-            const highIndex =
-                Math.floor(
-                    sortedDepth.length * 0.98
-                );
-
-            const depthMin =
-                sortedDepth[lowIndex];
-
-            const depthMax =
-                sortedDepth[highIndex];
+                if (value > depthMax) {
+                    depthMax = value;
+                }
+            }
 
             const depthRange =
                 Math.max(
