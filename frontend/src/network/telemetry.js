@@ -130,6 +130,9 @@ export class Telemetry {
                 framesEncoded: 0,
                 bytesSent: 0,
                 actualBitrate: 0,
+
+                targetBitrate: 0,
+
                 totalEncodeTime: 0,
                 averageEncodeTime: 0,
                 qualityLimitation: "none",
@@ -293,6 +296,17 @@ export class Telemetry {
         telemetry.encoding.height = this.number(report.frameHeight);
         telemetry.encoding.framesEncoded = this.number(report.framesEncoded);
         telemetry.encoding.bytesSent = this.number(report.bytesSent);
+        telemetry.encoding.targetBitrate =
+            this.number(report.targetBitrate);
+
+        telemetry.encoding.maxBitrate =
+            this.number(report.targetBitrate);
+
+        telemetry.encoding.qualityLimitationDurations = {
+            cpu: this.number(report.qualityLimitationDurations?.cpu),
+            bandwidth: this.number(report.qualityLimitationDurations?.bandwidth),
+            other: this.number(report.qualityLimitationDurations?.other)
+        };
         telemetry.encoding.totalEncodeTime = this.number(report.totalEncodeTime);
         telemetry.encoding.qualityLimitation =
             report.qualityLimitationReason || "none";
@@ -392,7 +406,7 @@ export class Telemetry {
             this.number(report.totalFreezesDuration);
 
         telemetry.transmission.jitter = telemetry.reception.jitter;
-        
+
 
         this.store(report, "inbound", [
             "timestamp",
@@ -564,6 +578,15 @@ export class Telemetry {
         telemetry.actualBitrate =
             telemetry.encoding.actualBitrate ||
             telemetry.transmission.actualBitrate;
+
+        telemetry.targetBitrate =
+            telemetry.encoding.targetBitrate;
+
+        telemetry.maxBitrate =
+            telemetry.encoding.maxBitrate;
+
+        telemetry.qualityLimitationDurations =
+            telemetry.encoding.qualityLimitationDurations;
 
         telemetry.availableBitrate =
             telemetry.transmission.availableOutgoingBitrate;

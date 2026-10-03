@@ -1111,6 +1111,23 @@ const VideoRoom = () => {
         receivedResolution:
           `${telemetry?.receivedWidth || 0}x${telemetry?.receivedHeight || 0}`,
         encodedFps: telemetry?.encoding?.fps || 0,
+
+        targetBitrateKbps: Math.round(
+          Number(telemetry?.encoding?.targetBitrate || 0) / 1000
+        ),
+
+        qualityLimitation:
+          telemetry?.encoding?.qualityLimitation || "none",
+
+        encoderImplementation:
+          telemetry?.encoding?.encoderImplementation || "unknown",
+
+        encodedWidth:
+          telemetry?.encoding?.width || 0,
+
+        encodedHeight:
+          telemetry?.encoding?.height || 0,
+
         receivedFps: telemetry?.reception?.fps || 0,
         framesDropped: telemetry?.reception?.framesDropped || 0,
         iceState: peerConnection.current?.iceConnectionState,
