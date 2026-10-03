@@ -111,7 +111,11 @@ export class NetworkEngine {
 
             this.lastStats = this.enrichStats(stats);
 
-            this.adaptiveController.update(this.lastStats);
+            const adaptiveDecision =
+                this.adaptiveController.update(this.lastStats);
+
+            this.currentProfile =
+                adaptiveDecision?.profile?.name || this.currentProfile;
 
             this.lastDiagnostics = {
                 timestamp: Date.now(),
@@ -122,7 +126,9 @@ export class NetworkEngine {
                 encoder: this.encoderController.getDiagnostics(),
                 connection: this.connectionGuardian.getDiagnostics?.() || null,
                 resource: this.resourceMonitor.getDiagnostics?.() || null,
-                device: this.deviceCapabilityManager.getDiagnostics?.() || null
+                device: this.deviceCapabilityManager.getDiagnostics?.() || null,
+
+                adaptiveDecision,
             };
         } finally {
             this.tickInProgress = false;

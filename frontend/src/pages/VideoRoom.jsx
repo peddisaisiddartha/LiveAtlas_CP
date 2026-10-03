@@ -980,7 +980,7 @@ const VideoRoom = () => {
         maxBitrate: 3800000,
         maxFramerate: 30,
         scaleResolutionDownBy: 1,
-        degradationPreference: "balanced",
+        degradationPreference: "maintain-resolution",
       },
     });
 

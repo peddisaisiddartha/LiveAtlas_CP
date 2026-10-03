@@ -70,8 +70,7 @@ export class AdaptiveController {
         this.lastDecision = this.createInitialDecision();
         this.lastUpdatedAt = null;
 
-        this.lastProfileChange = 0;
-        this.minimumProfileDuration = 10000; // 10 seconds
+        
     }
 
     update(telemetry = {}) {
@@ -92,7 +91,7 @@ export class AdaptiveController {
         const network = this.analyzeNetwork(samples);
         const browser = this.analyzeBrowser(samples, pipeline, network);
 
-        this.previousProfile = this.currentProfile;
+        // Profile selection is diagnostic only; the active encoder is unchanged.
         this.profileChanged = false;
         this.lastUpdatedAt = sample.timestamp;
 
@@ -245,14 +244,15 @@ export class AdaptiveController {
             ),
 
             actualBitrate: this.firstNumber(
-                telemetry.transmission?.actualBitrate,
-                telemetry.actualBitrate
+                telemetry.actualBitrate,
+                telemetry.transmission?.actualBitrate
             ),
 
             availableBitrate: this.firstNumber(
+                telemetry.transmission?.availableOutgoingBitrate,
                 telemetry.transmission?.availableBitrate,
-                telemetry.availableBitrate,
-                telemetry.availableOutgoingBitrate
+                telemetry.availableOutgoingBitrate,
+                telemetry.availableBitrate
             ),
 
             rttMs: this.toMilliseconds(
@@ -280,6 +280,7 @@ export class AdaptiveController {
             packetLoss: this.toRatio(
                 this.firstNumber(
                     telemetry.packetLoss,
+                    telemetry.transmission?.packetLoss,
                     telemetry.reception?.packetLoss
                 )
             ),
@@ -439,6 +440,20 @@ export class AdaptiveController {
             latestJitterConstrained ||
             latestBitrateConstrained;
 
+        const sustainedDegradation =
+            samples.filter((sample) => {
+                return (
+                    sample.packetLoss > this.options.healthyPacketLoss ||
+                    sample.rttMs > this.options.healthyRttMs ||
+                    sample.jitterMs > this.options.healthyJitterMs ||
+                    (
+                        sample.actualBitrate > 0 &&
+                        sample.actualBitrate <
+                        this.options.healthyBitrate * 0.5
+                    )
+                );
+            }).length >= Math.ceil(samples.length * 0.5);
+
         const stable =
             !recentDegradation &&
             healthySampleRatio >= 0.75 &&
@@ -451,7 +466,7 @@ export class AdaptiveController {
 
         if (samples.length < this.options.minimumSamplesForDecision) {
             state = "OBSERVING";
-        } else if (recentDegradation && healthySampleRatio < 0.75) {
+        } else if (sustainedDegradation && healthySampleRatio < 0.5) {
             state = "CONSTRAINED";
         } else if (stable) {
             state = "HEALTHY";
@@ -581,18 +596,7 @@ export class AdaptiveController {
             browser
         );
 
-        const now = Date.now();
-
-        if (
-            this.currentProfile.name !== profile.name &&
-            now - this.lastProfileChange >= this.minimumProfileDuration
-        ) {
-            this.currentProfile = profile;
-            this.profileChanged = true;
-            this.lastProfileChange = now;
-        } else {
-            this.profileChanged = false;
-        }
+        this.profileChanged = false;
 
         return {
             timestamp: sample.timestamp,
@@ -603,12 +607,10 @@ export class AdaptiveController {
             network,
             browser,
             recommendation: {
-                encoderAction: this.profileChanged
-                    ? "APPLY_PROFILE"
-                    : "NO_PARAMETER_CHANGE",
+                encoderAction: "NO_PARAMETER_CHANGE",
                 networkAction: "NO_ACTION",
                 browserAction: "ALLOW_NATIVE_ADAPTATION",
-                applyProfile: this.profileChanged
+                applyProfile: false
             }
         };
     }
@@ -697,8 +699,9 @@ export class AdaptiveController {
     selectProfile(pipeline, network, browser) {
         // Preserve HD whenever the pipeline and network are genuinely healthy.
         if (
-            pipeline.state === "HD_PRESERVED" &&
-            network.stable
+            network.stable &&
+            !browser.cpuLimited &&
+            !browser.likelyConservative
         ) {
             return this.profiles.HIGH;
         }
