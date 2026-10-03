@@ -830,28 +830,44 @@ const VideoRoom = () => {
             const remote = candidates.get(report.remoteCandidateId);
 
             candidatePairs.push({
+
+              id: report.id,
+
               nominated: report.nominated === true,
+
               priority: report.priority,
+
               localType: local?.candidateType,
+
               localProtocol: local?.protocol,
+
               remoteType: remote?.candidateType,
+
               remoteProtocol: remote?.protocol,
+
               rtt: report.currentRoundTripTime,
+
               availableOutgoingBitrate:
                 report.availableOutgoingBitrate,
+
               bytesSent: report.bytesSent,
+
               bytesReceived: report.bytesReceived,
+
             });
           }
         });
 
-        candidatePairs.sort(
-          (a, b) => (b.priority || 0) - (a.priority || 0),
+        const transportReport = [...stats.values()].find(
+          (report) => report.type === "transport",
         );
 
+        const selectedPairId = transportReport?.selectedCandidatePairId;
+
         const nominatedPair =
-          candidatePairs.find((pair) => pair.nominated) ||
-          candidatePairs[0];
+          candidatePairs.find(
+            (pair) => pair.id === selectedPairId,
+          ) || candidatePairs[0];
 
         if (nominatedPair) {
           const usesRelay =
@@ -1059,21 +1075,50 @@ const VideoRoom = () => {
           0,
       });
 
-      const rttMs = Number(
-        telemetry?.pathRtt ??
-        telemetry?.transmission?.pathRtt ??
-        0
-      ) * 1000;
-
-      const jitterMs = Number(
-        telemetry?.reception?.jitterMs ||
-        telemetry?.jitter ||
+      const rttSeconds = Number(
+        telemetry?.transmission?.rtt ??
+        telemetry?.rtt ??
         0
       );
+
+      const rttMs = rttSeconds * 1000;
+
+      const jitterSeconds = Number(
+        telemetry?.transmission?.jitter ??
+        telemetry?.reception?.jitter ??
+        telemetry?.jitter ??
+        0
+      );
+
+      const jitterMs = jitterSeconds * 1000;
 
       const severeNetworkCondition =
         rttMs >= 400 ||
         jitterMs >= 200;
+
+      console.log("[NETWORK QUALITY]", {
+        rttMs: Math.round(rttMs),
+        jitterMs: Math.round(jitterMs),
+        packetLoss: telemetry?.packetLoss ?? 0,
+        actualBitrateKbps: Math.round(
+          Number(telemetry?.actualBitrate || 0) / 1000
+        ),
+        availableBitrateKbps: Math.round(
+          Number(telemetry?.availableBitrate || 0) / 1000
+        ),
+        encodedResolution:
+          `${telemetry?.encodedWidth || 0}x${telemetry?.encodedHeight || 0}`,
+        receivedResolution:
+          `${telemetry?.receivedWidth || 0}x${telemetry?.receivedHeight || 0}`,
+        encodedFps: telemetry?.encoding?.fps || 0,
+        receivedFps: telemetry?.reception?.fps || 0,
+        framesDropped: telemetry?.reception?.framesDropped || 0,
+        iceState: peerConnection.current?.iceConnectionState,
+        localCandidate:
+          telemetry?.transmission?.localCandidateType || "unknown",
+        remoteCandidate:
+          telemetry?.transmission?.remoteCandidateType || "unknown",
+      });
 
       const pc = peerConnection.current;
 
