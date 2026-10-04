@@ -1452,13 +1452,15 @@ const VideoRoom = () => {
 
   /* ── ORIGINAL toggleVRMode (unchanged) ── */
   const toggleVRMode = () => {
-    if (!isVRMode) {
-      setIsImmersiveVR(false);
-    }
+    const next = !isImmersiveVR;
 
-    console.log("VR TOGGLED:", !isVRMode);
+    console.log(
+      "[Spatial] 360 VR TOGGLED:",
+      next
+    );
 
-    setIsVRMode((prev) => !prev);
+    setIsVRMode(false);
+    setIsImmersiveVR(next);
   };
 
   /* ── ORIGINAL handleAskAI (unchanged) ── */
@@ -1683,29 +1685,10 @@ const VideoRoom = () => {
               <FaSyncAlt />
             </button>
             <button onClick={toggleVRMode}>
-              {isVRMode ? "Exit VR" : "VR"}
+              {isImmersiveVR ? "Exit VR" : "VR"}
             </button>
 
-            <button
-              onClick={() => {
-                if (!isImmersiveVR) {
-                  setIsVRMode(false);
-                }
-
-                setIsImmersiveVR((prev) => !prev);
-              }}
-              style={{
-                background: isImmersiveVR ? "#0EA5E9" : "rgba(0,0,0,0.6)",
-                color: "white",
-                border: "none",
-                padding: "10px 14px",
-                borderRadius: "10px",
-                cursor: "pointer",
-                fontWeight: "600",
-              }}
-            >
-              {isImmersiveVR ? "Exit Immersive" : "Immersive VR"}
-            </button>
+            
           </>
         )}
         <button onClick={toggleFullScreen}>
