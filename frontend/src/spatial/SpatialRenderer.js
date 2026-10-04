@@ -5,10 +5,14 @@ export class SpatialRenderer {
     this.canvas = null;
     this.gl = null;
 
+    this.renderMode = "spatial";
+
     this.sceneCanvas = null;
     this.sceneTexture = null;
     this.videoSource = null;
     this.lastVideoTime = -1;
+
+    
 
     this.depthEngine = null;
     this.depthCanvas = null;
@@ -146,7 +150,10 @@ export class SpatialRenderer {
       "uTexture",
     );
 
-    const surfaceData = this.createSpatialSurface();
+    const surfaceData =
+      this.renderMode === "360"
+        ? this.create360Sphere()
+        : this.createSpatialSurface();
 
     this.baseVertices = surfaceData.vertices;
     this.baseUVs = surfaceData.uvs;
@@ -300,6 +307,228 @@ export class SpatialRenderer {
       vertices: new Float32Array(indexedVertices),
       uvs: new Float32Array(indexedUVs),
     };
+  }
+
+
+  create360Sphere(rows = 60, columns = 120) {
+    const vertices = [];
+    const uvs = [];
+
+    const radius = 50;
+
+    // Create a complete sphere.
+    //
+    // v = 0 → top of sphere
+    // v = 1 → bottom of sphere
+    //
+    // u = 0 → beginning of panorama
+    // u = 1 → end of panorama
+
+    for (let row = 0; row <= rows; row += 1) {
+      const v = row / rows;
+
+      // Latitude
+      const phi =
+        Math.PI / 2 -
+        v * Math.PI;
+
+      const cosPhi = Math.cos(phi);
+      const sinPhi = Math.sin(phi);
+
+      for (let column = 0; column <= columns; column += 1) {
+        const u = column / columns;
+
+        // Longitude
+        const theta =
+          u * Math.PI * 2;
+
+        const sinTheta = Math.sin(theta);
+        const cosTheta = Math.cos(theta);
+
+        const x =
+          radius *
+          cosPhi *
+          sinTheta;
+
+        const y =
+          radius *
+          sinPhi;
+
+        const z =
+          radius *
+          cosPhi *
+          cosTheta;
+
+        vertices.push(
+          x,
+          y,
+          z
+        );
+
+        // Equirectangular UV coordinates.
+        uvs.push(
+          u,
+          v
+        );
+      }
+    }
+
+    const indexedVertices = [];
+    const indexedUVs = [];
+
+    for (let row = 0; row < rows; row += 1) {
+      for (
+        let column = 0;
+        column < columns;
+        column += 1
+      ) {
+        const topLeft =
+          row * (columns + 1) +
+          column;
+
+        const topRight =
+          topLeft + 1;
+
+        const bottomLeft =
+          (row + 1) *
+          (columns + 1) +
+          column;
+
+        const bottomRight =
+          bottomLeft + 1;
+
+        // Triangle 1
+        indexedVertices.push(
+          vertices[topLeft * 3],
+          vertices[topLeft * 3 + 1],
+          vertices[topLeft * 3 + 2],
+
+          vertices[bottomLeft * 3],
+          vertices[bottomLeft * 3 + 1],
+          vertices[bottomLeft * 3 + 2],
+
+          vertices[topRight * 3],
+          vertices[topRight * 3 + 1],
+          vertices[topRight * 3 + 2]
+        );
+
+        indexedUVs.push(
+          uvs[topLeft * 2],
+          uvs[topLeft * 2 + 1],
+
+          uvs[bottomLeft * 2],
+          uvs[bottomLeft * 2 + 1],
+
+          uvs[topRight * 2],
+          uvs[topRight * 2 + 1]
+        );
+
+        // Triangle 2
+        indexedVertices.push(
+          vertices[topRight * 3],
+          vertices[topRight * 3 + 1],
+          vertices[topRight * 3 + 2],
+
+          vertices[bottomLeft * 3],
+          vertices[bottomLeft * 3 + 1],
+          vertices[bottomLeft * 3 + 2],
+
+          vertices[bottomRight * 3],
+          vertices[bottomRight * 3 + 1],
+          vertices[bottomRight * 3 + 2]
+        );
+
+        indexedUVs.push(
+          uvs[topRight * 2],
+          uvs[topRight * 2 + 1],
+
+          uvs[bottomLeft * 2],
+          uvs[bottomLeft * 2 + 1],
+
+          uvs[bottomRight * 2],
+          uvs[bottomRight * 2 + 1]
+        );
+      }
+    }
+
+    return {
+      vertices:
+        new Float32Array(indexedVertices),
+
+      uvs:
+        new Float32Array(indexedUVs)
+    };
+  }
+
+  setRenderMode(mode) {
+    if (
+      mode !== "spatial" &&
+      mode !== "360"
+    ) {
+      console.warn(
+        "[Spatial] Invalid render mode:",
+        mode
+      );
+
+      return false;
+    }
+
+    this.renderMode = mode;
+
+    console.log(
+      "[Spatial] Render mode changed:",
+      mode
+    );
+
+    if (!this.gl) {
+      return true;
+    }
+
+    const surfaceData =
+      mode === "360"
+        ? this.create360Sphere()
+        : this.createSpatialSurface();
+
+    this.baseVertices =
+      surfaceData.vertices;
+
+    this.baseUVs =
+      surfaceData.uvs;
+
+    this.depthDisplacedVertices = null;
+    this.depthPreviousVertices = null;
+
+    this.gl.bindBuffer(
+      this.gl.ARRAY_BUFFER,
+      this.positionBuffer
+    );
+
+    this.gl.bufferData(
+      this.gl.ARRAY_BUFFER,
+      this.baseVertices,
+      this.gl.DYNAMIC_DRAW
+    );
+
+    this.gl.bindBuffer(
+      this.gl.ARRAY_BUFFER,
+      this.uvBuffer
+    );
+
+    this.gl.bufferData(
+      this.gl.ARRAY_BUFFER,
+      this.baseUVs,
+      this.gl.STATIC_DRAW
+    );
+
+    this.vertexCount =
+      this.baseVertices.length / 3;
+
+    this.gl.bindBuffer(
+      this.gl.ARRAY_BUFFER,
+      null
+    );
+
+    return true;
   }
 
   createShader(type, source) {
@@ -591,15 +820,18 @@ export class SpatialRenderer {
       `${depthCanvas.width}x${depthCanvas.height}`,
     );
 
-    requestAnimationFrame(() => {
-      this.applyDepthToGeometry();
-    });
+    if (this.renderMode !== "360") {
+      requestAnimationFrame(() => {
+        this.applyDepthToGeometry();
+      });
+    }
 
     return true;
   }
 
   applyDepthToGeometry() {
     if (
+      this.renderMode === "360" ||
       !this.gl ||
       !this.depthCanvas ||
       !this.positionBuffer ||

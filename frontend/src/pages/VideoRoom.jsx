@@ -540,9 +540,8 @@ const VideoRoom = () => {
         return;
       }
 
-      if (depthEngineRef.current) {
-        depthEngineRef.current.initialize(640, 360);
-      }
+      // 360 mode currently uses a true spherical surface.
+      // AI depth deformation is intentionally disabled.
 
 
 
@@ -589,6 +588,7 @@ const VideoRoom = () => {
           );
         }
 
+        renderer.setRenderMode("360");
         renderer.setVideoSource(video);
       }
 
@@ -621,10 +621,12 @@ const VideoRoom = () => {
 
 
       if (
+        false &&
         !cancelled &&
         depthEngineRef.current &&
         !depthStartedRef.current
       ) {
+        
         depthStartedRef.current = true;
 
         const runDepth = async () => {

@@ -11,7 +11,7 @@ export class SpatialTest {
         this.renderer = new SpatialRenderer();
         this.depth = new DepthEngine();
         this.renderer.setDepthEngine(
-        this.depth
+            this.depth
         );
         this.synthetic360 = new Synthetic360Scene();
 
@@ -27,6 +27,8 @@ export class SpatialTest {
             return false;
         }
 
+        this.renderer.setRenderMode("360");
+
         const rendererReady =
             this.renderer.initialize(this.canvas);
 
@@ -34,53 +36,53 @@ export class SpatialTest {
             return false;
         }
 
-            this.depth.initialize(
-                this.canvas.width,
-                this.canvas.height
+        this.depth.initialize(
+            this.canvas.width,
+            this.canvas.height
+        );
+
+        const sceneCanvas =
+            this.synthetic360.create();
+
+        const depthCanvas =
+            this.synthetic360.getDepthCanvas();
+
+        if (sceneCanvas) {
+            this.renderer.setSceneCanvas(
+                sceneCanvas
             );
-
-            const sceneCanvas =
-                this.synthetic360.create();
-
-            const depthCanvas =
-                this.synthetic360.getDepthCanvas();
-
-            if (sceneCanvas) {
-                this.renderer.setSceneCanvas(
-                    sceneCanvas
-                );
-            }
+        }
 
 
-            
-            if (depthCanvas) {
-                this.renderer.setDepthCanvas(
-                    depthCanvas
-                );
-            }
 
-            const supported =
-                await this.webXR.isSupported();
-
-            console.log(
-                "[SpatialTest] WebXR supported:",
-                supported
+        if (depthCanvas) {
+            this.renderer.setDepthCanvas(
+                depthCanvas
             );
+        }
 
-            this.running = true;
-            this.renderLoop();
+        const supported =
+            await this.webXR.isSupported();
 
-            return true;
+        console.log(
+            "[SpatialTest] WebXR supported:",
+            supported
+        );
+
+        this.running = true;
+        this.renderLoop();
+
+        return true;
     }
 
     renderLoop = (timestamp) => {
-        if (!this.running) {
-            return;
-        }
+        if (!this.running) return;
 
         const pose = this.webXR.getPose();
 
-        this.renderer.render(pose);
+        if (pose) {
+            this.renderer.render(pose);
+        }
 
         this.animationFrame =
             requestAnimationFrame(this.renderLoop);
