@@ -900,30 +900,39 @@ const VideoRoom = () => {
     const EQUIRECTANGULAR_RATIO = 2;
     const EQUIRECTANGULAR_TOLERANCE = 0.05;
 
-    if (
+    const isEquirectangular =
       Math.abs(
         sourceAspectRatio -
         EQUIRECTANGULAR_RATIO
-      ) > EQUIRECTANGULAR_TOLERANCE
-    ) {
-      videoTrack.stop();
+      ) <= EQUIRECTANGULAR_TOLERANCE;
 
-      throw new Error(
-        `[360 Source] Genuine equirectangular source required. Received ${sourceWidth}x${sourceHeight}`
+    let streamForWebRTC;
+
+    if (isEquirectangular) {
+      console.log(
+        "[360 Source] Genuine equirectangular source detected:",
+        `${sourceWidth}x${sourceHeight}`
       );
+
+      equirectSynthRef.current =
+        new EquirectangularSynthesizer({
+          width: sourceWidth,
+          height: sourceHeight,
+          fps: videoSettings.frameRate || 30,
+        });
+
+      streamForWebRTC =
+        await equirectSynthRef.current.start(
+          cameraStream
+        );
+    } else {
+      console.log(
+        "[360 Source] Normal camera source detected:",
+        `${sourceWidth}x${sourceHeight}`
+      );
+
+      streamForWebRTC = cameraStream;
     }
-
-    equirectSynthRef.current =
-      new EquirectangularSynthesizer({
-        width: sourceWidth,
-        height: sourceHeight,
-        fps: videoSettings.frameRate || 30,
-      });
-
-    const streamForWebRTC =
-      await equirectSynthRef.current.start(
-        cameraStream
-      );
 
     if (localVideoRef.current) {
       localVideoRef.current.srcObject =
