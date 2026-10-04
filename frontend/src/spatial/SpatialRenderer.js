@@ -12,7 +12,7 @@ export class SpatialRenderer {
     this.videoSource = null;
     this.lastVideoTime = -1;
 
-    
+
 
     this.depthEngine = null;
     this.depthCanvas = null;
@@ -1088,6 +1088,17 @@ export class SpatialRenderer {
       baseLayer: glLayer,
     });
 
+    this.xrSession = session;
+    this.xrReferenceSpace =
+      await session.requestReferenceSpace("local-floor");
+
+    this.parallaxOrigin = null;
+
+    this.xrSession.addEventListener("end", () => {
+      this.xrSession = null;
+      this.xrReferenceSpace = null;
+    });
+
     console.log(
       "[Spatial] XRWebGLLayer configured",
     );
@@ -1102,6 +1113,13 @@ export class SpatialRenderer {
 
     const session = frame.session;
 
+    if (
+      !this.xrSession ||
+      this.xrSession !== session
+    ) {
+      return;
+    }
+
     const pose =
       frame.getViewerPose(
         referenceSpace,
@@ -1110,6 +1128,8 @@ export class SpatialRenderer {
     if (!pose) {
       return;
     }
+
+
 
     if (!this.parallaxOrigin) {
       this.parallaxOrigin = {
@@ -1379,6 +1399,9 @@ export class SpatialRenderer {
     this.vertexCount = 0;
     this.lastVideoTime = -1;
     this.parallaxOrigin = null;
+
+    this.xrSession = null;
+    this.xrReferenceSpace = null;
 
     console.log(
       "[Spatial] WebGL renderer destroyed",

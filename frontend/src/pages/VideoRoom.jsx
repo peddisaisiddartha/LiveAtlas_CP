@@ -217,6 +217,14 @@ const VideoRoom = () => {
     spatialXRRef.current.setSessionEndedCallback(() => {
       setIsImmersiveVR(false);
       setShowControls(true);
+
+      if (spatialRendererRef.current?.canvas) {
+        spatialRendererRef.current.canvas.style.display = "none";
+      }
+
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.style.display = "";
+      }
     });
 
     console.log("[Spatial] Renderer + WebXR initialized");
@@ -593,6 +601,9 @@ const VideoRoom = () => {
 
         renderer.setRenderMode("360");
         renderer.setVideoSource(video);
+
+        renderer.canvas.style.display = "block";
+        video.style.display = "none";
       }
 
 
@@ -610,11 +621,19 @@ const VideoRoom = () => {
 
         if (!spatialStarted) {
           console.warn(
-            "[Spatial] WebXR session unavailable. AI depth will not start."
+            "[Spatial] WebXR immersive-vr unavailable. Returning to normal video."
           );
 
           setIsImmersiveVR(false);
           setShowControls(true);
+
+          if (spatialRendererRef.current?.canvas) {
+            spatialRendererRef.current.canvas.style.display = "none";
+          }
+
+          if (video) {
+            video.style.display = "";
+          }
 
           return;
         }

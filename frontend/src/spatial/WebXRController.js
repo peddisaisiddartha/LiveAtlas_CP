@@ -82,16 +82,16 @@ export class WebXRController {
                     this.session = null;
                     this.referenceSpace = null;
 
+                    if (this.renderer) {
+                        this.renderer.parallaxOrigin = null;
+                    }
+
                     if (this.onSessionEnded) {
                         this.onSessionEnded();
                     }
                 }
             );
 
-            this.referenceSpace =
-                await this.session.requestReferenceSpace(
-                    "local-floor"
-                );
 
             /*
              * Configure the WebXR rendering layer.
@@ -260,7 +260,7 @@ export class WebXRController {
         if (this.renderer) {
             this.renderer.renderXR(
                 frame,
-                this.referenceSpace
+                this.renderer.xrReferenceSpace
             );
         }
 
