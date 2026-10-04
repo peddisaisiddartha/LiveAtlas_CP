@@ -193,128 +193,14 @@ export class SpatialRenderer {
     return true;
   }
 
-  createSpatialSurface(rows = 40, columns = 160) {
-    const vertices = [];
-    const uvs = [];
 
-    const width = 12.8;
-    const height = 7.0;
-    const centerY = 1.6;
-    const centerZ = -2.5;
-
-    for (let row = 0; row <= rows; row += 1) {
-      const v = row / rows;
-      const verticalCurveRadius = 8.0;
-      const verticalCurveAngle =
-        (v - 0.5) * (height / verticalCurveRadius);
-
-      const y =
-        centerY +
-        Math.sin(verticalCurveAngle) * verticalCurveRadius;
-
-      for (let column = 0; column <= columns; column += 1) {
-        const u = column / columns;
-
-        const curveRadius = 5.0;
-        const curveAngle =
-          (u - 0.5) * (width / curveRadius);
-
-        const x =
-          Math.sin(curveAngle) * curveRadius;
-
-        const z =
-          centerZ +
-          Math.cos(curveAngle) * curveRadius -
-          curveRadius;
-
-        vertices.push(
-          x,
-          y,
-          z,
-        );
-
-        uvs.push(
-          u,
-          v
-        );
-      }
-    }
-
-    const indexedVertices = [];
-    const indexedUVs = [];
-
-    for (let row = 0; row < rows; row += 1) {
-      for (let column = 0; column < columns; column += 1) {
-        const topLeft =
-          row * (columns + 1) + column;
-
-        const topRight = topLeft + 1;
-
-        const bottomLeft =
-          (row + 1) * (columns + 1) + column;
-
-        const bottomRight = bottomLeft + 1;
-
-        indexedVertices.push(
-          vertices[topLeft * 3],
-          vertices[topLeft * 3 + 1],
-          vertices[topLeft * 3 + 2],
-
-          vertices[bottomLeft * 3],
-          vertices[bottomLeft * 3 + 1],
-          vertices[bottomLeft * 3 + 2],
-
-          vertices[topRight * 3],
-          vertices[topRight * 3 + 1],
-          vertices[topRight * 3 + 2],
-
-          vertices[topRight * 3],
-          vertices[topRight * 3 + 1],
-          vertices[topRight * 3 + 2],
-
-          vertices[bottomLeft * 3],
-          vertices[bottomLeft * 3 + 1],
-          vertices[bottomLeft * 3 + 2],
-
-          vertices[bottomRight * 3],
-          vertices[bottomRight * 3 + 1],
-          vertices[bottomRight * 3 + 2],
-        );
-
-        indexedUVs.push(
-          uvs[topLeft * 2],
-          uvs[topLeft * 2 + 1],
-
-          uvs[bottomLeft * 2],
-          uvs[bottomLeft * 2 + 1],
-
-          uvs[topRight * 2],
-          uvs[topRight * 2 + 1],
-
-          uvs[topRight * 2],
-          uvs[topRight * 2 + 1],
-
-          uvs[bottomLeft * 2],
-          uvs[bottomLeft * 2 + 1],
-
-          uvs[bottomRight * 2],
-          uvs[bottomRight * 2 + 1],
-        );
-      }
-    }
-
-    return {
-      vertices: new Float32Array(indexedVertices),
-      uvs: new Float32Array(indexedUVs),
-    };
-  }
 
 
   create360Sphere(rows = 60, columns = 120) {
     const vertices = [];
     const uvs = [];
 
-    const radius = 100;
+    const radius = 50;
 
     // Create a complete sphere.
     //
@@ -328,7 +214,9 @@ export class SpatialRenderer {
       const v = row / rows;
 
       // Latitude
-      const phi = v * Math.PI - Math.PI / 2;
+      const phi =
+        Math.PI / 2 -
+        v * Math.PI;
 
       const cosPhi = Math.cos(phi);
       const sinPhi = Math.sin(phi);
@@ -338,7 +226,7 @@ export class SpatialRenderer {
 
         // Longitude
         const theta =
-          -u * Math.PI * 2;
+          u * Math.PI * 2;
 
         const sinTheta = Math.sin(theta);
         const cosTheta = Math.cos(theta);
@@ -457,6 +345,7 @@ export class SpatialRenderer {
         new Float32Array(indexedUVs)
     };
   }
+
 
   setRenderMode(mode) {
     if (
@@ -1186,11 +1075,7 @@ export class SpatialRenderer {
       this.drawSpatialSurface(
         view.projectionMatrix,
         view.transform.inverse.matrix,
-        {
-          x: 0,
-          y: 0,
-          z: 0,
-        },
+        this.renderMode === "360",
       );
     }
   }
@@ -1198,7 +1083,7 @@ export class SpatialRenderer {
   drawSpatialSurface(
     projectionMatrix,
     viewMatrix,
-    viewPosition,
+    is360 = false,
   ) {
     const gl = this.gl;
 
@@ -1262,6 +1147,10 @@ export class SpatialRenderer {
         0, 0, 1, 0,
         0, 0, 0, 1,
       ]);
+
+    modelMatrix[12] = 0;
+    modelMatrix[13] = 0;
+    modelMatrix[14] = 0;
 
     gl.uniformMatrix4fv(
       this.projectionLocation,

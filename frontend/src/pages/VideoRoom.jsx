@@ -863,6 +863,8 @@ const VideoRoom = () => {
       },
     });
 
+    
+
     const cameraStream = stream;
 
     const videoTrack = cameraStream.getVideoTracks()[0];
