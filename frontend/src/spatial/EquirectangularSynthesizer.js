@@ -1,122 +1,97 @@
 export default class EquirectangularSynthesizer {
     constructor({
-        width = 2048,
-        height = 1024,
+        width = 0,
+        height = 0,
         fps = 30,
     } = {}) {
         this.width = width;
         this.height = height;
         this.fps = fps;
 
-        this.canvas = document.createElement("canvas");
-        this.canvas.width = width;
-        this.canvas.height = height;
-
-        this.ctx = this.canvas.getContext("2d", {
-            alpha: false,
-            desynchronized: true,
-        });
-
-        this.video = document.createElement("video");
-        this.video.autoplay = true;
-        this.video.muted = true;
-        this.video.playsInline = true;
-
         this.sourceStream = null;
         this.outputStream = null;
-        this.animationFrame = null;
-        this.running = false;
     }
 
     async start(sourceStream) {
         if (!sourceStream) {
-            throw new Error("[360 Synth] Source stream missing");
+            throw new Error(
+                "[360 Source] Source stream missing"
+            );
         }
 
-        this.sourceStream = sourceStream;
-        this.video.srcObject = sourceStream;
+        const videoTracks =
+            sourceStream.getVideoTracks();
 
-        await this.video.play();
+        if (videoTracks.length === 0) {
+            throw new Error(
+                "[360 Source] No video track available"
+            );
+        }
 
-        const draw = () => {
-            if (!this.running) return;
+        const videoTrack =
+            videoTracks[0];
 
-            const ctx = this.ctx;
-            const W = this.width;
-            const H = this.height;
+        const settings =
+            videoTrack.getSettings();
 
-            if (
-                this.video.readyState >=
-                HTMLMediaElement.HAVE_CURRENT_DATA
-            ) {
-                ctx.clearRect(0, 0, W, H);
+        const width =
+            settings.width || 0;
 
-                /*
-                 * Convert the normal webcam image into a
-                 * synthetic equirectangular panorama.
-                 *
-                 * The webcam view is repeated/mirrored around
-                 * the full 360° longitude.
-                 */
+        const height =
+            settings.height || 0;
 
-                const segmentWidth = W / 4;
+        if (!width || !height) {
+            throw new Error(
+                "[360 Source] Video dimensions unavailable"
+            );
+        }
 
-                for (let i = 0; i < 4; i++) {
-                    const x = i * segmentWidth;
+        const aspectRatio =
+            width / height;
 
-                    ctx.save();
+        const EQUIRECTANGULAR_RATIO = 2;
+        const EQUIRECTANGULAR_TOLERANCE = 0.05;
 
-                    if (i % 2 === 0) {
-                        ctx.drawImage(
-                            this.video,
-                            x,
-                            0,
-                            segmentWidth,
-                            H
-                        );
-                    } else {
-                        ctx.translate(x + segmentWidth, 0);
-                        ctx.scale(-1, 1);
+        if (
+            Math.abs(
+                aspectRatio -
+                EQUIRECTANGULAR_RATIO
+            ) > EQUIRECTANGULAR_TOLERANCE
+        ) {
+            throw new Error(
+                `[360 Source] Genuine equirectangular source required. Received ${width}x${height}`
+            );
+        }
 
-                        ctx.drawImage(
-                            this.video,
-                            0,
-                            0,
-                            segmentWidth,
-                            H
-                        );
-                    }
+        this.width = width;
+        this.height = height;
+        this.fps =
+            settings.frameRate ||
+            this.fps;
 
-                    ctx.restore();
-                }
-            }
-
-            this.animationFrame =
-                requestAnimationFrame(draw);
-        };
-
-        this.running = true;
-        draw();
+        this.sourceStream =
+            sourceStream;
 
         this.outputStream =
-            this.canvas.captureStream(this.fps);
+            new MediaStream();
 
-        /*
-         * Keep the original camera audio.
-         */
-        const audioTracks =
-            sourceStream.getAudioTracks();
-
-        audioTracks.forEach((track) => {
+        videoTracks.forEach((track) => {
             this.outputStream.addTrack(track);
         });
 
+        sourceStream
+            .getAudioTracks()
+            .forEach((track) => {
+                this.outputStream.addTrack(track);
+            });
+
         console.log(
-            "[360 Synth] Synthetic equirectangular stream started",
+            "[360 Source] Genuine equirectangular source accepted:",
             {
                 width: this.width,
                 height: this.height,
                 fps: this.fps,
+                aspectRatio,
             }
         );
 
@@ -124,26 +99,20 @@ export default class EquirectangularSynthesizer {
     }
 
     getVideoTrack() {
-        return this.outputStream?.getVideoTracks()[0] || null;
+        return (
+            this.outputStream
+                ?.getVideoTracks()[0] ||
+            null
+        );
     }
 
     stop() {
-        this.running = false;
-
-        if (this.animationFrame) {
-            cancelAnimationFrame(this.animationFrame);
-            this.animationFrame = null;
-        }
-
-        if (this.video) {
-            this.video.pause();
-            this.video.srcObject = null;
-        }
-
         if (this.outputStream) {
             this.outputStream
-                .getVideoTracks()
-                .forEach((track) => track.stop());
+                .getTracks()
+                .forEach((track) => {
+                    track.stop();
+                });
         }
 
         this.outputStream = null;

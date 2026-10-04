@@ -200,7 +200,7 @@ export class SpatialRenderer {
     const vertices = [];
     const uvs = [];
 
-    const radius = 50;
+    const radius = 1000;
 
     // Create a complete sphere.
     //
@@ -225,14 +225,13 @@ export class SpatialRenderer {
         const u = column / columns;
 
         // Longitude
-        const theta =
-          u * Math.PI * 2;
+        const theta = (1 - u) * Math.PI * 2;
 
         const sinTheta = Math.sin(theta);
         const cosTheta = Math.cos(theta);
 
         const x =
-          radius *
+          -radius *
           cosPhi *
           sinTheta;
 
@@ -494,7 +493,7 @@ export class SpatialRenderer {
     gl.texParameteri(
       gl.TEXTURE_2D,
       gl.TEXTURE_WRAP_S,
-      gl.CLAMP_TO_EDGE,
+      gl.REPEAT,
     );
 
     gl.texParameteri(
@@ -553,6 +552,21 @@ export class SpatialRenderer {
   }
 
   setVideoSource(video) {
+
+    if (video) {
+      const width = video.videoWidth || 0;
+      const height = video.videoHeight || 0;
+
+      if (width && height) {
+        const aspectRatio = width / height;
+
+        if (Math.abs(aspectRatio - 2) > 0.05) {
+          throw new Error(
+            `[360 Renderer] Genuine equirectangular video required. Received ${width}x${height}`
+          );
+        }
+      }
+    }
     if (!video) {
       console.warn("[Spatial] Invalid video source");
       return false;
@@ -600,7 +614,7 @@ export class SpatialRenderer {
     gl.texParameteri(
       gl.TEXTURE_2D,
       gl.TEXTURE_WRAP_S,
-      gl.CLAMP_TO_EDGE,
+      gl.REPEAT,
     );
 
     gl.texParameteri(
@@ -1018,7 +1032,7 @@ export class SpatialRenderer {
 
 
 
-    if (!this.parallaxOrigin) {
+    if (this.renderMode === "360") {
       this.parallaxOrigin = {
         x: pose.transform.position.x,
         y: pose.transform.position.y,
@@ -1045,6 +1059,7 @@ export class SpatialRenderer {
       gl.disable(gl.CULL_FACE);
     } else {
       gl.enable(gl.DEPTH_TEST);
+      gl.enable(gl.CULL_FACE);
     }
 
     gl.clearColor(
@@ -1072,9 +1087,20 @@ export class SpatialRenderer {
         viewport.height,
       );
 
+      const viewMatrix =
+        new Float32Array(
+          view.transform.inverse.matrix
+        );
+
+      if (this.renderMode === "360") {
+        viewMatrix[12] = 0;
+        viewMatrix[13] = 0;
+        viewMatrix[14] = 0;
+      }
+
       this.drawSpatialSurface(
         view.projectionMatrix,
-        view.transform.inverse.matrix,
+        viewMatrix,
         this.renderMode === "360",
       );
     }
@@ -1099,9 +1125,12 @@ export class SpatialRenderer {
 
     gl.useProgram(this.program);
 
-    if (this.renderMode === "360") {
+    if (is360) {
       gl.disable(gl.DEPTH_TEST);
       gl.disable(gl.CULL_FACE);
+    } else {
+      gl.enable(gl.DEPTH_TEST);
+      gl.enable(gl.CULL_FACE);
     }
 
     gl.bindBuffer(
@@ -1140,17 +1169,18 @@ export class SpatialRenderer {
       0,
     );
 
-    const modelMatrix =
-      new Float32Array([
-        1, 0, 0, 0,
-        0, 1, 0, 0,
-        0, 0, 1, 0,
-        0, 0, 0, 1,
-      ]);
+    const modelMatrix = new Float32Array([
+      1, 0, 0, 0,
+      0, 1, 0, 0,
+      0, 0, 1, 0,
+      0, 0, 0, 1,
+    ]);
 
-    modelMatrix[12] = 0;
-    modelMatrix[13] = 0;
-    modelMatrix[14] = 0;
+    if (is360) {
+      modelMatrix[12] = 0;
+      modelMatrix[13] = 0;
+      modelMatrix[14] = 0;
+    }
 
     gl.uniformMatrix4fv(
       this.projectionLocation,

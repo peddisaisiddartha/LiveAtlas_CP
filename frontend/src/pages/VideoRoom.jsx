@@ -863,7 +863,7 @@ const VideoRoom = () => {
       },
     });
 
-    
+
 
     const cameraStream = stream;
 
@@ -1445,11 +1445,45 @@ const VideoRoom = () => {
         remoteVideoRef.current.srcObject = event.streams[0];
 
         if (isImmersiveVR && spatialRendererRef.current) {
-          spatialRendererRef.current.setVideoSource(remoteVideoRef.current);
+          const video = remoteVideoRef.current;
 
-          console.log(
-            "[Spatial] Remote video connected directly to WebXR renderer",
-          );
+          const connect360Video = () => {
+            const width = video.videoWidth || 0;
+            const height = video.videoHeight || 0;
+
+            if (!width || !height) {
+              console.warn(
+                "[Spatial] Remote video dimensions unavailable"
+              );
+              return;
+            }
+
+            const aspectRatio = width / height;
+
+            if (Math.abs(aspectRatio - 2) > 0.05) {
+              console.error(
+                `[Spatial] Genuine equirectangular video required. Received ${width}x${height}`
+              );
+              return;
+            }
+
+            spatialRendererRef.current.setVideoSource(video);
+
+            console.log(
+              "[Spatial] Genuine equirectangular remote video connected:",
+              `${width}x${height}`
+            );
+          };
+
+          if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
+            connect360Video();
+          } else {
+            video.addEventListener(
+              "loadedmetadata",
+              connect360Video,
+              { once: true }
+            );
+          }
         }
 
         /* [QUALITY] Force real-time playback — no buffering delay */
