@@ -324,29 +324,134 @@ const VideoRoom = () => {
     }
   }, [selectedIntent]);
 
-  /* ── ORIGINAL switchCamera (unchanged) ── */
+
   const switchCamera = async () => {
-    const newFacing = cameraFacing === "environment" ? "user" : "environment";
-    setCameraFacing(newFacing);
-    const oldStream = localVideoRef.current?.srcObject;
-    if (oldStream) oldStream.getVideoTracks().forEach((track) => track.stop());
+    const newFacing =
+      cameraFacing === "environment"
+        ? "user"
+        : "environment";
+
+    const oldStream =
+      localVideoRef.current?.srcObject;
+
     try {
-      const newStream = await navigator.mediaDevices.getUserMedia({
-        video: getVideoConstraints(newFacing),
-        audio: false,
-      });
-      const videoTrack = newStream.getVideoTracks()[0];
-      const sender = peerConnection.current
-        ?.getSenders()
-        .find((s) => s.track?.kind === "video");
-      if (sender) sender.replaceTrack(videoTrack);
-      const audioTracks = oldStream?.getAudioTracks() || [];
-      localVideoRef.current.srcObject = new MediaStream([
-        videoTrack,
-        ...audioTracks,
-      ]);
+      const newStream =
+        await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 3840 },
+            height: { ideal: 1920 },
+            frameRate: {
+              ideal: 30,
+              max: 30,
+            },
+            facingMode: {
+              ideal: newFacing,
+            },
+          },
+          audio: false,
+        });
+
+      const videoTrack =
+        newStream.getVideoTracks()[0];
+
+      if (!videoTrack) {
+        throw new Error(
+          "[360 Switch] No video track available"
+        );
+      }
+
+      const videoSettings =
+        videoTrack.getSettings();
+
+      const sourceWidth =
+        videoSettings.width || 0;
+
+      const sourceHeight =
+        videoSettings.height || 0;
+
+      const sourceAspectRatio =
+        sourceWidth / sourceHeight;
+
+      console.log(
+        "[360 Switch] Camera track settings:",
+        videoSettings
+      );
+
+      console.log(
+        "[360 Switch] Camera aspect ratio:",
+        sourceAspectRatio
+      );
+
+      const EQUIRECTANGULAR_RATIO = 2;
+      const EQUIRECTANGULAR_TOLERANCE = 0.05;
+
+      if (
+        !sourceWidth ||
+        !sourceHeight ||
+        Math.abs(
+          sourceAspectRatio -
+          EQUIRECTANGULAR_RATIO
+        ) > EQUIRECTANGULAR_TOLERANCE
+      ) {
+        videoTrack.stop();
+
+        throw new Error(
+          `[360 Switch] Genuine equirectangular source required. Received ${sourceWidth}x${sourceHeight}`
+        );
+      }
+
+      const audioTracks =
+        oldStream?.getAudioTracks() || [];
+
+      const switchedStream =
+        new MediaStream([
+          videoTrack,
+          ...audioTracks,
+        ]);
+
+      const sender =
+        peerConnection.current
+          ?.getSenders()
+          .find(
+            (s) =>
+              s.track?.kind === "video"
+          );
+
+      if (sender) {
+        await sender.replaceTrack(
+          videoTrack
+        );
+      }
+
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject =
+          switchedStream;
+      }
+
+      if (oldStream) {
+        oldStream
+          .getVideoTracks()
+          .forEach((track) =>
+            track.stop()
+          );
+      }
+
+      setCameraFacing(newFacing);
+
+      console.log(
+        "[360 Switch] Genuine equirectangular camera switched:",
+        {
+          facingMode: newFacing,
+          width: sourceWidth,
+          height: sourceHeight,
+          aspectRatio: sourceAspectRatio,
+        }
+      );
     } catch (err) {
-      console.error("Camera switch failed:", err);
+      console.error(
+        "[360 Switch] Camera switch failed:",
+        err
+      );
     }
   };
 
@@ -734,7 +839,15 @@ const VideoRoom = () => {
     /* [QUALITY] Capture targets 720p while allowing the browser to avoid
            expensive unsupported modes on mobile cameras. */
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: getVideoConstraints(cameraFacing),
+      video: {
+        width: { ideal: 3840 },
+        height: { ideal: 1920 },
+        frameRate: {
+          ideal: 30,
+          max: 30,
+        },
+        facingMode: { ideal: cameraFacing },
+      },
       audio: {
         echoCancellation: true,
         noiseSuppression: false,
@@ -742,7 +855,6 @@ const VideoRoom = () => {
         channelCount: Q.AUDIO_CHANNELS,
         sampleRate: Q.AUDIO_SAMPLE_RATE,
         sampleSize: 16,
-        /* [QUALITY] Latency hint — low latency mode for real-time */
         latency: 0,
         googEchoCancellation: true,
         googAutoGainControl: false,
@@ -753,11 +865,59 @@ const VideoRoom = () => {
 
     const cameraStream = stream;
 
+    const videoTrack = cameraStream.getVideoTracks()[0];
+
+    if (!videoTrack) {
+      throw new Error(
+        "[360 Source] No video track available"
+      );
+    }
+
+    const videoSettings = videoTrack.getSettings();
+
+    console.log(
+      "[360 Source] Camera track settings:",
+      videoSettings
+    );
+
+    const sourceWidth = videoSettings.width || 0;
+    const sourceHeight = videoSettings.height || 0;
+
+    if (!sourceWidth || !sourceHeight) {
+      throw new Error(
+        "[360 Source] Camera dimensions unavailable"
+      );
+    }
+
+    const sourceAspectRatio =
+      sourceWidth / sourceHeight;
+
+    console.log(
+      "[360 Source] Camera aspect ratio:",
+      sourceAspectRatio
+    );
+
+    const EQUIRECTANGULAR_RATIO = 2;
+    const EQUIRECTANGULAR_TOLERANCE = 0.05;
+
+    if (
+      Math.abs(
+        sourceAspectRatio -
+        EQUIRECTANGULAR_RATIO
+      ) > EQUIRECTANGULAR_TOLERANCE
+    ) {
+      videoTrack.stop();
+
+      throw new Error(
+        `[360 Source] Genuine equirectangular source required. Received ${sourceWidth}x${sourceHeight}`
+      );
+    }
+
     equirectSynthRef.current =
       new EquirectangularSynthesizer({
-        width: 2048,
-        height: 1024,
-        fps: 30,
+        width: sourceWidth,
+        height: sourceHeight,
+        fps: videoSettings.frameRate || 30,
       });
 
     const streamForWebRTC =
@@ -781,10 +941,11 @@ const VideoRoom = () => {
               : "scenery",
     });
 
-    const captureDiagnostics = browserControllerRef.current.applyToStream(
-      stream,
-      browserControllerRef.current.intent,
-    );
+    const captureDiagnostics =
+      browserControllerRef.current.applyToStream(
+        streamForWebRTC,
+        browserControllerRef.current.intent,
+      );
 
     console.log("[BrowserController] Capture:", captureDiagnostics);
 

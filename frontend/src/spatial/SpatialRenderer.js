@@ -1184,9 +1184,9 @@ export class SpatialRenderer {
         view.projectionMatrix,
         view.transform.inverse.matrix,
         {
-          x: view.transform.position.x - this.parallaxOrigin.x,
-          y: view.transform.position.y - this.parallaxOrigin.y,
-          z: view.transform.position.z - this.parallaxOrigin.z,
+          x: 0,
+          y: 0,
+          z: 0,
         },
       );
     }
