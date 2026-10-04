@@ -686,11 +686,13 @@ const VideoRoom = () => {
 
           vrContainerRef.current.appendChild(canvas);
 
+          renderer.setRenderMode("360");
           renderer.initialize(canvas);
 
           console.log(
             "[Spatial] Production WebGL renderer initialized"
           );
+          
         } else if (
           renderer.canvas.parentElement !==
           vrContainerRef.current
