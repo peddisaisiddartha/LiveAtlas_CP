@@ -314,7 +314,7 @@ export class SpatialRenderer {
     const vertices = [];
     const uvs = [];
 
-    const radius = 50;
+    const radius = 100;
 
     // Create a complete sphere.
     //
@@ -328,9 +328,7 @@ export class SpatialRenderer {
       const v = row / rows;
 
       // Latitude
-      const phi =
-        Math.PI / 2 -
-        v * Math.PI;
+      const phi = v * Math.PI - Math.PI / 2;
 
       const cosPhi = Math.cos(phi);
       const sinPhi = Math.sin(phi);
@@ -340,7 +338,7 @@ export class SpatialRenderer {
 
         // Longitude
         const theta =
-          u * Math.PI * 2;
+          -u * Math.PI * 2;
 
         const sinTheta = Math.sin(theta);
         const cosTheta = Math.cos(theta);
@@ -1153,7 +1151,12 @@ export class SpatialRenderer {
       layer.framebuffer,
     );
 
-    gl.enable(gl.DEPTH_TEST);
+    if (this.renderMode === "360") {
+      gl.disable(gl.DEPTH_TEST);
+      gl.disable(gl.CULL_FACE);
+    } else {
+      gl.enable(gl.DEPTH_TEST);
+    }
 
     gl.clearColor(
       0,
@@ -1210,6 +1213,11 @@ export class SpatialRenderer {
     }
 
     gl.useProgram(this.program);
+
+    if (this.renderMode === "360") {
+      gl.disable(gl.DEPTH_TEST);
+      gl.disable(gl.CULL_FACE);
+    }
 
     gl.bindBuffer(
       gl.ARRAY_BUFFER,
