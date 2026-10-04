@@ -367,7 +367,7 @@ export class SpatialRenderer {
 
         // Equirectangular UV coordinates.
         uvs.push(
-          1 - u,
+          u,
           v
         );
       }
