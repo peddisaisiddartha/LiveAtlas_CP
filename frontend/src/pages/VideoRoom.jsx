@@ -22,7 +22,6 @@ import { BrowserController } from "../network/browserController";
 import SpatialRenderer from "../spatial/SpatialRenderer";
 import WebXRController from "../spatial/WebXRController";
 import DepthEngine from "../spatial/DepthEngine";
-import EquirectangularSynthesizer from "../spatial/EquirectangularSynthesizer";
 
 /* ─────────────────────────────────────────────────────────
    QUALITY CONSTANTS  — tweak here for different networks
@@ -139,7 +138,7 @@ const VideoRoom = () => {
 
   const depthEngineRef = useRef(null);
   const depthStartedRef = useRef(false);
-  const equirectSynthRef = useRef(null);
+
 
 
 
@@ -590,7 +589,7 @@ const VideoRoom = () => {
           );
         }
 
-        renderer.setRenderMode("360");
+        renderer.setRenderMode("spatial");
         renderer.setVideoSource(video);
       }
 
@@ -733,20 +732,7 @@ const VideoRoom = () => {
 
     const cameraStream = stream;
 
-    equirectSynthRef.current =
-      new EquirectangularSynthesizer({
-        width: 2048,
-        height: 1024,
-        fps: 30,
-      });
-
-    const equirectangularStream =
-      await equirectSynthRef.current.start(
-        cameraStream
-      );
-
-    const streamForWebRTC =
-      equirectangularStream;
+    const streamForWebRTC = cameraStream;
 
     if (localVideoRef.current) {
       localVideoRef.current.srcObject =
