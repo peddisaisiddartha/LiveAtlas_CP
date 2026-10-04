@@ -22,6 +22,7 @@ import { BrowserController } from "../network/browserController";
 import SpatialRenderer from "../spatial/SpatialRenderer";
 import WebXRController from "../spatial/WebXRController";
 import DepthEngine from "../spatial/DepthEngine";
+import EquirectangularSynthesizer from "../spatial/EquirectangularSynthesizer";
 
 /* ─────────────────────────────────────────────────────────
    QUALITY CONSTANTS  — tweak here for different networks
@@ -138,6 +139,7 @@ const VideoRoom = () => {
 
   const depthEngineRef = useRef(null);
   const depthStartedRef = useRef(false);
+  const equirectSynthRef = useRef(null);
 
 
 
@@ -626,7 +628,7 @@ const VideoRoom = () => {
         depthEngineRef.current &&
         !depthStartedRef.current
       ) {
-        
+
         depthStartedRef.current = true;
 
         const runDepth = async () => {
@@ -729,7 +731,27 @@ const VideoRoom = () => {
       },
     });
 
-    if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+    const cameraStream = stream;
+
+    equirectSynthRef.current =
+      new EquirectangularSynthesizer({
+        width: 2048,
+        height: 1024,
+        fps: 30,
+      });
+
+    const equirectangularStream =
+      await equirectSynthRef.current.start(
+        cameraStream
+      );
+
+    const streamForWebRTC =
+      equirectangularStream;
+
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject =
+        streamForWebRTC;
+    }
 
     browserControllerRef.current = new BrowserController({
       intent:
@@ -981,14 +1003,19 @@ const VideoRoom = () => {
     };
 
     /* ORIGINAL track hints (unchanged) */
-    stream.getTracks().forEach((track) => {
+    streamForWebRTC.getTracks().forEach((track) => {
       if (track.kind === "video" && !track.contentHint)
         track.contentHint = "detail";
       if (track.kind === "audio") track.contentHint = "speech";
       const existingSender = peerConnection.current
         .getSenders()
         .find((s) => s.track?.kind === track.kind);
-      if (!existingSender) peerConnection.current.addTrack(track, stream);
+      if (!existingSender) {
+        peerConnection.current.addTrack(
+          track,
+          streamForWebRTC
+        );
+      }
     });
 
     networkEngineRef.current = new NetworkEngine(peerConnection.current, {

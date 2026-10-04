@@ -78,12 +78,6 @@ export class SpatialTest {
     renderLoop = (timestamp) => {
         if (!this.running) return;
 
-        const pose = this.webXR.getPose();
-
-        if (pose) {
-            this.renderer.render(pose);
-        }
-
         this.animationFrame =
             requestAnimationFrame(this.renderLoop);
     };
