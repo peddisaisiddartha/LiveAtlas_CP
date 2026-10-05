@@ -1,7 +1,7 @@
 export default class EquirectangularSynthesizer {
     constructor({
-        width = 0,
-        height = 0,
+        width = 2048,
+        height = 1024,
         fps = 30,
     } = {}) {
         this.width = width;
@@ -10,6 +10,10 @@ export default class EquirectangularSynthesizer {
 
         this.sourceStream = null;
         this.outputStream = null;
+        this.canvas = null;
+        this.context = null;
+        this.animationFrame = null;
+        this.videoElement = null;
     }
 
     async start(sourceStream) {
@@ -34,50 +38,119 @@ export default class EquirectangularSynthesizer {
         const settings =
             videoTrack.getSettings();
 
-        const width =
+        const sourceWidth =
             settings.width || 0;
 
-        const height =
+        const sourceHeight =
             settings.height || 0;
 
-        if (!width || !height) {
+        if (!sourceWidth || !sourceHeight) {
             throw new Error(
                 "[360 Source] Video dimensions unavailable"
             );
         }
 
-        const aspectRatio =
-            width / height;
+        this.sourceStream = sourceStream;
 
-        const EQUIRECTANGULAR_RATIO = 2;
-        const EQUIRECTANGULAR_TOLERANCE = 0.05;
+        this.canvas =
+            document.createElement("canvas");
 
-        if (
-            Math.abs(
-                aspectRatio -
-                EQUIRECTANGULAR_RATIO
-            ) > EQUIRECTANGULAR_TOLERANCE
-        ) {
+        this.canvas.width = this.width;
+        this.canvas.height = this.height;
+
+        this.context =
+            this.canvas.getContext("2d");
+
+        if (!this.context) {
             throw new Error(
-                `[360 Source] Genuine equirectangular source required. Received ${width}x${height}`
+                "[360 Source] Canvas 2D context unavailable"
             );
         }
 
-        this.width = width;
-        this.height = height;
-        this.fps =
-            settings.frameRate ||
-            this.fps;
+        this.videoElement =
+            document.createElement("video");
 
-        this.sourceStream =
+        this.videoElement.autoplay = true;
+        this.videoElement.muted = true;
+        this.videoElement.playsInline = true;
+        this.videoElement.srcObject =
             sourceStream;
+
+        await this.videoElement.play();
+
+        const drawFrame = () => {
+            if (
+                !this.videoElement ||
+                !this.context ||
+                !this.outputStream
+            ) {
+                return;
+            }
+
+            const ctx = this.context;
+
+            ctx.clearRect(
+                0,
+                0,
+                this.width,
+                this.height
+            );
+
+            const segmentWidth =
+                this.width / 4;
+
+            for (let i = 0; i < 4; i += 1) {
+                const sourceX =
+                    i % 2 === 0
+                        ? 0
+                        : sourceWidth;
+
+                const sourceY =
+                    i < 2
+                        ? 0
+                        : sourceHeight / 2;
+
+                const sourceW =
+                    sourceWidth;
+
+                const sourceH =
+                    sourceHeight / 2;
+
+                const destinationX =
+                    i * segmentWidth;
+
+                ctx.drawImage(
+                    this.videoElement,
+                    sourceX,
+                    sourceY,
+                    sourceW,
+                    sourceH,
+                    destinationX,
+                    0,
+                    segmentWidth,
+                    this.height
+                );
+            }
+
+            this.animationFrame =
+                requestAnimationFrame(
+                    drawFrame
+                );
+        };
+
+        const canvasStream =
+            this.canvas.captureStream(
+                this.fps
+            );
 
         this.outputStream =
             new MediaStream();
 
-        videoTracks.forEach((track) => {
-            this.outputStream.addTrack(track);
-        });
+        canvasStream
+            .getVideoTracks()
+            .forEach((track) => {
+                this.outputStream.addTrack(track);
+            });
 
         sourceStream
             .getAudioTracks()
@@ -85,13 +158,19 @@ export default class EquirectangularSynthesizer {
                 this.outputStream.addTrack(track);
             });
 
+        drawFrame();
+
         console.log(
-            "[360 Source] Genuine equirectangular source accepted:",
+            "[360 Source] Equirectangular synthesis started:",
             {
-                width: this.width,
-                height: this.height,
+                sourceWidth,
+                sourceHeight,
+                outputWidth: this.width,
+                outputHeight: this.height,
                 fps: this.fps,
-                aspectRatio,
+                aspectRatio:
+                    this.width /
+                    this.height,
             }
         );
 
@@ -107,6 +186,20 @@ export default class EquirectangularSynthesizer {
     }
 
     stop() {
+        if (this.animationFrame) {
+            cancelAnimationFrame(
+                this.animationFrame
+            );
+
+            this.animationFrame = null;
+        }
+
+        if (this.videoElement) {
+            this.videoElement.pause();
+            this.videoElement.srcObject = null;
+            this.videoElement = null;
+        }
+
         if (this.outputStream) {
             this.outputStream
                 .getTracks()
@@ -117,5 +210,7 @@ export default class EquirectangularSynthesizer {
 
         this.outputStream = null;
         this.sourceStream = null;
+        this.canvas = null;
+        this.context = null;
     }
 }

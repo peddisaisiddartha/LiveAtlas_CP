@@ -382,8 +382,7 @@ const VideoRoom = () => {
         sourceAspectRatio
       );
 
-      const EQUIRECTANGULAR_RATIO = 2;
-      const EQUIRECTANGULAR_TOLERANCE = 0.05;
+
 
       if (
         !sourceWidth ||
@@ -692,7 +691,7 @@ const VideoRoom = () => {
           console.log(
             "[Spatial] Production WebGL renderer initialized"
           );
-          
+
         } else if (
           renderer.canvas.parentElement !==
           vrContainerRef.current
@@ -842,11 +841,11 @@ const VideoRoom = () => {
            expensive unsupported modes on mobile cameras. */
     const stream = await navigator.mediaDevices.getUserMedia({
       video: {
-        width: { ideal: 3840 },
-        height: { ideal: 1920 },
+        width: { ideal: Q.VIDEO_W_IDEAL, max: Q.VIDEO_W_MAX },
+        height: { ideal: Q.VIDEO_H_IDEAL, max: Q.VIDEO_H_MAX },
         frameRate: {
-          ideal: 30,
-          max: 30,
+          ideal: Q.FRAMERATE_IDEAL,
+          max: Q.FRAMERATE_MAX,
         },
         facingMode: { ideal: cameraFacing },
       },
@@ -901,42 +900,24 @@ const VideoRoom = () => {
       sourceAspectRatio
     );
 
-    const EQUIRECTANGULAR_RATIO = 2;
-    const EQUIRECTANGULAR_TOLERANCE = 0.05;
-
-    const isEquirectangular =
-      Math.abs(
-        sourceAspectRatio -
-        EQUIRECTANGULAR_RATIO
-      ) <= EQUIRECTANGULAR_TOLERANCE;
-
     let streamForWebRTC;
 
-    if (isEquirectangular) {
-      console.log(
-        "[360 Source] Genuine equirectangular source detected:",
-        `${sourceWidth}x${sourceHeight}`
+    console.log(
+      "[360 Source] Normal camera accepted:",
+      `${sourceWidth}x${sourceHeight}`
+    );
+
+    equirectSynthRef.current =
+      new EquirectangularSynthesizer({
+        width: 2048,
+        height: 1024,
+        fps: videoSettings.frameRate || 30,
+      });
+
+    streamForWebRTC =
+      await equirectSynthRef.current.start(
+        cameraStream
       );
-
-      equirectSynthRef.current =
-        new EquirectangularSynthesizer({
-          width: sourceWidth,
-          height: sourceHeight,
-          fps: videoSettings.frameRate || 30,
-        });
-
-      streamForWebRTC =
-        await equirectSynthRef.current.start(
-          cameraStream
-        );
-    } else {
-      console.log(
-        "[360 Source] Normal camera source detected:",
-        `${sourceWidth}x${sourceHeight}`
-      );
-
-      streamForWebRTC = cameraStream;
-    }
 
     if (localVideoRef.current) {
       localVideoRef.current.srcObject =
@@ -1445,6 +1426,14 @@ const VideoRoom = () => {
     peerConnection.current.ontrack = (event) => {
       if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = event.streams[0];
+
+        console.log("[Spatial DEBUG] Remote video track:", {
+          videoWidth: remoteVideoRef.current.videoWidth,
+          videoHeight: remoteVideoRef.current.videoHeight,
+          readyState: remoteVideoRef.current.readyState,
+          trackSettings:
+            event.streams[0].getVideoTracks()[0]?.getSettings(),
+        });
 
         if (isImmersiveVR && spatialRendererRef.current) {
           const video = remoteVideoRef.current;

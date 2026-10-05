@@ -153,7 +153,7 @@ export class WebXRController {
 
         const viewerPose =
             frame.getViewerPose(
-                this.referenceSpace
+                this.renderer?.xrReferenceSpace
             );
 
         if (!viewerPose) {

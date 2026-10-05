@@ -151,9 +151,7 @@ export class SpatialRenderer {
     );
 
     const surfaceData =
-      this.renderMode === "360"
-        ? this.create360Sphere()
-        : this.createSpatialSurface();
+      this.create360Sphere();
 
     this.baseVertices = surfaceData.vertices;
     this.baseUVs = surfaceData.uvs;
@@ -187,6 +185,8 @@ export class SpatialRenderer {
     if (this.videoSource) {
       this.createVideoTexture();
     }
+
+    this.resize();
 
     console.log("[Spatial] WebGL spatial renderer initialized");
 
