@@ -914,10 +914,7 @@ const VideoRoom = () => {
         fps: videoSettings.frameRate || 30,
       });
 
-    streamForWebRTC =
-      await equirectSynthRef.current.start(
-        cameraStream
-      );
+    streamForWebRTC = cameraStream;
 
     if (localVideoRef.current) {
       localVideoRef.current.srcObject =
