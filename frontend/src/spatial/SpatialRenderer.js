@@ -674,7 +674,7 @@ export class SpatialRenderer {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
 
     const video = this.videoSource;
 
@@ -747,7 +747,7 @@ export class SpatialRenderer {
 
     gl.pixelStorei(
       gl.UNPACK_FLIP_Y_WEBGL,
-      true,
+      false,
     );
 
     gl.texImage2D(
