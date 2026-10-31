@@ -384,18 +384,11 @@ const VideoRoom = () => {
 
 
 
-      if (
-        !sourceWidth ||
-        !sourceHeight ||
-        Math.abs(
-          sourceAspectRatio -
-          EQUIRECTANGULAR_RATIO
-        ) > EQUIRECTANGULAR_TOLERANCE
-      ) {
+      if (!sourceWidth || !sourceHeight) {
         videoTrack.stop();
 
         throw new Error(
-          `[360 Switch] Genuine equirectangular source required. Received ${sourceWidth}x${sourceHeight}`
+          `[Camera Switch] Camera dimensions unavailable.`
         );
       }
 
@@ -685,7 +678,7 @@ const VideoRoom = () => {
 
           vrContainerRef.current.appendChild(canvas);
 
-          renderer.setRenderMode("360");
+          renderer.setRenderMode("spatial");
           renderer.initialize(canvas);
 
           console.log(
@@ -705,7 +698,7 @@ const VideoRoom = () => {
           );
         }
 
-        renderer.setRenderMode("360");
+        renderer.setRenderMode("spatial");
         renderer.setVideoSource(video);
 
         renderer.canvas.style.display = "block";
@@ -1432,45 +1425,34 @@ const VideoRoom = () => {
             event.streams[0].getVideoTracks()[0]?.getSettings(),
         });
 
-        if (isImmersiveVR && spatialRendererRef.current) {
+        if (spatialRendererRef.current) {
           const video = remoteVideoRef.current;
 
-          const connect360Video = () => {
-            const width = video.videoWidth || 0;
-            const height = video.videoHeight || 0;
-
-            if (!width || !height) {
-              console.warn(
-                "[Spatial] Remote video dimensions unavailable"
-              );
+          const connectSpatialVideo = () => {
+            if (!video.videoWidth || !video.videoHeight) {
+              console.warn("[Spatial] Video dimensions unavailable");
               return;
             }
 
-            const aspectRatio = width / height;
+            try {
+              spatialRendererRef.current.setVideoSource(video);
 
-            if (Math.abs(aspectRatio - 2) > 0.05) {
-              console.error(
-                `[Spatial] Genuine equirectangular video required. Received ${width}x${height}`
-              );
-              return;
+              console.log("[Spatial] Remote video connected:", {
+                width: video.videoWidth,
+                height: video.videoHeight,
+                mode: spatialRendererRef.current.renderMode
+              });
+            } catch (error) {
+              console.error("[Spatial] Video connection failed:", error);
             }
-
-            spatialRendererRef.current.setVideoSource(video);
-
-            console.log(
-              "[Spatial] Genuine equirectangular remote video connected:",
-              `${width}x${height}`
-            );
           };
 
           if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
-            connect360Video();
+            connectSpatialVideo();
           } else {
-            video.addEventListener(
-              "loadedmetadata",
-              connect360Video,
-              { once: true }
-            );
+            video.addEventListener("loadedmetadata", connectSpatialVideo, {
+              once: true
+            });
           }
         }
 

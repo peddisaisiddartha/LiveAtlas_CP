@@ -151,7 +151,9 @@ export class SpatialRenderer {
     );
 
     const surfaceData =
-      this.create360Sphere();
+      this.renderMode === "360"
+        ? this.create360Sphere()
+        : this.createSpatialSurface();
 
     this.baseVertices = surfaceData.vertices;
     this.baseUVs = surfaceData.uvs;
@@ -342,6 +344,65 @@ export class SpatialRenderer {
 
       uvs:
         new Float32Array(indexedUVs)
+    };
+  }
+
+
+
+  createSpatialSurface(rows = 40, columns = 100) {
+    const vertices = [];
+    const uvs = [];
+
+    const radius = 5;
+    const width = 12.8;
+    const height = 7;
+    const centerZ = -2.5;
+    const angle = width / radius;
+
+    for (let row = 0; row <= rows; row++) {
+      const v = row / rows;
+      const y = (0.5 - v) * height;
+
+      for (let col = 0; col <= columns; col++) {
+        const u = col / columns;
+        const theta = (u - 0.5) * angle;
+
+        const x = radius * Math.sin(theta);
+        const z = centerZ - radius * (1 - Math.cos(theta));
+
+        vertices.push(x, y, z);
+        uvs.push(u, v);
+      }
+    }
+
+    const indexedVertices = [];
+    const indexedUVs = [];
+
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < columns; col++) {
+        const a = row * (columns + 1) + col;
+        const b = a + 1;
+        const c = a + columns + 1;
+        const d = c + 1;
+
+        [a, c, b, b, c, d].forEach(index => {
+          indexedVertices.push(
+            vertices[index * 3],
+            vertices[index * 3 + 1],
+            vertices[index * 3 + 2]
+          );
+
+          indexedUVs.push(
+            uvs[index * 2],
+            uvs[index * 2 + 1]
+          );
+        });
+      }
+    }
+
+    return {
+      vertices: new Float32Array(indexedVertices),
+      uvs: new Float32Array(indexedUVs)
     };
   }
 
@@ -553,7 +614,7 @@ export class SpatialRenderer {
 
   setVideoSource(video) {
 
-    if (video) {
+    if (video && this.renderMode === "360") {
       const width = video.videoWidth || 0;
       const height = video.videoHeight || 0;
 
@@ -562,7 +623,7 @@ export class SpatialRenderer {
 
         if (Math.abs(aspectRatio - 2) > 0.05) {
           throw new Error(
-            `[360 Renderer] Genuine equirectangular video required. Received ${width}x${height}`
+            `[360 Renderer] Equirectangular video required. Received ${width}x${height}`
           );
         }
       }
