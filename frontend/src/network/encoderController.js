@@ -74,10 +74,16 @@ export class EncoderController {
             };
 
 
+            if (this.supportsMinBitrate()) {
+                params.encodings[0].minBitrate = plan.minBitrate;
+            }
+
+
 
             params.degradationPreference = plan.degradationPreference;
 
             await sender.setParameters(params);
+            
             this.applied = true;
 
 

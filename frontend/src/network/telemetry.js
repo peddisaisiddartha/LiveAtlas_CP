@@ -368,6 +368,9 @@ export class Telemetry {
         telemetry.reception.jitter =
             this.number(report.jitter);
 
+        telemetry.transmission.packetLoss =
+            this.packetLoss(report, "inbound");
+
         telemetry.reception.jitterBufferDelay =
             this.number(report.jitterBufferDelay);
 
