@@ -117,6 +117,8 @@ export class WebXRController {
 
                     return false;
                 }
+
+                this.referenceSpace = this.renderer.xrReferenceSpace;
             }
 
             console.log(
@@ -153,7 +155,7 @@ export class WebXRController {
 
         const viewerPose =
             frame.getViewerPose(
-                this.renderer?.xrReferenceSpace
+                this.referenceSpace
             );
 
         if (!viewerPose) {
@@ -260,7 +262,7 @@ export class WebXRController {
         if (this.renderer) {
             this.renderer.renderXR(
                 frame,
-                this.renderer.xrReferenceSpace
+                this.referenceSpace
             );
         }
 

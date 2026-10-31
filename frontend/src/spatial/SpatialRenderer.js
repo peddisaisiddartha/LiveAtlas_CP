@@ -656,59 +656,54 @@ export class SpatialRenderer {
 
     const gl = this.gl;
 
-    gl.pixelStorei(
-      gl.UNPACK_COLORSPACE_CONVERSION_WEBGL,
-      gl.NONE,
-    );
-
     if (this.sceneTexture) {
       gl.deleteTexture(this.sceneTexture);
     }
 
     this.sceneTexture = gl.createTexture();
 
-    gl.bindTexture(
-      gl.TEXTURE_2D,
-      this.sceneTexture,
-    );
+    if (!this.sceneTexture) {
+      console.error("[Spatial] Video texture creation failed");
+      return false;
+    }
 
-    gl.texParameteri(
-      gl.TEXTURE_2D,
-      gl.TEXTURE_WRAP_S,
-      gl.REPEAT,
-    );
+    gl.bindTexture(gl.TEXTURE_2D, this.sceneTexture);
 
-    gl.texParameteri(
-      gl.TEXTURE_2D,
-      gl.TEXTURE_WRAP_T,
-      gl.CLAMP_TO_EDGE,
-    );
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 
-    gl.texParameteri(
-      gl.TEXTURE_2D,
-      gl.TEXTURE_MIN_FILTER,
-      gl.LINEAR,
-    );
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
 
-    gl.texParameteri(
-      gl.TEXTURE_2D,
-      gl.TEXTURE_MAG_FILTER,
-      gl.LINEAR,
-    );
+    const video = this.videoSource;
 
-    gl.pixelStorei(
-      gl.UNPACK_FLIP_Y_WEBGL,
-      true,
-    );
+    if (
+      video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+      video.videoWidth > 0 &&
+      video.videoHeight > 0
+    ) {
+      try {
+        gl.texImage2D(
+          gl.TEXTURE_2D,
+          0,
+          gl.RGBA,
+          gl.RGBA,
+          gl.UNSIGNED_BYTE,
+          video
+        );
 
-    gl.bindTexture(
-      gl.TEXTURE_2D,
-      null,
-    );
+        this.lastVideoTime = video.currentTime;
 
-    console.log(
-      "[Spatial] Real LiveAtlas video texture created",
-    );
+        console.log("[Spatial] Initial video frame uploaded");
+      } catch (error) {
+        console.error("[Spatial] Initial video upload failed:", error);
+      }
+    }
+
+    gl.bindTexture(gl.TEXTURE_2D, null);
+
+    console.log("[Spatial] LiveAtlas video texture created");
 
     return true;
   }
@@ -719,6 +714,11 @@ export class SpatialRenderer {
       !this.videoSource ||
       !this.sceneTexture
     ) {
+      return;
+    }
+
+    if (!this.videoSource.videoWidth || !this.videoSource.videoHeight) {
+      console.warn("[Spatial] Video has no dimensions yet");
       return;
     }
 
@@ -765,6 +765,15 @@ export class SpatialRenderer {
     );
 
     this.lastVideoTime = video.currentTime;
+
+
+    if (!this._videoUploadLogged) {
+      console.log("[Spatial] First XR video frame uploaded:", {
+        width: video.videoWidth,
+        height: video.videoHeight
+      });
+      this._videoUploadLogged = true;
+    }
   }
 
   setDepthCanvas(depthCanvas) {
