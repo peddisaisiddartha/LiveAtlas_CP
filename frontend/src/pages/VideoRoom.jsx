@@ -171,6 +171,10 @@ const VideoRoom = () => {
   });
   const [isVRMode, setIsVRMode] = useState(false);
   const [isImmersiveVR, setIsImmersiveVR] = useState(false);
+
+  const [videoFormat, setVideoFormat] = useState("auto");
+  const [detectedVideoFormat, setDetectedVideoFormat] = useState("normal");
+
   const [cameraFacing, setCameraFacing] = useState("environment");
   const [connectionQuality, setConnectionQuality] = useState("good");
   const [micLevel, setMicLevel] = useState(0);
@@ -195,6 +199,23 @@ const VideoRoom = () => {
   const iceRestartTimerRef = useRef(null);
   const communicationStatusTimerRef = useRef(null);
   const browserControllerRef = useRef(null);
+
+  const detectVideoFormat = (video) => {
+    if (!video?.videoWidth || !video?.videoHeight) {
+      return "normal";
+    }
+
+    const ratio = video.videoWidth / video.videoHeight;
+
+    // Only identify a 2:1 source as a 360 candidate.
+    return Math.abs(ratio - 2) <= 0.05
+      ? "360"
+      : "normal";
+  };
+
+  const activeVideoFormat =
+    videoFormat === "auto" ? detectedVideoFormat : videoFormat;
+
   const badNetworkSinceRef = useRef(null);
   const lastAutomaticIceRestartRef = useRef(0);
 
@@ -319,6 +340,7 @@ const VideoRoom = () => {
       console.log("📘 Learn → AI auto explanation triggered");
     }
     if (selectedIntent === "Experience") {
+      setIsImmersiveVR(false);
       setIsVRMode(true);
       console.log("🎥 Experience → VR mode ON");
     }
@@ -599,25 +621,48 @@ const VideoRoom = () => {
     };
   }, [roomID]);
 
-  /* ── ORIGINAL VR effect (unchanged) ── */
+
+  /* ── VR EFFECT ── */
   useEffect(() => {
-    console.log("VR Effect Triggered:", isVRMode);
+    console.log("VR Effect Triggered:", {
+      isVRMode,
+      isImmersiveVR,
+      activeVideoFormat,
+    });
+
     const video = remoteVideoRef.current;
-    if (!video || !vrContainerRef.current) {
+    const container = vrContainerRef.current;
+
+    if (!video || !container) {
       console.log("VR skipped: video or container missing");
       return;
     }
+
+    // Never allow both VR renderers to run together.
+    if (isImmersiveVR) {
+      disposeVR();
+      return;
+    }
+
     if (isVRMode) {
-      console.log("Starting VR...");
-      initVR(vrContainerRef.current, video);
+      console.log("Starting Three.js VR...");
+
+      initVR(
+        container,
+        video,
+        activeVideoFormat === "360" ? "360" : "normal"
+      );
     } else {
-      console.log("Stopping VR...");
+      console.log("Stopping Three.js VR...");
       disposeVR();
     }
+
     return () => {
       disposeVR();
     };
-  }, [isVRMode]);
+  }, [isVRMode, isImmersiveVR, activeVideoFormat]);
+
+
 
   useEffect(() => {
     let cancelled = false;
@@ -638,37 +683,29 @@ const VideoRoom = () => {
           spatialXRRef.current.stopSession();
         }
 
+        if (spatialRendererRef.current?.canvas) {
+          spatialRendererRef.current.canvas.style.display = "none";
+        }
+
+        if (video) {
+          video.style.display = "";
+        }
+
         return;
       }
 
       if (!video || !vrContainerRef.current) {
-        console.log(
-          "[Spatial] Immersive VR skipped: video or container missing"
-        );
+        console.log("[Spatial] Video or container missing");
         return;
       }
 
-      // 360 mode currently uses a true spherical surface.
-      // AI depth deformation is intentionally disabled.
-
-
-
       if (cancelled) return;
 
-      /*
-       * WebXR is confirmed active.
-       * Now create the renderer.
-       */
-      if (
-        spatialRendererRef.current &&
-        vrContainerRef.current
-      ) {
-        const renderer =
-          spatialRendererRef.current;
+      const renderer = spatialRendererRef.current;
 
+      if (renderer && vrContainerRef.current) {
         if (!renderer.canvas) {
-          const canvas =
-            document.createElement("canvas");
+          const canvas = document.createElement("canvas");
 
           canvas.style.position = "absolute";
           canvas.style.inset = "0";
@@ -678,33 +715,28 @@ const VideoRoom = () => {
 
           vrContainerRef.current.appendChild(canvas);
 
-          renderer.setRenderMode("spatial");
+          renderer.setRenderMode(
+            activeVideoFormat === "360" ? "360" : "spatial"
+          );
+
           renderer.initialize(canvas);
 
-          console.log(
-            "[Spatial] Production WebGL renderer initialized"
-          );
-
+          console.log("[Spatial] WebGL renderer initialized");
         } else if (
-          renderer.canvas.parentElement !==
-          vrContainerRef.current
+          renderer.canvas.parentElement !== vrContainerRef.current
         ) {
-          vrContainerRef.current.appendChild(
-            renderer.canvas
-          );
-
-          console.log(
-            "[Spatial] Existing WebGL canvas reattached"
-          );
+          vrContainerRef.current.appendChild(renderer.canvas);
         }
 
-        renderer.setRenderMode("spatial");
+        renderer.setRenderMode(
+          activeVideoFormat === "360" ? "360" : "spatial"
+        );
+
         renderer.setVideoSource(video);
 
         renderer.canvas.style.display = "block";
         video.style.display = "none";
       }
-
 
       if (
         spatialXRRef.current &&
@@ -713,95 +745,32 @@ const VideoRoom = () => {
         const spatialStarted =
           await spatialXRRef.current.startSession();
 
-        console.log(
-          "[Spatial] Real-video WebXR session:",
-          spatialStarted
-        );
+        if (cancelled) return;
+
+        console.log("[Spatial] WebXR session:", spatialStarted);
 
         if (!spatialStarted) {
-          console.warn(
-            "[Spatial] WebXR immersive-vr unavailable. Returning to normal video."
-          );
+          console.warn("[Spatial] WebXR unavailable");
 
           setIsImmersiveVR(false);
           setShowControls(true);
 
-          if (spatialRendererRef.current?.canvas) {
-            spatialRendererRef.current.canvas.style.display = "none";
+          if (renderer?.canvas) {
+            renderer.canvas.style.display = "none";
           }
 
-          if (video) {
-            video.style.display = "";
-          }
-
+          video.style.display = "";
           return;
         }
       }
 
       if (cancelled) return;
 
-
-      if (
-        false &&
-        !cancelled &&
-        depthEngineRef.current &&
-        !depthStartedRef.current
-      ) {
-
-        depthStartedRef.current = true;
-
-        const runDepth = async () => {
-          if (
-            cancelled ||
-            !depthEngineRef.current ||
-            !depthStartedRef.current
-          ) {
-            return;
-          }
-
-          let depthMap = null;
-
-          try {
-            depthMap =
-              depthEngineRef.current
-                ? await depthEngineRef.current.estimate(video)
-                : null;
-          } catch (error) {
-            if (!cancelled) {
-              console.error(
-                "[Spatial] Depth loop failed:",
-                error
-              );
-            }
-          }
-
-          if (
-            !cancelled &&
-            depthMap &&
-            depthMap.source &&
-            spatialRendererRef.current
-          ) {
-            spatialRendererRef.current.setDepthCanvas(
-              depthMap.source
-            );
-          }
-
-          if (
-            !cancelled &&
-            depthEngineRef.current &&
-            depthStartedRef.current
-          ) {
-            depthLoopTimer = setTimeout(runDepth, 5000);
-          }
-        };
-
-        runDepth();
-      }
-
       setShowControls(false);
 
       console.log(
-        "[Spatial] Immersive VR fully started"
+        "[Spatial] Immersive VR started:",
+        activeVideoFormat
       );
     };
 
@@ -823,7 +792,8 @@ const VideoRoom = () => {
         spatialXRRef.current.stopSession();
       }
     };
-  }, [isImmersiveVR]);
+  }, [isImmersiveVR, activeVideoFormat]);
+
 
   /* ══════════════════════════════════════════════════════
        setupWebRTC — ALL SIGNALING LOGIC PRESERVED
@@ -900,12 +870,7 @@ const VideoRoom = () => {
       `${sourceWidth}x${sourceHeight}`
     );
 
-    equirectSynthRef.current =
-      new EquirectangularSynthesizer({
-        width: 2048,
-        height: 1024,
-        fps: videoSettings.frameRate || 30,
-      });
+
 
     streamForWebRTC = cameraStream;
 
@@ -1435,6 +1400,7 @@ const VideoRoom = () => {
             }
 
             try {
+
               spatialRendererRef.current.setVideoSource(video);
 
               console.log("[Spatial] Remote video connected:", {
@@ -1770,6 +1736,11 @@ const VideoRoom = () => {
             ref={remoteVideoRef}
             autoPlay
             playsInline
+            onLoadedMetadata={(event) => {
+              const format = detectVideoFormat(event.currentTarget);
+              setDetectedVideoFormat(format);
+              console.log("[Video Format]", format);
+            }}
             onWaiting={() => setIsReconnecting(true)}
             onPlaying={() => setIsReconnecting(false)}
           />
@@ -1888,6 +1859,23 @@ const VideoRoom = () => {
             <button onClick={endCall}>
               <FaPhoneSlash />
             </button>
+
+            <select
+              value={videoFormat}
+              onChange={(e) => setVideoFormat(e.target.value)}
+              style={{
+                padding: "8px",
+                borderRadius: "8px",
+                background: "#222",
+                color: "white",
+                border: "1px solid #555"
+              }}
+            >
+              <option value="auto">Auto Detect</option>
+              <option value="normal">Normal Video</option>
+              <option value="360">360° Video</option>
+            </select>
+
             <button onClick={switchCamera}>
               <FaSyncAlt />
             </button>

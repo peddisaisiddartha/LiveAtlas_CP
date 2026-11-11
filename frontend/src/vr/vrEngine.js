@@ -8,6 +8,7 @@ let sphere;
 let videoTexture;
 let animationId;
 let controls;
+let resizeHandler = null;
 
 function waitForVideo(video) {
 
@@ -39,19 +40,15 @@ function waitForVideo(video) {
     });
 }
 
+
 export async function initVR(
     container,
-    videoElement
+    videoElement,
+    format = "360"
 ) {
-
     try {
-
         if (!container || !videoElement) {
-
-            console.log(
-                "❌ VR init failed: missing container/video"
-            );
-
+            console.log("VR init failed: missing container/video");
             return;
         }
 
@@ -59,31 +56,16 @@ export async function initVR(
 
         disposeVR();
 
-        console.log("🚀 Initializing VR Engine");
-
-        /* =====================================================
-           SCENE
-        ===================================================== */
-
         scene = new THREE.Scene();
-
-        /* =====================================================
-           CAMERA
-        ===================================================== */
 
         camera = new THREE.PerspectiveCamera(
             75,
-            container.clientWidth /
-            container.clientHeight,
+            container.clientWidth / container.clientHeight,
             0.1,
             2000
         );
 
         camera.position.set(0, 0, 0);
-
-        /* =====================================================
-           RENDERER
-        ===================================================== */
 
         renderer = new THREE.WebGLRenderer({
             antialias: true,
@@ -99,147 +81,93 @@ export async function initVR(
             container.clientHeight
         );
 
-        renderer.outputColorSpace =
-            THREE.SRGBColorSpace;
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
 
         container.innerHTML = "";
+        container.appendChild(renderer.domElement);
 
-        container.appendChild(
+        videoTexture = new THREE.VideoTexture(videoElement);
+        videoTexture.minFilter = THREE.LinearFilter;
+        videoTexture.magFilter = THREE.LinearFilter;
+        videoTexture.generateMipmaps = false;
+        videoTexture.colorSpace = THREE.SRGBColorSpace;
+
+        let geometry;
+
+        if (format === "360") {
+            geometry = new THREE.SphereGeometry(500, 128, 128);
+            geometry.scale(-1, 1, 1);
+        } else {
+            geometry = new THREE.PlaneGeometry(16, 9);
+            camera.position.z = 10;
+        }
+
+        const material = new THREE.MeshBasicMaterial({
+            map: videoTexture,
+            side: THREE.DoubleSide
+        });
+
+        sphere = new THREE.Mesh(geometry, material);
+        scene.add(sphere);
+
+        controls = new OrbitControls(
+            camera,
             renderer.domElement
         );
 
-        /* =====================================================
-           VIDEO TEXTURE
-        ===================================================== */
+        controls.enableZoom = format === "360";
+        controls.enablePan = false;
+        controls.rotateSpeed = -0.35;
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
 
-        videoTexture =
-            new THREE.VideoTexture(videoElement);
-
-        videoTexture.minFilter =
-            THREE.LinearFilter;
-
-        videoTexture.magFilter =
-            THREE.LinearFilter;
-
-        videoTexture.generateMipmaps = false;
-
-        videoTexture.colorSpace =
-            THREE.SRGBColorSpace;
-
-        /* =====================================================
-           SPHERE
-        ===================================================== */
-
-        const geometry =
-            new THREE.SphereGeometry(
-                500,
-                128,
-                128
-            );
-
-        geometry.scale(-1, 1, 1);
-
-        const material =
-            new THREE.MeshBasicMaterial({
-                map: videoTexture
-            });
-
-        sphere =
-            new THREE.Mesh(
-                geometry,
-                material
-            );
-
-        scene.add(sphere);
-
-        /* =====================================================
-   ORBIT CONTROLS
-===================================================== */
-
-controls = new OrbitControls(
-    camera,
-    renderer.domElement
-);
-
-controls.enableZoom = false;
-
-controls.enablePan = false;
-
-controls.rotateSpeed = -0.35;
-
-controls.enableDamping = true;
-
-controls.dampingFactor = 0.05;
-
-controls.minDistance = 0.1;
-
-controls.maxDistance = 0.1;
-
-        /* =====================================================
-           RENDER LOOP
-        ===================================================== */
+        if (format === "360") {
+            controls.minDistance = 0.1;
+            controls.maxDistance = 0.1;
+        }
 
         const animate = () => {
+            animationId = requestAnimationFrame(animate);
 
-            animationId =
-                requestAnimationFrame(animate);
-
-            if (
-                videoTexture &&
-                videoElement.readyState >= 2
-            ) {
-
+            if (videoTexture && videoElement.readyState >= 2) {
                 videoTexture.needsUpdate = true;
             }
 
-            if (controls) {
-                controls.update();
-            }
-
-            renderer.render(scene, camera);
+            controls?.update();
+            renderer?.render(scene, camera);
         };
 
         animate();
 
-        /* =====================================================
-           RESIZE
-        ===================================================== */
-
         const handleResize = () => {
-
             if (!renderer || !camera) return;
 
-            const width =
-                container.clientWidth;
+            const width = container.clientWidth;
+            const height = container.clientHeight;
 
-            const height =
-                container.clientHeight;
-
-            camera.aspect =
-                width / height;
-
+            camera.aspect = width / height;
             camera.updateProjectionMatrix();
-
             renderer.setSize(width, height);
         };
 
-        window.addEventListener(
-            "resize",
-            handleResize
-        );
+        resizeHandler = handleResize;
+        window.addEventListener("resize", resizeHandler);
 
-        console.log("✅ VR initialized successfully");
+        console.log("VR initialized:", format);
 
     } catch (err) {
-
-        console.error(
-            "❌ VR initialization error:",
-            err
-        );
+        console.error("VR initialization error:", err);
     }
 }
 
+
 export function disposeVR() {
+
+
+    if (resizeHandler) {
+        window.removeEventListener("resize", resizeHandler);
+        resizeHandler = null;
+    }
 
     if (animationId) {
 
@@ -264,10 +192,10 @@ export function disposeVR() {
 
     if (controls) {
 
-    controls.dispose();
+        controls.dispose();
 
-    controls = null;
-}
+        controls = null;
+    }
 
     if (renderer) {
 
