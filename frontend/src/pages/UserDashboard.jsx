@@ -1218,7 +1218,7 @@ const UserDashboard = () => {
                       <button
                         className="hud-join-btn"
                         onClick={() => {
-                          window.location.href = `/room/tour-${tour.id}`;
+                          window.location.assign(`/room/tour-${tour.id}`);
                         }}
                       >
                         ⟶ Join Broadcast
