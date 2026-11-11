@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { FaGlobeAmericas, FaUserCircle } from 'react-icons/fa';
-import { supabase } from '../lib/supabase';
+
 
 /* ══════════════════════════════════════════════════════════
    STYLES
@@ -735,29 +735,29 @@ const CityCanvas = () => {
     let t = 0;
 
     const handleMouseMove = (e) => {
-  mouse.x = e.clientX / window.innerWidth - 0.5;
-  mouse.y = e.clientY / window.innerHeight - 0.5;
-};
+      mouse.x = e.clientX / window.innerWidth - 0.5;
+      mouse.y = e.clientY / window.innerHeight - 0.5;
+    };
 
-window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mousemove', handleMouseMove);
 
     const resize = () => {
 
-  W = window.innerWidth;
-  H = window.innerHeight;
+      W = window.innerWidth;
+      H = window.innerHeight;
 
-  const dpr = Math.min(
-    window.devicePixelRatio || 1,
-    1.5
-  );
+      const dpr = Math.min(
+        window.devicePixelRatio || 1,
+        1.5
+      );
 
-  canvas.width = W * dpr;
-  canvas.height = H * dpr;
+      canvas.width = W * dpr;
+      canvas.height = H * dpr;
 
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-  ctx.scale(dpr, dpr);
-};
+      ctx.scale(dpr, dpr);
+    };
     resize();
     window.addEventListener('resize', resize);
 
@@ -807,7 +807,7 @@ window.addEventListener('mousemove', handleMouseMove);
 
     let isTabVisible = true;
 
-      document.addEventListener("visibilitychange", () => {
+    document.addEventListener("visibilitychange", () => {
       isTabVisible = document.visibilityState === "visible";
     });
 
@@ -817,7 +817,7 @@ window.addEventListener('mousemove', handleMouseMove);
         return;
       }
 
-t += 0.012;
+      t += 0.012;
       ctx.clearRect(0, 0, W, H);
 
       // Sky gradient
@@ -955,20 +955,20 @@ t += 0.012;
 
     draw();
 
-return () => {
-  cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
 
-  window.removeEventListener('resize', resize);
+      window.removeEventListener('resize', resize);
 
-  window.removeEventListener(
-    'mousemove',
-    handleMouseMove
-  );
-};
+      window.removeEventListener(
+        'mousemove',
+        handleMouseMove
+      );
+    };
   }, []);
 
   return <canvas ref={ref} id="city-canvas" />;
-};  
+};
 
 /* ══════════════════════════════════════════════════════════
    TILT POLAROID WRAPPER
@@ -1040,12 +1040,12 @@ const TickerBar = () => {
 ══════════════════════════════════════════════════════════ */
 const CornerSVG = () => (
   <svg viewBox="0 0 80 80" fill="none">
-    <path d="M4 40 L4 4 L40 4" stroke="rgba(0,255,231,0.4)" strokeWidth="1.5" strokeLinecap="round"/>
-    <path d="M4 4 L14 4" stroke="rgba(0,255,231,0.8)" strokeWidth="1.5"/>
-    <path d="M4 4 L4 14" stroke="rgba(0,255,231,0.8)" strokeWidth="1.5"/>
-    <circle cx="4" cy="4" r="2" fill="rgba(0,255,231,0.6)"/>
-    <circle cx="40" cy="4" r="1.5" fill="rgba(0,255,231,0.3)"/>
-    <circle cx="4" cy="40" r="1.5" fill="rgba(0,255,231,0.3)"/>
+    <path d="M4 40 L4 4 L40 4" stroke="rgba(0,255,231,0.4)" strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M4 4 L14 4" stroke="rgba(0,255,231,0.8)" strokeWidth="1.5" />
+    <path d="M4 4 L4 14" stroke="rgba(0,255,231,0.8)" strokeWidth="1.5" />
+    <circle cx="4" cy="4" r="2" fill="rgba(0,255,231,0.6)" />
+    <circle cx="40" cy="4" r="1.5" fill="rgba(0,255,231,0.3)" />
+    <circle cx="4" cy="40" r="1.5" fill="rgba(0,255,231,0.3)" />
   </svg>
 );
 
@@ -1075,7 +1075,7 @@ const UserDashboard = () => {
       <div className="hud-scanlines" />
 
       {/* HUD corners */}
-      {['tl','tr','bl','br'].map(p => (
+      {['tl', 'tr', 'bl', 'br'].map(p => (
         <div key={p} className={`hud-corner ${p}`}><CornerSVG /></div>
       ))}
 
@@ -1214,22 +1214,11 @@ const UserDashboard = () => {
                       </div>
                     </div>
 
-                    {/* ORIGINAL onClick — zero changes */}
                     <div className="hud-join-wrap">
                       <button
                         className="hud-join-btn"
-                        onClick={async () => {
-                          try {
-                            const { error } = await supabase
-                              .from("session_intents")
-                              .insert([{ room_id: `tour-${tour.id}`, intent: intent }]);
-                            if (error) throw error;
-                            console.log("Intent Saved:", intent);
-                            window.location.href = `/room/tour-${tour.id}`;
-                          } catch (err) {
-                            console.error("Join failed:", err);
-                            alert("Something went wrong. Try again.");
-                          }
+                        onClick={() => {
+                          window.location.href = `/room/tour-${tour.id}`;
                         }}
                       >
                         ⟶ Join Broadcast
