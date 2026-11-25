@@ -196,6 +196,8 @@ const VideoRoom = () => {
   const remoteVideoRef = useRef(null);
   const test360VideoRef = useRef(null);
   const test360ObjectUrlRef = useRef(null);
+  const active360CaptureStreamRef = useRef(null);
+  const active360VideoTrackRef = useRef(null);
   const vrContainerRef = useRef(null);
   const ws = useRef(null);
   const peerConnection = useRef(null);
@@ -230,6 +232,46 @@ const VideoRoom = () => {
     }
 
     return "normal";
+  };
+
+  const connectRemoteSpatialVideo = () => {
+    const video = remoteVideoRef.current;
+    const renderer = spatialRendererRef.current;
+
+    if (!video || !renderer) return;
+
+    if (
+      video.readyState < HTMLMediaElement.HAVE_METADATA ||
+      !video.videoWidth ||
+      !video.videoHeight
+    ) {
+      return;
+    }
+
+    const declaredFormat = remoteVideoFormatRef.current;
+    const detectedFormat = detectVideoFormat(video);
+
+    setDetectedVideoFormat(detectedFormat);
+
+    const renderMode =
+      declaredFormat === "360" && detectedFormat === "360"
+        ? "360"
+        : "spatial";
+
+    try {
+      renderer.setRenderMode(renderMode);
+      renderer.setVideoSource(video);
+
+      console.log("[Spatial] Remote video connected:", {
+        declaredFormat,
+        detectedFormat,
+        width: video.videoWidth,
+        height: video.videoHeight,
+        renderMode
+      });
+    } catch (error) {
+      console.error("[Spatial] Remote video connection failed:", error);
+    }
   };
 
 
@@ -346,6 +388,9 @@ const VideoRoom = () => {
 
       const videoTrack = captureStream.getVideoTracks()[0];
 
+      active360CaptureStreamRef.current = captureStream;
+      active360VideoTrackRef.current = videoTrack;
+
       if (!videoTrack) {
         throw new Error("Could not capture the 360 video track.");
       }
@@ -408,7 +453,7 @@ const VideoRoom = () => {
   const badNetworkSinceRef = useRef(null);
   const lastAutomaticIceRestartRef = useRef(0);
 
-  // STEP 6: Cleanup temporary 360 video resources on unmount
+  // Cleanup temporary 360 video resources on unmount
   useEffect(() => {
     return () => {
       const video = test360VideoRef.current;
@@ -421,6 +466,19 @@ const VideoRoom = () => {
 
         video.removeAttribute("src");
         video.load();
+      }
+
+      if (active360CaptureStreamRef.current) {
+        active360CaptureStreamRef.current
+          .getTracks()
+          .forEach((track) => track.stop());
+
+        active360CaptureStreamRef.current = null;
+      }
+
+      if (active360VideoTrackRef.current) {
+        active360VideoTrackRef.current.stop();
+        active360VideoTrackRef.current = null;
       }
 
       if (test360ObjectUrlRef.current) {
@@ -661,7 +719,39 @@ const VideoRoom = () => {
           );
       }
 
+      if (active360VideoTrackRef.current) {
+        active360VideoTrackRef.current.stop();
+        active360VideoTrackRef.current = null;
+      }
+
+      if (active360CaptureStreamRef.current) {
+        active360CaptureStreamRef.current
+          .getTracks()
+          .forEach((track) => track.stop());
+
+        active360CaptureStreamRef.current = null;
+      }
+
+      if (test360VideoRef.current) {
+        test360VideoRef.current.pause();
+      }
+
       setCameraFacing(newFacing);
+
+      remoteVideoFormatRef.current = "normal";
+
+      if (ws.current?.readyState === WebSocket.OPEN) {
+        ws.current.send(
+          JSON.stringify({
+            type: "video_format",
+            format: "normal",
+          })
+        );
+
+        console.log("[Video Format] Sent declaration: normal");
+      } else {
+        console.warn("[Video Format] Could not send normal declaration.");
+      }
 
       console.log(
         "[360 Switch] Genuine equirectangular camera switched:",
@@ -1617,32 +1707,14 @@ const VideoRoom = () => {
         if (spatialRendererRef.current) {
           const video = remoteVideoRef.current;
 
-          const connectSpatialVideo = () => {
-            if (!video.videoWidth || !video.videoHeight) {
-              console.warn("[Spatial] Video dimensions unavailable");
-              return;
-            }
-
-            try {
-
-              spatialRendererRef.current.setVideoSource(video);
-
-              console.log("[Spatial] Remote video connected:", {
-                width: video.videoWidth,
-                height: video.videoHeight,
-                mode: spatialRendererRef.current.renderMode
-              });
-            } catch (error) {
-              console.error("[Spatial] Video connection failed:", error);
-            }
-          };
-
           if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
-            connectSpatialVideo();
+            connectRemoteSpatialVideo();
           } else {
-            video.addEventListener("loadedmetadata", connectSpatialVideo, {
-              once: true
-            });
+            video.addEventListener(
+              "loadedmetadata",
+              connectRemoteSpatialVideo,
+              { once: true }
+            );
           }
         }
 
@@ -1718,18 +1790,23 @@ const VideoRoom = () => {
       if (format === "normal" || format === "360") {
         remoteVideoFormatRef.current = format;
 
+        console.log("[Video Format] Sender declaration received:", {
+          declared: format
+        });
+
         const video = remoteVideoRef.current;
 
-        const detectedFormat = detectVideoFormat(video);
-
-        setDetectedVideoFormat(detectedFormat);
-
-        console.log("[Video Format] Sender declaration received:", {
-          declared: format,
-          detected: detectedFormat,
-          width: video?.videoWidth || 0,
-          height: video?.videoHeight || 0,
-        });
+        if (video) {
+          if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
+            connectRemoteSpatialVideo();
+          } else {
+            video.addEventListener(
+              "loadedmetadata",
+              connectRemoteSpatialVideo,
+              { once: true }
+            );
+          }
+        }
       }
 
       return;

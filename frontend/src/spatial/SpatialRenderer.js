@@ -12,6 +12,9 @@ export class SpatialRenderer {
     this.videoSource = null;
     this.lastVideoTime = -1;
 
+    this.videoTextureInitialized = false;
+    this.videoTextureWidth = 0;
+    this.videoTextureHeight = 0;
 
 
     this.depthEngine = null;
@@ -655,6 +658,7 @@ export class SpatialRenderer {
     }
 
     const gl = this.gl;
+    const video = this.videoSource;
 
     if (this.sceneTexture) {
       gl.deleteTexture(this.sceneTexture);
@@ -669,14 +673,36 @@ export class SpatialRenderer {
 
     gl.bindTexture(gl.TEXTURE_2D, this.sceneTexture);
 
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(
+      gl.TEXTURE_2D,
+      gl.TEXTURE_WRAP_S,
+      gl.CLAMP_TO_EDGE
+    );
+
+    gl.texParameteri(
+      gl.TEXTURE_2D,
+      gl.TEXTURE_WRAP_T,
+      gl.CLAMP_TO_EDGE
+    );
+
+    gl.texParameteri(
+      gl.TEXTURE_2D,
+      gl.TEXTURE_MIN_FILTER,
+      gl.LINEAR
+    );
+
+    gl.texParameteri(
+      gl.TEXTURE_2D,
+      gl.TEXTURE_MAG_FILTER,
+      gl.LINEAR
+    );
 
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
 
-    const video = this.videoSource;
+    this.videoTextureInitialized = false;
+    this.videoTextureWidth = 0;
+    this.videoTextureHeight = 0;
+    this.lastVideoTime = -1;
 
     if (
       video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
@@ -693,9 +719,16 @@ export class SpatialRenderer {
           video
         );
 
+        this.videoTextureInitialized = true;
+        this.videoTextureWidth = video.videoWidth;
+        this.videoTextureHeight = video.videoHeight;
         this.lastVideoTime = video.currentTime;
 
-        console.log("[Spatial] Initial video frame uploaded");
+        console.log("[Spatial] Initial video frame uploaded:", {
+          width: video.videoWidth,
+          height: video.videoHeight
+        });
+
       } catch (error) {
         console.error("[Spatial] Initial video upload failed:", error);
       }
@@ -717,16 +750,12 @@ export class SpatialRenderer {
       return;
     }
 
-    if (!this.videoSource.videoWidth || !this.videoSource.videoHeight) {
-      console.warn("[Spatial] Video has no dimensions yet");
-      return;
-    }
-
     const video = this.videoSource;
 
     if (
-      video.readyState <
-      HTMLMediaElement.HAVE_CURRENT_DATA
+      video.videoWidth <= 0 ||
+      video.videoHeight <= 0 ||
+      video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA
     ) {
       return;
     }
@@ -742,37 +771,69 @@ export class SpatialRenderer {
 
     gl.bindTexture(
       gl.TEXTURE_2D,
-      this.sceneTexture,
+      this.sceneTexture
     );
 
     gl.pixelStorei(
       gl.UNPACK_FLIP_Y_WEBGL,
-      false,
+      false
     );
 
-    gl.texImage2D(
-      gl.TEXTURE_2D,
-      0,
-      gl.RGBA,
-      gl.RGBA,
-      gl.UNSIGNED_BYTE,
-      video,
-    );
+    const dimensionsChanged =
+      video.videoWidth !== this.videoTextureWidth ||
+      video.videoHeight !== this.videoTextureHeight;
 
-    gl.bindTexture(
-      gl.TEXTURE_2D,
-      null,
-    );
+    try {
+      if (
+        !this.videoTextureInitialized ||
+        dimensionsChanged
+      ) {
+        gl.texImage2D(
+          gl.TEXTURE_2D,
+          0,
+          gl.RGBA,
+          gl.RGBA,
+          gl.UNSIGNED_BYTE,
+          video
+        );
 
-    this.lastVideoTime = video.currentTime;
+        this.videoTextureInitialized = true;
+        this.videoTextureWidth = video.videoWidth;
+        this.videoTextureHeight = video.videoHeight;
 
+      } else {
+        gl.texSubImage2D(
+          gl.TEXTURE_2D,
+          0,
+          0,
+          0,
+          gl.RGBA,
+          gl.UNSIGNED_BYTE,
+          video
+        );
+      }
 
-    if (!this._videoUploadLogged) {
-      console.log("[Spatial] First XR video frame uploaded:", {
-        width: video.videoWidth,
-        height: video.videoHeight
-      });
-      this._videoUploadLogged = true;
+      this.lastVideoTime = video.currentTime;
+
+      if (!this._videoUploadLogged) {
+        console.log("[Spatial] First XR video frame uploaded:", {
+          width: video.videoWidth,
+          height: video.videoHeight
+        });
+
+        this._videoUploadLogged = true;
+      }
+
+    } catch (error) {
+      console.error("[Spatial] Video texture update failed:", error);
+
+      this.videoTextureInitialized = false;
+
+    } finally {
+      gl.bindTexture(
+        gl.TEXTURE_2D,
+        null
+      );
     }
   }
 
@@ -1385,6 +1446,9 @@ export class SpatialRenderer {
     this.uvBuffer = null;
 
     this.sceneTexture = null;
+    this.videoTextureInitialized = false;
+    this.videoTextureWidth = 0;
+    this.videoTextureHeight = 0;
     this.depthCanvas = null;
     this.depthDisplacedVertices = null;
     this.depthPreviousVertices = null;
