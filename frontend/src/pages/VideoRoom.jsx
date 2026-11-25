@@ -199,18 +199,32 @@ const VideoRoom = () => {
   const iceRestartTimerRef = useRef(null);
   const communicationStatusTimerRef = useRef(null);
   const browserControllerRef = useRef(null);
+  const remoteVideoFormatRef = useRef("normal");
 
   const detectVideoFormat = (video) => {
     if (!video?.videoWidth || !video?.videoHeight) {
       return "normal";
     }
 
-    const ratio = video.videoWidth / video.videoHeight;
+    const declaredFormat = remoteVideoFormatRef.current;
 
-    // Only identify a 2:1 source as a 360 candidate.
-    return Math.abs(ratio - 2) <= 0.05
-      ? "360"
-      : "normal";
+    if (declaredFormat === "360") {
+      const ratio = video.videoWidth / video.videoHeight;
+
+      // A 360 equirectangular video must have a 2:1 aspect ratio.
+      if (Math.abs(ratio - 2) <= 0.05) {
+        return "360";
+      }
+
+      console.warn(
+        "[Video Format] Sender declared 360, but dimensions are invalid:",
+        `${video.videoWidth}x${video.videoHeight}`
+      );
+
+      return "normal";
+    }
+
+    return "normal";
   };
 
   const activeVideoFormat =
@@ -874,6 +888,19 @@ const VideoRoom = () => {
 
     streamForWebRTC = cameraStream;
 
+    // Declare the outgoing video format to the remote participant.
+    // Current MVP uses a normal mobile camera.
+    if (ws.current?.readyState === WebSocket.OPEN) {
+      ws.current.send(
+        JSON.stringify({
+          type: "video_format",
+          format: "normal",
+        })
+      );
+
+      console.log("[Video Format] Sent declaration: normal");
+    }
+
     if (localVideoRef.current) {
       localVideoRef.current.srcObject =
         streamForWebRTC;
@@ -1487,6 +1514,29 @@ const VideoRoom = () => {
   /* ── ORIGINAL handleSignalMessage (changed) ── */
   const handleSignalMessage = async (data) => {
     console.log("Signal received:", data.type);
+
+    if (data.type === "video_format") {
+      const format = data.format;
+
+      if (format === "normal" || format === "360") {
+        remoteVideoFormatRef.current = format;
+
+        const video = remoteVideoRef.current;
+
+        const detectedFormat = detectVideoFormat(video);
+
+        setDetectedVideoFormat(detectedFormat);
+
+        console.log("[Video Format] Sender declaration received:", {
+          declared: format,
+          detected: detectedFormat,
+          width: video?.videoWidth || 0,
+          height: video?.videoHeight || 0,
+        });
+      }
+
+      return;
+    }
 
     if (!peerConnection.current) return;
 
