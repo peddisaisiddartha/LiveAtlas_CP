@@ -175,6 +175,9 @@ const VideoRoom = () => {
   const [videoFormat, setVideoFormat] = useState("auto");
   const [detectedVideoFormat, setDetectedVideoFormat] = useState("normal");
 
+  const [is360FileReady, setIs360FileReady] = useState(false);
+  const [file360Name, setFile360Name] = useState("");
+
   const [cameraFacing, setCameraFacing] = useState("environment");
   const [connectionQuality, setConnectionQuality] = useState("good");
   const [micLevel, setMicLevel] = useState(0);
@@ -191,6 +194,8 @@ const VideoRoom = () => {
   /* ── ORIGINAL REFS ── */
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
+  const test360VideoRef = useRef(null);
+  const test360ObjectUrlRef = useRef(null);
   const vrContainerRef = useRef(null);
   const ws = useRef(null);
   const peerConnection = useRef(null);
@@ -227,11 +232,203 @@ const VideoRoom = () => {
     return "normal";
   };
 
+
+  const handle360FileSelection = (event) => {
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    if (!file.type.startsWith("video/")) {
+      console.error("[360 Test] Selected file is not a video.");
+      event.target.value = "";
+      return;
+    }
+
+    const video = test360VideoRef.current;
+
+    if (!video) {
+      console.error("[360 Test] Test video element is unavailable.");
+      event.target.value = "";
+      return;
+    }
+
+    if (test360ObjectUrlRef.current) {
+      URL.revokeObjectURL(test360ObjectUrlRef.current);
+      test360ObjectUrlRef.current = null;
+    }
+
+    setIs360FileReady(false);
+    setFile360Name("");
+
+    const objectUrl = URL.createObjectURL(file);
+    test360ObjectUrlRef.current = objectUrl;
+
+    video.onloadedmetadata = async () => {
+      const width = video.videoWidth;
+      const height = video.videoHeight;
+      const ratio = width / height;
+
+      console.log("[360 Test] Selected video metadata:", {
+        name: file.name,
+        width,
+        height,
+        aspectRatio: ratio,
+        duration: video.duration,
+      });
+
+      if (
+        !width ||
+        !height ||
+        Math.abs(ratio - 2) > 0.05
+      ) {
+        console.error(
+          "[360 Test] Invalid format. A 2:1 equirectangular video is required."
+        );
+
+        video.pause();
+        video.removeAttribute("src");
+        video.load();
+
+        URL.revokeObjectURL(objectUrl);
+        test360ObjectUrlRef.current = null;
+
+        event.target.value = "";
+        return;
+      }
+
+      try {
+        video.currentTime = 0;
+        await video.play();
+
+        setFile360Name(file.name);
+        setIs360FileReady(true);
+
+        console.log("[360 Test] Equirectangular MP4 validated.");
+      } catch (error) {
+        console.error("[360 Test] Video playback failed:", error);
+      }
+    };
+
+    video.onerror = () => {
+      console.error("[360 Test] Could not load the selected video.");
+      setIs360FileReady(false);
+    };
+
+    video.src = objectUrl;
+    video.load();
+  };
+
+
+  const handleUse360Video = async () => {
+    const video = test360VideoRef.current;
+
+    if (!is360FileReady || !video) {
+      console.error("[360 Source] No validated 360 video is ready.");
+      return;
+    }
+
+    if (!peerConnection.current) {
+      console.error("[360 Source] WebRTC connection is not ready.");
+      return;
+    }
+
+    try {
+      if (video.paused) {
+        await video.play();
+      }
+
+      const captureStream =
+        video.captureStream?.() || video.mozCaptureStream?.();
+
+      if (!captureStream) {
+        throw new Error("Video captureStream() is not supported.");
+      }
+
+      const videoTrack = captureStream.getVideoTracks()[0];
+
+      if (!videoTrack) {
+        throw new Error("Could not capture the 360 video track.");
+      }
+
+      const sender = peerConnection.current
+        .getSenders()
+        .find((s) => s.track?.kind === "video");
+
+      if (!sender) {
+        throw new Error("Existing WebRTC video sender was not found.");
+      }
+
+      const oldStream = localVideoRef.current?.srcObject;
+      const audioTracks = oldStream?.getAudioTracks() || [];
+
+      await sender.replaceTrack(videoTrack);
+
+      const switchedStream = new MediaStream([
+        videoTrack,
+        ...audioTracks,
+      ]);
+
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = switchedStream;
+      }
+
+      oldStream?.getVideoTracks().forEach((track) => {
+        if (track !== videoTrack) track.stop();
+      });
+
+      videoTrack.contentHint = "detail";
+
+      if (ws.current?.readyState === WebSocket.OPEN) {
+        ws.current.send(
+          JSON.stringify({
+            type: "video_format",
+            format: "360",
+          })
+        );
+      } else {
+        console.warn("[Video Format] Could not send 360 declaration.");
+      }
+
+      setIsVideoOn(true);
+
+      console.log("[360 Source] WebRTC video track replaced:", {
+        width: video.videoWidth,
+        height: video.videoHeight,
+        aspectRatio: video.videoWidth / video.videoHeight,
+      });
+    } catch (error) {
+      console.error("[360 Source] Switching failed:", error);
+    }
+  };
+
+
   const activeVideoFormat =
     videoFormat === "auto" ? detectedVideoFormat : videoFormat;
 
   const badNetworkSinceRef = useRef(null);
   const lastAutomaticIceRestartRef = useRef(0);
+
+  // STEP 6: Cleanup temporary 360 video resources on unmount
+  useEffect(() => {
+    return () => {
+      const video = test360VideoRef.current;
+
+      if (video) {
+        video.pause();
+
+        video.onloadedmetadata = null;
+        video.onerror = null;
+
+        video.removeAttribute("src");
+        video.load();
+      }
+
+      if (test360ObjectUrlRef.current) {
+        URL.revokeObjectURL(test360ObjectUrlRef.current);
+        test360ObjectUrlRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!spatialRendererRef.current) {
@@ -1781,6 +1978,24 @@ const VideoRoom = () => {
           </div>
         )}
 
+
+        <input
+          type="file"
+          accept="video/*"
+          id="liveatlas-360-file"
+          style={{ display: "none" }}
+          onChange={handle360FileSelection}
+        />
+
+        <video
+          ref={test360VideoRef}
+          muted
+          playsInline
+          loop
+          preload="metadata"
+          style={{ display: "none" }}
+        />
+
         <div className="video-wrapper remote">
           <video
             ref={remoteVideoRef}
@@ -1925,6 +2140,38 @@ const VideoRoom = () => {
               <option value="normal">Normal Video</option>
               <option value="360">360° Video</option>
             </select>
+
+            <label
+              htmlFor="liveatlas-360-file"
+              style={{
+                padding: "8px 12px",
+                borderRadius: "8px",
+                background: "#222",
+                color: "white",
+                border: "1px solid #555",
+                cursor: "pointer",
+                fontSize: "13px",
+              }}
+            >
+              Select 360° MP4
+            </label>
+
+            {is360FileReady && (
+              <button
+                onClick={handleUse360Video}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: "8px",
+                  background: "#174b36",
+                  color: "white",
+                  border: "1px solid #2b8a62",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                }}
+              >
+                Use 360° Video
+              </button>
+            )}
 
             <button onClick={switchCamera}>
               <FaSyncAlt />
