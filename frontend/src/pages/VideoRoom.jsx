@@ -178,6 +178,9 @@ const VideoRoom = () => {
   const [is360FileReady, setIs360FileReady] = useState(false);
   const [file360Name, setFile360Name] = useState("");
 
+  const [is360Active, setIs360Active] = useState(false);
+  const [isReturningToCamera, setIsReturningToCamera] = useState(false);
+
   const [cameraFacing, setCameraFacing] = useState("environment");
   const [connectionQuality, setConnectionQuality] = useState("good");
   const [micLevel, setMicLevel] = useState(0);
@@ -198,6 +201,7 @@ const VideoRoom = () => {
   const test360ObjectUrlRef = useRef(null);
   const active360CaptureStreamRef = useRef(null);
   const active360VideoTrackRef = useRef(null);
+  const isActivating360Ref = useRef(false);
   const vrContainerRef = useRef(null);
   const ws = useRef(null);
   const peerConnection = useRef(null);
@@ -321,10 +325,12 @@ const VideoRoom = () => {
       if (
         !width ||
         !height ||
-        Math.abs(ratio - 2) > 0.05
+        Math.abs(ratio - 2) > 0.05 ||
+        width > 960 ||
+        height > 480
       ) {
         console.error(
-          "[360 Test] Invalid format. A 2:1 equirectangular video is required."
+          "[360 Test] Invalid video. Use a genuine 2:1 equirectangular MP4 at 960x480 or lower."
         );
 
         video.pause();
@@ -338,17 +344,17 @@ const VideoRoom = () => {
         return;
       }
 
-      try {
-        video.currentTime = 0;
-        await video.play();
+      video.pause();
+      video.currentTime = 0;
 
-        setFile360Name(file.name);
-        setIs360FileReady(true);
+      setFile360Name(file.name);
+      setIs360FileReady(true);
 
-        console.log("[360 Test] Equirectangular MP4 validated.");
-      } catch (error) {
-        console.error("[360 Test] Video playback failed:", error);
-      }
+      console.log("[360 Test] Equirectangular MP4 validated and ready:", {
+        width,
+        height,
+        duration: video.duration
+      });
     };
 
     video.onerror = () => {
@@ -362,6 +368,8 @@ const VideoRoom = () => {
 
 
   const handleUse360Video = async () => {
+    if (isActivating360Ref.current || is360Active) return;
+
     const video = test360VideoRef.current;
 
     if (!is360FileReady || !video) {
@@ -374,27 +382,12 @@ const VideoRoom = () => {
       return;
     }
 
+    isActivating360Ref.current = true;
+
+    let captureStream = null;
+    let trackInstalled = false;
+
     try {
-      if (video.paused) {
-        await video.play();
-      }
-
-      const captureStream =
-        video.captureStream?.() || video.mozCaptureStream?.();
-
-      if (!captureStream) {
-        throw new Error("Video captureStream() is not supported.");
-      }
-
-      const videoTrack = captureStream.getVideoTracks()[0];
-
-      active360CaptureStreamRef.current = captureStream;
-      active360VideoTrackRef.current = videoTrack;
-
-      if (!videoTrack) {
-        throw new Error("Could not capture the 360 video track.");
-      }
-
       const sender = peerConnection.current
         .getSenders()
         .find((s) => s.track?.kind === "video");
@@ -403,15 +396,58 @@ const VideoRoom = () => {
         throw new Error("Existing WebRTC video sender was not found.");
       }
 
+      captureStream =
+        video.captureStream?.() || video.mozCaptureStream?.();
+
+      if (!captureStream) {
+        throw new Error(
+          "This browser does not support video capture. Return to normal camera mode."
+        );
+      }
+
+      if (video.paused) {
+        await video.play();
+      }
+
+      const videoTrack = captureStream.getVideoTracks()[0];
+
+      if (!videoTrack) {
+        throw new Error("Could not capture the 360 video track.");
+      }
+
+      // Limit the outgoing 360 stream to mobile-friendly settings.
+      const parameters = sender.getParameters();
+
+      if (parameters.encodings?.length) {
+        parameters.encodings[0].maxBitrate = 1500000;
+        parameters.encodings[0].maxFramerate = 15;
+        parameters.encodings[0].scaleResolutionDownBy = 1;
+
+        try {
+          await sender.setParameters(parameters);
+        } catch (error) {
+          console.warn(
+            "[360 Source] Could not apply sender limits:",
+            error
+          );
+        }
+      }
+
       const oldStream = localVideoRef.current?.srcObject;
       const audioTracks = oldStream?.getAudioTracks() || [];
 
-      await sender.replaceTrack(videoTrack);
-
       const switchedStream = new MediaStream([
         videoTrack,
-        ...audioTracks,
+        ...audioTracks
       ]);
+
+      await sender.replaceTrack(videoTrack);
+      trackInstalled = true;
+
+      active360CaptureStreamRef.current = captureStream;
+      active360VideoTrackRef.current = videoTrack;
+
+      setIs360Active(true);
 
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = switchedStream;
@@ -423,26 +459,176 @@ const VideoRoom = () => {
 
       videoTrack.contentHint = "detail";
 
-      if (ws.current?.readyState === WebSocket.OPEN) {
-        ws.current.send(
-          JSON.stringify({
-            type: "video_format",
-            format: "360",
-          })
-        );
-      } else {
-        console.warn("[Video Format] Could not send 360 declaration.");
+      try {
+        if (ws.current?.readyState === WebSocket.OPEN) {
+          ws.current.send(
+            JSON.stringify({
+              type: "video_format",
+              format: "360"
+            })
+          );
+        } else {
+          console.warn("[Video Format] WebSocket unavailable for 360 declaration.");
+        }
+      } catch (error) {
+        console.error("[Video Format] 360 declaration failed:", error);
       }
 
       setIsVideoOn(true);
 
-      console.log("[360 Source] WebRTC video track replaced:", {
+      console.log("[360 Source] Mobile-safe 360 stream activated:", {
         width: video.videoWidth,
         height: video.videoHeight,
-        aspectRatio: video.videoWidth / video.videoHeight,
+        frameRateLimit: 15,
+        bitrateLimit: 1500000
       });
+
     } catch (error) {
       console.error("[360 Source] Switching failed:", error);
+
+      if (trackInstalled) {
+        console.warn(
+          "[360 Recovery] Activation failed after track replacement. Restoring camera."
+        );
+
+        await handleReturnToCamera();
+      } else {
+        captureStream?.getTracks().forEach((track) => track.stop());
+
+        if (video) {
+          video.pause();
+        }
+      }
+
+    } finally {
+      isActivating360Ref.current = false;
+    }
+  };
+
+  const handleReturnToCamera = async () => {
+    if (isReturningToCamera) return;
+
+    setIsReturningToCamera(true);
+
+    let cameraStream = null;
+    let cameraTrackInstalled = false;
+
+    try {
+      const oldStream = localVideoRef.current?.srcObject;
+      const audioTracks = oldStream?.getAudioTracks() || [];
+
+      const sender = peerConnection.current
+        ?.getSenders()
+        .find((s) => s.track?.kind === "video");
+
+      if (!sender) {
+        throw new Error("WebRTC video sender not found.");
+      }
+
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: Q.VIDEO_W_IDEAL, max: Q.VIDEO_W_MAX },
+          height: { ideal: Q.VIDEO_H_IDEAL, max: Q.VIDEO_H_MAX },
+          frameRate: {
+            ideal: Q.FRAMERATE_IDEAL,
+            max: Q.FRAMERATE_MAX
+          },
+          facingMode: { ideal: cameraFacing }
+        },
+        audio: false
+      });
+
+      const cameraTrack = cameraStream.getVideoTracks()[0];
+
+      if (!cameraTrack) {
+        throw new Error("Camera did not provide a video track.");
+      }
+
+      const parameters = sender.getParameters();
+
+      if (parameters.encodings?.length) {
+        parameters.encodings[0].maxBitrate = 3800000;
+        parameters.encodings[0].maxFramerate = 30;
+        parameters.encodings[0].scaleResolutionDownBy = 1;
+
+        try {
+          await sender.setParameters(parameters);
+        } catch (error) {
+          console.warn(
+            "[360 Recovery] Could not restore sender limits:",
+            error
+          );
+        }
+      }
+
+      await sender.replaceTrack(cameraTrack);
+
+      cameraTrackInstalled = true;
+
+      const restoredStream = new MediaStream([
+        cameraTrack,
+        ...audioTracks
+      ]);
+
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = restoredStream;
+
+        await localVideoRef.current.play().catch(() => { });
+      }
+
+      oldStream?.getVideoTracks().forEach((track) => {
+        if (track !== cameraTrack) track.stop();
+      });
+
+      if (active360CaptureStreamRef.current) {
+        active360CaptureStreamRef.current
+          .getTracks()
+          .forEach((track) => track.stop());
+
+        active360CaptureStreamRef.current = null;
+      }
+
+      if (active360VideoTrackRef.current) {
+        active360VideoTrackRef.current.stop();
+        active360VideoTrackRef.current = null;
+      }
+
+      if (test360VideoRef.current) {
+        test360VideoRef.current.pause();
+      }
+
+      try {
+        if (ws.current?.readyState === WebSocket.OPEN) {
+          ws.current.send(
+            JSON.stringify({
+              type: "video_format",
+              format: "normal"
+            })
+          );
+        } else {
+          console.warn("[360 Recovery] WebSocket unavailable for normal declaration.");
+        }
+      } catch (error) {
+        console.error("[360 Recovery] Normal declaration failed:", error);
+      }
+
+      setIsVideoOn(true);
+      setIs360Active(false);
+
+      console.log("[360 Recovery] Normal camera restored:", {
+        width: cameraTrack.getSettings().width,
+        height: cameraTrack.getSettings().height
+      });
+
+    } catch (error) {
+      if (!cameraTrackInstalled) {
+        cameraStream?.getTracks().forEach((track) => track.stop());
+      }
+
+      console.error("[360 Recovery] Could not restore camera:", error);
+
+    } finally {
+      setIsReturningToCamera(false);
     }
   };
 
@@ -617,6 +803,8 @@ const VideoRoom = () => {
 
 
   const switchCamera = async () => {
+    if (isReturningToCamera || isActivating360Ref.current) return;
+
     const newFacing =
       cameraFacing === "environment"
         ? "user"
@@ -629,15 +817,21 @@ const VideoRoom = () => {
       const newStream =
         await navigator.mediaDevices.getUserMedia({
           video: {
-            width: { ideal: 3840 },
-            height: { ideal: 1920 },
+            width: {
+              ideal: Q.VIDEO_W_IDEAL,
+              max: Q.VIDEO_W_MAX
+            },
+            height: {
+              ideal: Q.VIDEO_H_IDEAL,
+              max: Q.VIDEO_H_MAX
+            },
             frameRate: {
-              ideal: 30,
-              max: 30,
+              ideal: Q.FRAMERATE_IDEAL,
+              max: Q.FRAMERATE_MAX
             },
             facingMode: {
-              ideal: newFacing,
-            },
+              ideal: newFacing
+            }
           },
           audio: false,
         });
@@ -701,9 +895,24 @@ const VideoRoom = () => {
           );
 
       if (sender) {
-        await sender.replaceTrack(
-          videoTrack
-        );
+        const parameters = sender.getParameters();
+
+        if (parameters.encodings?.length) {
+          parameters.encodings[0].maxBitrate = 3800000;
+          parameters.encodings[0].maxFramerate = 30;
+          parameters.encodings[0].scaleResolutionDownBy = 1;
+
+          try {
+            await sender.setParameters(parameters);
+          } catch (error) {
+            console.warn(
+              "[360 Switch] Could not restore normal encoder settings:",
+              error
+            );
+          }
+        }
+
+        await sender.replaceTrack(videoTrack);
       }
 
       if (localVideoRef.current) {
@@ -738,19 +947,28 @@ const VideoRoom = () => {
 
       setCameraFacing(newFacing);
 
-      remoteVideoFormatRef.current = "normal";
+      setIs360Active(false);
 
-      if (ws.current?.readyState === WebSocket.OPEN) {
-        ws.current.send(
-          JSON.stringify({
-            type: "video_format",
-            format: "normal",
-          })
-        );
+      if (test360VideoRef.current) {
+        test360VideoRef.current.pause();
+      }
 
-        console.log("[Video Format] Sent declaration: normal");
-      } else {
-        console.warn("[Video Format] Could not send normal declaration.");
+
+      try {
+        if (ws.current?.readyState === WebSocket.OPEN) {
+          ws.current.send(
+            JSON.stringify({
+              type: "video_format",
+              format: "normal",
+            })
+          );
+
+          console.log("[Video Format] Sent declaration: normal");
+        } else {
+          console.warn("[Video Format] Could not send normal declaration.");
+        }
+      } catch (error) {
+        console.error("[Video Format] Normal declaration failed:", error);
       }
 
       console.log(
@@ -2264,6 +2482,32 @@ const VideoRoom = () => {
           {isFullScreen ? <FaCompress /> : <FaExpand />}
         </button>
       </div>
+
+      {is360Active && (
+        <button
+          onClick={handleReturnToCamera}
+          disabled={isReturningToCamera}
+          style={{
+            position: "fixed",
+            top: "20px",
+            right: "20px",
+            zIndex: 100000,
+            padding: "12px 18px",
+            borderRadius: "10px",
+            background: "#a52a2a",
+            color: "white",
+            border: "1px solid #ff7777",
+            fontWeight: "600",
+            fontSize: "14px",
+            cursor: isReturningToCamera ? "wait" : "pointer",
+            opacity: isReturningToCamera ? 0.7 : 1
+          }}
+        >
+          {isReturningToCamera
+            ? "Restoring Camera..."
+            : "Return to Camera"}
+        </button>
+      )}
     </div>
   );
 };
